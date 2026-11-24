@@ -42,7 +42,7 @@ None of the fest's existing projects is a credit market for agents (Agama lends 
 
 | Requirement | Where Qredit meets it | On-chain evidence |
 |---|---|---|
-| Agent's own scoped EVM window: transaction, value, duration and target limits | Operator account: window with `allowed_targets = [vault]`, value 0, a transaction budget and a block duration; renewable only with the owner's hybrid (ML-DSA-87) signature | Window-open tx; operator's `deliver` / `decline` txs; a refused call to another target |
+| Agent's own scoped EVM window: transaction, value, duration and target limits | Operator account: window with `allowed_targets = [vault]`, no value sent (the window's `max_value` must be > 0 and only covers fees), a transaction budget and a block duration (at most 17,280 blocks, about 6 h on testnet); opened and renewed only by a hybrid (ML-DSA-87) transaction from the operator account itself, whose ML-DSA key the owner holds | Window-open tx; operator's `deliver` / `decline` txs; a refused call to another target |
 | Smart-account spending rules | Spender account: linked agent key with `allowed_evm_calls = [vault/paySupplier]` plus per-denom limits | `MsgRegisterAuthenticator` + `MsgUpdateSpendingRules` tx; `MsgExecuteEVM` payments; a refused out-of-rule call |
 | Authenticated messaging | (1) Owner → vault: ML-DSA-87 policy orders checked by `pqcVerify`. (2) Buyer → agent: sealed request whose hash the buyer commits in `buy`. (3) Agent → buyer: sealed report whose hash only the operator can commit in `deliver` | `applyOrder` txs (accepted and refused); `OrderPlaced` / `Delivered` events matching the envelope hashes |
 | Transaction/value/duration/target limits enforced on chain, not by the AI | Vault caps + authenticator rule + window | Attack gallery, section 9 |
@@ -72,7 +72,7 @@ None of the fest's existing projects is a credit market for agents (Agama lends 
 | Scoped EVM window | Operator's classical key may call only the vault, with no value, for a limited time and number of transactions |
 | `pqcKeyStatus` (0x…0a02) | Vault reads the owner's registered, proven ML-DSA-87 key |
 | `pqcVerify` (0x…0a01) | Vault verifies signed policy orders |
-| QoreSign / QoreX `signArbitrary` | Owner signs policy orders in the wallet |
+| QoreX `signArbitrary` (listed in the `capabilities` of QoreX extension v0.4.3, although docs.qorechain.io still says it is unsupported) / QoreSign | Owner signs policy orders in the wallet; owner CLI with QoreSign as fallback |
 | QoreSeal (ML-KEM-1024 + X25519, recipient cards, on-chain KEM key registry) | Requests sealed to the agent, reports sealed to the buyer |
 | `@qorechain/mcp` | Agents' read-only chain tools |
 | Hybrid-signed native transactions | All owner and setup transactions |
@@ -128,7 +128,7 @@ LLM: an OpenAI-compatible provider through `@ai-sdk/openai-compatible`; the prov
 |---|---|---|---|
 | Owner (`ownerPq`) | Human, in QoreX (classical + ML-DSA-87) | — | Sign policy orders; receives nothing from the vault directly |
 | Spender | Owner holds mnemonic and ML-DSA key offline; runtime holds only the linked **agent key** | Authenticator rule: `allowed_evm_calls = [vault/paySupplier]`, per-denom limits, link expiry ≤ 30 days | `vault.paySupplier` |
-| Operator | Owner holds mnemonic and ML-DSA key offline; runtime holds only the operator's **classical private key** (never the mnemonic) | Scoped EVM window: `allowed_targets = [vault]`, value 0, transaction budget, block duration | `vault.deliver`, `vault.decline` |
+| Operator | Owner holds mnemonic and ML-DSA key offline; runtime holds only the operator's **classical private key** (never the mnemonic) | Scoped EVM window: `allowed_targets = [vault]`, no value sent (`max_value` > 0 covers fees only), transaction budget, at most 17,280 blocks (~6 h) | `vault.deliver`, `vault.decline` |
 | Relayer (shared by all agents) | Qredit | Forwards only `MsgExecuteEVM` to Qredit vaults | Pays fees for spender calls |
 | `ownerPayout` | Owner | — | Receives the owner's revenue share |
 
@@ -257,7 +257,7 @@ Build order: 1, 2, 3, 4. If time runs short, the remaining businesses are listed
 | `/lend` | Lenders | Deposit, refund, claim, positions |
 | `/shop/[id]` | Buyers | Request form, sealed in the browser, then `buy` |
 | `/inbox` | Buyers | Reports checked against the chain and opened in the browser |
-| `/owner` | Owners | Write and sign policy orders with QoreX |
+| `/owner` | Owners | Write policy orders and sign them with QoreX `signArbitrary` (or paste a signature made with the owner CLI) |
 | `/attacks` | Judges | Each attack, what refused it, and the refused transaction |
 | `/proof` | Judges | Every claim with its evidence and the `qredit verify` commands |
 
@@ -296,11 +296,11 @@ Each attack is run for real on testnet and recorded with its transaction hash. `
 | # | Question | Fallback if no |
 |---|---|---|
 | S1 | Does `MsgExecuteEVM` from a linked agent key arrive with `msg.sender` = the spender's 0x address, which key scheme works with permission `evm`, and does `allowed_evm_calls` with a selector refuse other functions? | Spender authorizes payments with an ML-DSA signature checked by the vault (`pqcVerify`) |
-| S2 | Can a buyer register an ML-KEM key (`MsgRegisterKEMKey`) from the web app with QoreX? | Demo buyers created by script, as in Workshop 3; the web app opens reports with a key derived from the buyer's mnemonic |
-| S3 | Can a QoreX `signArbitrary` ML-DSA signature be verified by `pqcVerify` in the vault (prefix, signature format)? | Owner signs orders with the owner CLI using `@qorechain/qoresign` |
-| S4 | How heavy is `buy` through the EVM lane for a QoreX user (window, approve + buy)? | Buyer opens a scoped window from the app before buying |
-| S5 | fUSD decimals and faucet amounts; can test QOR be swapped into fUSD (pool 2) for lenders and buyers? | Smaller loan sizes and prices |
-| S6 | Can the operator send EVM transactions with only its classical private key inside a window opened by a hybrid tx, without the mnemonic? What is the longest window allowed? | Operator runtime holds the mnemonic in a separate process; shorter windows renewed more often |
+| S2 | (a) Can QoreX `signDirect` (capability `signDirectAddsPqcLayer`) sign `MsgRegisterKEMKey` for a QoreX account? (b) Can the in-browser test wallet register a KEM key and sign a recipient card? | (a) QoreX users buy with the test wallet; (b) demo buyers created by script, as in Workshop 3 |
+| S3 | Can a QoreX `signArbitrary` ML-DSA signature be verified by `pqcVerify` in the vault (prefix, signature format), and does a QoreX-registered key report `possessionProven = true`? | Owner signs orders with the owner CLI using `@qorechain/qoresign`, from an owner account registered with a proof of possession |
+| S4 | Can the in-browser test wallet do the whole buyer setup (register ML-DSA key, `MsgConvertCoin`, scoped window over fUSD and vaults, approve + buy) with the SDK in a browser bundle? Can QoreX's EVM provider send a transaction at all? | Buyer setup runs through `apps/be` helpers that only build unsigned messages; the browser still signs |
+| S5 | fUSD from the faucet arrives as the bank coin `erc20:0x97143B771D34ddb9130b807b135Ae675A5a963CA` (6 decimals); does `MsgConvertCoin` turn it into ERC-20 fUSD for the test wallet and the treasury? (No AMM pools exist on testnet.) | Treasury converts and sends ERC-20 fUSD directly |
+| S6 | Can the operator send EVM transactions with only its classical private key inside a window opened by a hybrid tx, without the mnemonic? Docs say the longest window is 17,280 blocks (~6 h at ~1.3 s per block); measure it. | Operator runtime holds the mnemonic in a separate process; shorter windows renewed more often |
 
 ## 12. Video (≤ 3 minutes)
 
@@ -320,3 +320,34 @@ Each attack is run for real on testnet and recorded with its transaction hash. `
 - Category: Post-Quantum AI Agents. AI-native option ticked with `AI_USAGE.md`. Country: Indonesia.
 - Built during the fest; earlier projects by the team are used only as a source of ideas and patterns, not code.
 - README, JUDGE.md, THREAT_MODEL.md, `qredit verify` all match what is deployed.
+
+## 14. Wallets and what the docs changed
+
+### Two ways in
+
+| Path | Who | How |
+|---|---|---|
+| **Try without a wallet** (primary, zero setup) | Any visitor, judges first | `apps/fe` creates a testnet-only wallet in the browser: a BIP-39 phrase and the account's secp256k1, ML-DSA-87 and ML-KEM-1024 keys, encrypted with a local password (WebCrypto) and never sent to a server. "Get test funds" asks `apps/be` to send test QOR and ERC-20 fUSD from the Qredit treasury (rate-limited per address and IP). The app then registers the ML-DSA key, registers the KEM key and recipient card, and opens a scoped EVM window over fUSD and the vaults, all signed in the browser with the SDK. The user can back up and import the phrase. The UI states plainly that this is a throwaway testnet wallet. |
+| **Connect QoreX** | Visitors who use QoreX | `apps/fe` connects through `window.qorex.native` (`enable`, `getKey`), shows the account's post-quantum status, and offers "Fund my test wallet from QoreX" (a native send through `signAndBroadcast`). Owners sign policy orders with `signArbitrary`. EVM-lane actions (`deposit`, `buy`) stay with the test wallet, because QoreX's EVM provider exposes only `request` and the docs say it does not send EVM transactions yet. |
+
+Both paths sit behind one signer interface in `apps/fe`, so a step that QoreX later supports can move to it without touching the rest.
+
+### Facts from docs.qorechain.io that the design now follows
+
+Source: `docs/research/qorechain-docs-digest.md`.
+
+- **fUSD** has 6 decimals. The faucet pays the bank coin `erc20:0x97143B771D34ddb9130b807b135Ae675A5a963CA`; `MsgConvertCoin` (hybrid-signed, about 432,000 gas) turns it into the ERC-20 the vault uses. One claim gives 100 QOR and 1,000 fUSD per account per 24 h. There are no AMM pools on testnet. Loan sizes and prices are set in 6-decimal units.
+- **EVM windows**: `max_value` must be > 0 and counts fees; at most 17,280 blocks (about 6 h at ~1.3 s per block), 1,000 transactions and 16 targets; a window with targets refuses contract creation (deploys use an unscoped window); it is opened only by the account's own hybrid-signed native message, not through authz. During judging the operator windows are renewed about every 6 h by a job in `apps/be`, which therefore holds the operators' ML-DSA keys; the threat model lists this.
+- **Authenticators**: the spending rule must exist before or with the link; a key with the `evm` permission needs a rule that bounds every denom and a possession proof (`linkAuthenticatorMsgs` and `signAuthenticatorLink*` handle both). ERC-20 denoms in rules use the slash form `erc20/0x...`. The docs show only secp256k1 for EVM-lane authenticators; ed25519 is tested in spike S1.
+- **Failed executions**: a refused `MsgExecuteEVM` still returns tx code 0, with `success=false` and an `abstractaccount_execution_failed` event, and still consumes the key's nonce. The relayer and the attack gallery read the execution result (`assertAuthenticatorExecutionsSucceeded`), never the tx code alone.
+- **Relayer**: signs hybrid with its own registered ML-DSA key.
+- **Owner key**: the vault requires `possessionProven`; keys registered without a proof of possession are refused. Spike S3 checks a QoreX-registered owner key.
+- **QoreX**: the docs describe extension 0.3.x and say `signArbitrary` is unsupported; extension 0.4.3 lists `signArbitrary`, `signAndBroadcast` and `signDirectAddsPqcLayer` in `window.qorex.native.capabilities`. The design trusts the live capabilities and keeps the documented fallbacks.
+
+### Verification aids for judges
+
+- Dashboard, Developers page: *Transaction inspector* (signer, fee, whether the ML-DSA layer verifies, tier) and *PQ key status* (key, proof, window) for any address.
+- The explorer marks EVM transactions "Authorised by a PQC window" and links the window-open transaction, so every operator delivery traces back to an ML-DSA signature.
+- `npx -y @qorechain/qore-cli pq status <hash|address>` and the MCP tool `get_pq_status`, quoted in JUDGE.md.
+- QoreScan (`npx @qorechain/qorescan scan --network testnet --solidity ./sc/src`) in CI: a CycloneDX inventory of the vault's PQC precompile use, kept as an artifact.
+- Each sample report is also sealed to a published auditor key, so a judge can open one without buying.
