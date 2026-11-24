@@ -57,7 +57,8 @@ export function createOperator(o: { privateKey: Hex; evm: string; clients?: Oper
       const { request } = await clients.pub.simulateContract({
         address: vault as Hex, abi: VAULT_ABI, functionName, args, account: clients.wallet.account.address,
       } as never);
-      const tx = await clients.wallet.writeContract(request as never);
+      // simulateContract returns the account as a bare address, which makes viem ask the node to sign; use the local account.
+      const tx = await clients.wallet.writeContract({ ...(request as object), account: clients.wallet.account } as never);
       const receipt = await clients.pub.waitForTransactionReceipt({ hash: tx });
       if (receipt.status !== "success") throw new Error(`${functionName} reverted on chain: ${tx}`);
       return { tx, alreadyClosed: false };

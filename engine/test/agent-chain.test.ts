@@ -68,7 +68,7 @@ describe("operator", () => {
   test("deliver simulates, writes and returns the tx", async () => {
     const { op, writes } = make(async () => ({ request: { r: 1 } }));
     expect(await op.deliver(VAULT, 1n, `0x${"11".repeat(32)}`)).toEqual({ tx: "0xabc", alreadyClosed: false });
-    expect(writes).toEqual([{ r: 1 }]);
+    expect(writes).toEqual([{ r: 1, account: { address: SPENDER } }]); // signed by the local account, not the node
   });
   test("OrderNotOpen is an idempotent no-op; other reverts throw with the name", async () => {
     const closed = make(async () => { throw revert("OrderNotOpen"); });
