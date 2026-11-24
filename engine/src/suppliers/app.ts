@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { PublicClient } from "viem";
-import { scanChunked, SUPPLIER_PAID_EVENT } from "@qredit/qore";
+import { relayedPayments, scanChunked, SUPPLIER_PAID_EVENT } from "@qredit/qore";
 import type { SupplierRole } from "../setup/businesses.ts";
 
 export interface PaymentSource {
@@ -50,8 +50,11 @@ export function createSupplierApp(deps: {
   return app;
 }
 
-/** Sum of SupplierPaid amounts the vault sent to this supplier for this order, scanned from the vault's start block. */
-export function chainPayments(client: PublicClient): PaymentSource {
+/**
+ * Sum of what the vault paid this supplier for this order: SupplierPaid logs from the vault's start block (direct EVM calls)
+ * plus payments the relayer forwarded as abstract-account executions, which emit no EVM logs and are read from the tx index.
+ */
+export function chainPayments(client: PublicClient, relayed?: { rest: string; relayer: string; fetch?: typeof fetch }): PaymentSource {
   return {
     async paid(vault, orderId, supplier, startBlock) {
       const head = Number(await client.getBlockNumber());
@@ -62,7 +65,10 @@ export function chainPayments(client: PublicClient): PaymentSource {
           fromBlock, toBlock,
         }),
       );
-      return logs.reduce((sum, l) => sum + (l.args.amount ?? 0n), 0n);
+      const fromLogs = logs.reduce((sum, l) => sum + (l.args.amount ?? 0n), 0n);
+      if (!relayed) return fromLogs;
+      const viaRelay = await relayedPayments({ ...relayed, vault, orderId: BigInt(orderId), supplier });
+      return viaRelay.reduce((sum, p) => sum + p.amount, fromLogs);
     },
   };
 }

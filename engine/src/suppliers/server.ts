@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import { MCPClient } from "@mastra/mcp";
 import { parseAbi, type Hex } from "viem";
 import { publicClientFor, TESTNET } from "@qredit/qore";
+import { createApi } from "../agent/api.ts";
 import { keystore } from "../keystore.ts";
 import { loadEngineConfig } from "../config.ts";
 import { loadAccount, SUPPLIER_ACCOUNTS } from "../setup/accounts.ts";
@@ -29,6 +30,9 @@ const vaults = new Map(Object.values(readDeployments()).map((d) => [d.vault.toLo
 if (vaults.size === 0) console.warn("[suppliers] deployments.json has no vaults: every request will be refused");
 
 const client = publicClientFor(TESTNET.evm);
+const relayer = await createApi({ url: cfg.API_URL, token: cfg.ENGINE_TOKEN ?? "" }).relayer().catch((e: Error) => {
+  throw new Error(`cannot read the relayer address from ${cfg.API_URL}/v1/relayer (is the backend running?): ${e.message}`);
+});
 const sanctions = loadList("sanctions-synthetic");
 
 const mcpBin = join(dirname(createRequire(import.meta.url).resolve("@qorechain/mcp/package.json")), "dist", "bin.js");
@@ -61,7 +65,7 @@ function requireHex(q: Record<string, string>): Hex {
 const bytecodeOf = async (address: Hex) => analyzeBytecode(address, (await client.getCode({ address })) ?? "0x");
 
 const app = createSupplierApp({
-  payments: chainPayments(client),
+  payments: chainPayments(client, { rest: TESTNET.rest, relayer }),
   vaults,
   catalog: entries,
   data: {

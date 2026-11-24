@@ -97,7 +97,7 @@ async function main(): Promise<void> {
   if (runtimes.length === 0) throw new Error("no business vault is serving orders");
 
   const startBlockOf = new Map(Object.values(deployments).map((d) => [d.vault.toLowerCase(), d.startBlock]));
-  const payments = chainPayments(client);
+  const payments = chainPayments(client, { rest: TESTNET.rest, relayer });
   const base = {
     api, vaults: createVaultReader(client), suppliers: createSuppliersClient({ url: cfg.SUPPLIERS_URL }), llm: createOpenRouterLlm(cfg),
     prices, chainId: TESTNET.chainId, log,
