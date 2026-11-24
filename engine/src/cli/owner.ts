@@ -1,12 +1,13 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fetchPqcStatus } from "@qorechain/sdk";
-import { TESTNET } from "@qredit/qore";
+import { FACTORY_ADDRESS, FUSD_ADDRESS, TESTNET } from "@qredit/qore";
 import { loadEngineConfig } from "../config.ts";
 import { keystore } from "../keystore.ts";
-import { accountNames, ensureAccounts, loadAccount } from "../setup/accounts.ts";
-import { loadBusinesses } from "../setup/businesses.ts";
-import { convertFusd, registerKey, sendQor } from "../setup/chain.ts";
+import { accountNames, agentKey, ensureAccounts, loadAccount, SUPPLIER_ACCOUNTS } from "../setup/accounts.ts";
+import { loadBusinesses, vaultInit } from "../setup/businesses.ts";
+import { convertFusd, createVault, linkAgent, openWindow, registerBusiness, registerKey, sendQor } from "../setup/chain.ts";
+import { readDeployments, writeDeployment } from "../setup/deployments.ts";
 
 const cfg = loadEngineConfig();
 const ks = keystore(cfg.KEYS_DIR);
@@ -60,6 +61,47 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
   },
   async "convert"([name, fusd]) {
     console.log("converted:", await convertFusd(await loadAccount(ks, name), units(fusd)));
+  },
+  async "windows"() {
+    const treasury = await loadAccount(ks, "treasury");
+    const vaults = Object.values(readDeployments()).map((d) => d.vault);
+    console.log("treasury window:", await openWindow(treasury, [FACTORY_ADDRESS, FUSD_ADDRESS, ...vaults], { blocks: 3600, maxTxs: 40, maxValue: 60_000_000n }));
+  },
+  async "business"([sub, which]) {
+    if (sub !== "create" || !which) throw new Error("usage: business create <slug>|all");
+    if (!cfg.ENGINE_TOKEN) throw new Error("ENGINE_TOKEN is required in engine/.env");
+    const treasury = await loadAccount(ks, "treasury");
+    const suppliers = Object.fromEntries(
+      await Promise.all(Object.entries(SUPPLIER_ACCOUNTS).map(async ([role, name]) => [role, (await loadAccount(ks, name)).evm.toLowerCase()])),
+    ) as Record<keyof typeof SUPPLIER_ACCOUNTS, `0x${string}`>;
+    for (const b of businesses.filter((x) => which === "all" || x.slug === which)) {
+      const spender = await loadAccount(ks, `${b.slug}-spender`);
+      const operator = await loadAccount(ks, `${b.slug}-operator`);
+      const agent = agentKey(ks, b.slug);
+      let d = readDeployments()[b.slug];
+      if (!d) {
+        const init = vaultInit(b, { spender: spender.evm.toLowerCase() as `0x${string}`, operator: operator.evm.toLowerCase() as `0x${string}`, ownerPq: cfg.OWNER_ADDRESS.toLowerCase() as `0x${string}`, suppliers }, Math.floor(Date.now() / 1000));
+        const v = await createVault(treasury, init);
+        d = { slug: b.slug, vault: v.vault, startBlock: v.startBlock, createTx: v.tx, spender: spender.evm.toLowerCase(), operator: operator.evm.toLowerCase(), agentPubkey: Buffer.from(agent.publicKey).toString("hex"), linkTx: "", windowTx: "" };
+        writeDeployment(d);
+        console.log(`${b.slug}: vault ${d.vault} (block ${d.startBlock})`);
+      }
+      if (!d.linkTx) {
+        d = { ...d, linkTx: await linkAgent(spender, agent, d.vault) };
+        writeDeployment(d);
+        console.log(`${b.slug}: agent key linked ${d.linkTx}`);
+      }
+      if (!d.windowTx) {
+        d = { ...d, windowTx: await openWindow(operator, [d.vault]) };
+        writeDeployment(d);
+        console.log(`${b.slug}: operator window ${d.windowTx}`);
+      }
+      await registerBusiness(cfg.API_URL, cfg.ENGINE_TOKEN, {
+        slug: b.slug, vault: d.vault, name: b.name, tagline: b.tagline, services: b.services,
+        operator: d.operator, spender: d.spender, startBlock: d.startBlock,
+      });
+      console.log(`${b.slug}: registered with the API`);
+    }
   },
   async "be-env"() {
     const spec = (n: string) => JSON.stringify(ks.read(n));
