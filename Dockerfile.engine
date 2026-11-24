@@ -1,4 +1,4 @@
-FROM oven/bun:1.3
+FROM oven/bun:1.3.13
 WORKDIR /app
 
 # Workspace manifests first: a frozen install needs every workspace member present.
