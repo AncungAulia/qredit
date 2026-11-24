@@ -35,7 +35,7 @@ type Opts = {
   opex?: bigint; buyer?: boolean; prepaid?: SupplierRole[]; relayFail?: boolean; closed?: boolean; now?: number;
   llm?: Partial<Llm>; wrongHash?: boolean;
   relayThrow?: boolean; payThrow?: boolean; waitForFail?: boolean; getError?: Error; deliverThrow?: boolean; shared?: Set<SupplierRole>;
-  decisionThrow?: boolean;
+  chain?: Set<SupplierRole>; slowRelay?: boolean;
 };
 
 function setup(o: Opts = {}) {
@@ -47,6 +47,7 @@ function setup(o: Opts = {}) {
     relay: [] as string[], deliver: [] as unknown[][], decline: [] as unknown[][],
     decisions: [] as Record<string, any>[], planCalls: 0, writeCalls: 0,
   };
+  const chain = o.chain ?? new Set<SupplierRole>();
   const paid = o.shared ?? new Set<SupplierRole>(o.prepaid ?? []);
   let stored = "";
   const roleOf = (to: string) => (Object.keys(address) as SupplierRole[]).find((r) => address[r] === to)!;
@@ -63,6 +64,8 @@ function setup(o: Opts = {}) {
       relay: async (r) => {
         const role = roleOf(r.value.to);
         calls.relay.push(role);
+        chain.add(role);
+        if (o.slowRelay) await new Promise((r) => setTimeout(r, 30));
         if (o.relayThrow) throw new Error(`fetch failed for ${ADDR}`);
         if (o.relayFail) return { txHash: "0xdead", success: false, code: "refused", reason: "nope" };
         paid.add(role);
@@ -80,8 +83,9 @@ function setup(o: Opts = {}) {
     },
     suppliers: {
       get: async (role) => { if (o.getError) throw o.getError; return paid.has(role) ? roleData[role] : null; },
-      waitFor: async (role) => { if (o.waitForFail || !paid.has(role)) throw new Error(`timeout for ${ADDR}`); return roleData[role]; },
+      waitFor: async (role) => { if (o.waitForFail || !(paid.has(role) || chain.has(role))) throw new Error(`timeout for ${ADDR}`); return roleData[role]; },
     },
+    paidOnChain: async (_v, _o, supplier) => (chain.has(roleOf(supplier)) ? prices[roleOf(supplier)] : 0n),
     llm, prices, chainId, log: () => {},
     resolveBuyer: async () => (o.buyer === false ? null : recipientOf(buyerKeys)),
     now: () => o.now ?? NOW,
@@ -167,7 +171,35 @@ describe("crash recovery against post-payment funds", () => {
   });
 });
 
+describe("chain-checked payment probe", () => {
+  test("supplier says 402 but the chain shows the payment: no relay, waits for data, delivers", async () => {
+    const t = setup({ chain: new Set<SupplierRole>(["dataIndexer"]) });
+    expect((await handleOrder(t.order, t.biz, t.deps)).status).toBe("delivered");
+    expect(t.calls.relay).toEqual([]);
+    expect(t.calls.decisions[0]).toMatchObject({ cost: 50000n });
+  });
+  test("relay threw in run 1 after submitting; run 2 does not pay again", async () => {
+    const chain = new Set<SupplierRole>();
+    const one = setup({ chain, relayThrow: true });
+    expect((await handleOrder(one.order, one.biz, one.deps)).status).toBe("failed");
+    const two = setup({ chain });
+    expect((await handleOrder(two.order, two.biz, two.deps)).status).toBe("delivered");
+    expect(two.calls.relay).toEqual([]);
+  });
+  test("an expired order records the cost found on chain", async () => {
+    const t = setup({ now: NOW + 3600, chain: new Set<SupplierRole>(["dataIndexer"]) });
+    expect((await handleOrder(t.order, t.biz, t.deps)).reason).toBe("expired");
+    expect(t.calls.decisions[0]).toMatchObject({ decision: "failed", cost: 50000n });
+  });
+});
+
 describe("serialized tool callbacks", () => {
+  test("plan rejects while a pay call is still in flight: one relay, computeBasic used", async () => {
+    const t = setup({ ...DD, slowRelay: true, llm: { async plan(o) { void o.pay("computeBasic"); throw new Error("timeout"); } } });
+    expect((await handleOrder(t.order, t.biz, t.deps)).status).toBe("delivered");
+    expect(t.calls.relay.filter((x) => x === "computeBasic")).toHaveLength(1);
+    expect(t.report().suppliers.map((x: { role: string }) => x.role)).toContain("computeBasic");
+  });
   test("concurrent distinct roles: one relay, the other refused", async () => {
     const msgs: string[] = [];
     const t = setup({ ...DD, opex: 1_000_000n, llm: { async plan(o) { msgs.push(...(await Promise.all([o.pay("computeBasic"), o.pay("computeDeep")]))); return { model: "m" }; } } });

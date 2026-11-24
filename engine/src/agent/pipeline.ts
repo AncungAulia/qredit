@@ -24,6 +24,8 @@ export type PipelineDeps = {
   llm: Llm;
   prices: Prices;
   resolveBuyer(buyer0x: string): Promise<SealRecipient | null>;
+  /** Sum of SupplierPaid amounts on chain for this order and supplier address (catches payments the supplier has not reported yet). */
+  paidOnChain(vault: string, orderId: string, supplier: string): Promise<bigint>;
   chainId: string;
   log(line: string): void;
   /** Unix seconds; defaults to the wall clock. */
@@ -114,13 +116,33 @@ function parseRequest(order: Order, biz: BusinessRuntime, request: RequestBody):
   return { query: parsed.query, subject: parsed.subject };
 }
 
-/** Asks every supplier whether it already serves this order (paid in an earlier run). */
+const onChain = (r: Run, role: SupplierRole) => r.deps.paidOnChain(r.order.vault, r.order.orderId, r.biz.supplierAddress[role]);
+
+/**
+ * A role is paid when its supplier serves data, or when the chain shows a payment of at least the catalog price
+ * (then the supplier is only waited for, never paid again; paySupplier has no per-order uniqueness).
+ */
 async function probePaid(r: Run): Promise<void> {
+  const { order, deps } = r;
   for (const role of allRoles(r)) {
-    const data = await attempt(() => r.deps.suppliers.get(role, r.order.vault, r.order.orderId, r.query));
+    const data = await attempt(() => deps.suppliers.get(role, order.vault, order.orderId, r.query));
     if (data !== null) {
       r.data[role] = data;
       r.paid.set(role, priceOf(r, role));
+    } else if ((await attempt(() => onChain(r, role))) >= priceOf(r, role)) {
+      r.paid.set(role, priceOf(r, role));
+      r.data[role] = await attempt(() => deps.suppliers.waitFor(role, order.vault, order.orderId, r.query));
+    }
+  }
+}
+
+/** Cost already on chain, for decisions posted before the request is opened. Best effort. */
+async function probeChainCost(r: Run): Promise<void> {
+  for (const role of allRoles(r)) {
+    try {
+      if ((await onChain(r, role)) >= priceOf(r, role)) r.paid.set(role, priceOf(r, role));
+    } catch (e) {
+      r.deps.log(`chain probe failed: ${detail(e)}`);
     }
   }
 }
@@ -179,12 +201,12 @@ function planTools(r: Run, plan: OkPlan) {
       state.declined = code;
       return "order declined";
     });
-  return { pay, decline, state, bought };
+  return { pay, decline, state, bought, settle: () => chain };
 }
 
 /** Lets the model pick the compute tier; falls back to the cheapest affordable choice when it does not. */
 async function chooseCompute(r: Run, plan: OkPlan, request: string): Promise<void> {
-  const { pay, decline, state, bought } = planTools(r, plan);
+  const { pay, decline, state, bought, settle } = planTools(r, plan);
   const prices = Object.fromEntries(plan.affordableChoice.map((x) => [x, priceOf(r, x).toString()]));
   try {
     await r.deps.llm.plan({
@@ -194,9 +216,11 @@ async function chooseCompute(r: Run, plan: OkPlan, request: string): Promise<voi
   } catch (e) {
     r.deps.log(`llm.plan failed: ${detail(e)}`);
   }
+  await settle(); // a tool call may still be running if plan() gave up early
   if (state.failure) throw state.failure;
   if (state.declined !== null && !bought()) throw new Decline(state.declined);
-  if (!bought()) await buy(r, plan.affordableChoice[0]!);
+  if (!bought()) await pay(plan.affordableChoice[0]!); // same mutex, memo and one-role rule as the model's calls
+  if (state.failure) throw state.failure;
 }
 
 /** Money is already committed: finish the order without re-checking margin or funds against the post-payment balance. */
@@ -296,9 +320,16 @@ async function serve(r: Run): Promise<Outcome> {
   return deliverReport(r, buyer, subject);
 }
 
+/**
+ * Serves one order. Callers must not retry a `failed` order sooner than the backend's stale-claim window (15 min),
+ * so a submitted-but-unconfirmed payment has time to land; the runner relies on the backend claim queue for that.
+ */
 export async function handleOrder(order: Order, biz: BusinessRuntime, deps: PipelineDeps): Promise<Outcome> {
   const r: Run = { order, biz, deps, paid: new Map(), data: {}, query: {} };
-  if ((deps.now ?? defaultNow)() >= order.deadline - EXPIRY_MARGIN_S) return failOrder(r, "order expired", REASON.expired);
+  if ((deps.now ?? defaultNow)() >= order.deadline - EXPIRY_MARGIN_S) {
+    await probeChainCost(r);
+    return failOrder(r, "order expired", REASON.expired);
+  }
   try {
     return await serve(r);
   } catch (e) {
