@@ -16,3 +16,12 @@ cache/
 broadcast/
 *.sqlite
 *.sqlite-journal
+
+# Spike keys and outputs
+engine/spikes/.keys/
+engine/spikes/out/
+
+# Foundry
+sc/out/
+sc/cache/
+sc/.deployer.key

@@ -1,0 +1,28 @@
+{
+  "name": "@qredit/spikes",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "accounts": "bun src/accounts.ts",
+    "window": "bun src/window.ts",
+    "s1": "bun src/s1-authenticator.ts",
+    "s3": "bun src/s3-message-sig.ts",
+    "s4": "bun src/s4-buyer.ts",
+    "s5": "bun src/s5-fusd.ts",
+    "s6": "bun src/s6-operator.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@cosmjs/proto-signing": "0.39",
+    "@cosmjs/stargate": "0.39",
+    "@noble/curves": "1.9",
+    "@qorechain/evm": "0.14.0",
+    "@qorechain/qoresign": "0.2.0",
+    "@qorechain/sdk": "0.14.0",
+    "viem": "2"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.5",
+    "typescript": "5"
+  }
+}
