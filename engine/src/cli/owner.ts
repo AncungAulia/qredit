@@ -10,6 +10,7 @@ import { convertFusd, createVault, ensureWindow, findExistingVault, lend, linkAg
 import { ensureSealSeed, publishCard, registerSealKey } from "../setup/seal.ts";
 import { readDeployments, writeDeployment } from "../setup/deployments.ts";
 import { upsertEnv } from "../setup/env.ts";
+import { initDemoBuyer, placeDemoOrder, readDemoReport } from "../setup/demo-buyer.ts";
 
 const ks = keystore(keysDir());
 const businesses = loadBusinesses();
@@ -147,6 +148,21 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
       console.log(`${b.slug}: ${spender.cosmos} seal key ${tx ?? "already registered"}, card uploaded`);
     }
   },
+  async "demo-buyer"([sub]) {
+    if (sub !== "init") throw new Error("usage: demo-buyer init");
+    await initDemoBuyer(ks, loadEngineConfig().API_URL, (l) => console.log(l));
+  },
+  async "demo-order"([slug, input]) {
+    const d = slug ? readDeployments()[slug] : undefined;
+    if (!d || !input) throw new Error('usage: demo-order <slug> "<input>"');
+    const r = await placeDemoOrder(ks, loadEngineConfig().API_URL, { vault: d.vault, spender: d.spender, input }, (l) => console.log(l));
+    console.log(`order id ${r.orderId}`);
+  },
+  async "demo-report"([slug, orderId]) {
+    const d = slug ? readDeployments()[slug] : undefined;
+    if (!d || !orderId) throw new Error("usage: demo-report <slug> <orderId>");
+    console.log(JSON.stringify(await readDemoReport(ks, loadEngineConfig().API_URL, { vault: d.vault, orderId }), null, 2));
+  },
   async "be-env"() {
     const spec = (n: string) => JSON.stringify(ks.read(n));
     const operators = businesses.map((b) => ks.read(`${b.slug}-operator`));
@@ -162,7 +178,7 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
 const [cmd, ...args] = process.argv.slice(2);
 const run = commands[cmd ?? ""];
 if (!run) {
-  console.log("usage: owner accounts init|show|register | fund <from> <qor> <fusd> <name...> | convert <name> <fusd> | be-env | business create <slug>|all | lend <slug> <fusd> | windows | seal-keys <slug>|all");
+  console.log("usage: owner accounts init|show|register | fund <from> <qor> <fusd> <name...> | convert <name> <fusd> | be-env | business create <slug>|all | lend <slug> <fusd> | windows | seal-keys <slug>|all | demo-buyer init | demo-order <slug> <input> | demo-report <slug> <orderId>");
   process.exit(1);
 }
 run(args).catch((e) => {
