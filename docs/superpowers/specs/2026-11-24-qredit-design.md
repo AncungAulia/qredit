@@ -96,7 +96,7 @@ None of the fest's existing projects is a credit market for agents (Agama lends 
 - ML-DSA-signed daily sales reports from each agent to its lenders.
 - Loan documents sealed to lenders only (QoreSeal epoch keys).
 
-**Out of scope:** foreclosure/auction by anyone, lender voting, variable interest, agent memory, mainnet, owner approval per payment, Postgres.
+**Out of scope:** foreclosure/auction by anyone, lender voting, variable interest, agent memory, mainnet, owner approval per payment, a self-hosted database.
 
 ## 5. Architecture
 
