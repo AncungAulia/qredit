@@ -9,13 +9,19 @@ export async function runMigrations(db: Db, dir: string): Promise<string[]> {
     "create schema if not exists qredit; create table if not exists qredit.schema_migrations (name text primary key, applied_at timestamptz not null default now());",
   );
   const files = readdirSync(dir).filter((f) => /^[0-9]{3}_[a-z0-9_]+\.sql$/.test(f)).sort();
-  const applied = new Set((await db.query<{ name: string }>("select name from qredit.schema_migrations")).map((r) => r.name));
   const ran: string[] = [];
   for (const file of files) {
-    if (applied.has(file)) continue;
     const body = readFileSync(join(dir, file), "utf8");
-    await db.exec(`begin;\n${body}\ninsert into qredit.schema_migrations (name) values ('${file}');\ncommit;`);
-    ran.push(file);
+    // One transaction per file. The advisory lock serialises concurrent boots; the applied
+    // list is re-read under the lock so only the first instance runs the file.
+    await db.transaction(async (tx) => {
+      await tx.query("select pg_advisory_xact_lock(hashtext('qredit.migrate'))");
+      const done = await tx.query("select 1 from qredit.schema_migrations where name = $1", [file]);
+      if (done.length > 0) return;
+      await tx.exec(body);
+      await tx.query("insert into qredit.schema_migrations (name) values ($1)", [file]);
+      ran.push(file);
+    });
   }
   return ran;
 }

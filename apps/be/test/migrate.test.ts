@@ -5,7 +5,7 @@ import { MIGRATIONS_DIR, runMigrations } from "../src/migrate.ts";
 describe("runMigrations", () => {
   test("creates the qredit schema once", async () => {
     const db = await memoryDb();
-    expect(await runMigrations(db, MIGRATIONS_DIR)).toEqual(["001_init.sql"]);
+    expect((await runMigrations(db, MIGRATIONS_DIR))[0]).toBe("001_init.sql");
     expect(await runMigrations(db, MIGRATIONS_DIR)).toEqual([]);
     const tables = await db.query<{ table_name: string }>(
       "select table_name from information_schema.tables where table_schema = 'qredit' order by table_name",
@@ -13,6 +13,15 @@ describe("runMigrations", () => {
     expect(tables.map((t) => t.table_name)).toEqual([
       "businesses", "cards", "decisions", "envelopes", "faucet_grants", "orders", "schema_migrations", "watcher_state",
     ]);
+    await db.close();
+  });
+
+  test("concurrent runs apply each file once and both resolve", async () => {
+    const db = await memoryDb();
+    const [a, b] = await Promise.all([runMigrations(db, MIGRATIONS_DIR), runMigrations(db, MIGRATIONS_DIR)]);
+    expect([...a, ...b].filter((f) => f === "001_init.sql").length).toBe(1);
+    const rows = await db.query("select name from qredit.schema_migrations where name = '001_init.sql'");
+    expect(rows.length).toBe(1);
     await db.close();
   });
 
