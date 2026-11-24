@@ -1072,7 +1072,7 @@ describe("faucet reservation", () => {
     const b = await db.transaction((q) => reserveGrant(q, "qor1a", "ip2", 24, NOW));
     const c = await db.transaction((q) => reserveGrant(q, "qor1b", "ip1", 24, NOW));
     expect(b.ok || c.ok).toBe(false);
-    if (!b.ok) expect(b.retryAt.getTime()).toBeGreaterThan(Date.now());
+    if (!b.ok) expect(b.retryAt.getTime()).toBeGreaterThan(NOW.getTime());
   });
 
   test("concurrent reservations for the same address grant exactly one", async () => {
@@ -1171,8 +1171,8 @@ export async function reserveGrant(
     if (retryAt > now) return { ok: false, retryAt };
   }
   const [r] = await q.query<{ id: string | number }>(
-    "insert into qredit.faucet_grants (address, ip_hash, tx) values ($1, $2, 'pending') returning id",
-    [address, ipHash],
+    "insert into qredit.faucet_grants (address, ip_hash, tx, created_at) values ($1, $2, 'pending', $3) returning id",
+    [address, ipHash, now],
   );
   return { ok: true, id: Number(r.id) };
 }
