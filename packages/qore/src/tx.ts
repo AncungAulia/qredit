@@ -1,8 +1,8 @@
 import { StargateClient } from "@cosmjs/stargate";
-import type { EncodeObject } from "@cosmjs/proto-signing";
+import type { EncodeObject, Registry } from "@cosmjs/proto-signing";
 import { EthNativeSigner, type UnifiedAccount } from "@qorechain/sdk";
+import type { Net } from "./net.ts";
 
-export type Net = { chainId: string; rest: string; rpc: string };
 export type RestEvent = { type: string; attributes: { key: string; value: string }[] };
 export type Sent = { hash: string; code: number; rawLog?: string };
 
@@ -55,12 +55,12 @@ export async function broadcastHybrid(
   net: Net,
   acc: UnifiedAccount,
   messages: EncodeObject[],
-  opts: { memo?: string; gas?: string; feeUqor?: string } = {},
+  opts: { memo?: string; gas?: string; feeUqor?: string; registry?: Registry } = {},
 ): Promise<Sent> {
   let accountNumber: bigint, sequence: bigint, signer: EthNativeSigner, transport: StargateClient;
   try {
     ({ accountNumber, sequence } = await accountNumbers(net.rest, acc.cosmos));
-    signer = new EthNativeSigner(acc, { signMode: "hybrid", rest: net.rest });
+    signer = new EthNativeSigner(acc, { signMode: "hybrid", rest: net.rest, registry: opts.registry });
     transport = await connectRpc(net.rpc);
   } catch (e) {
     throw new BroadcastRefused(e instanceof Error ? e.message : String(e), { cause: e });

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import { type Db } from "../../src/db/client.ts";
 import { useTestDb } from "../helpers/db.ts";
-import { BroadcastRefused, BroadcastUnconfirmed, TxFailedOnChain } from "../../src/chain/tx.ts";
+import { BroadcastRefused, BroadcastUnconfirmed, TxFailedOnChain } from "@qredit/qore";
 import { createFaucet, FaucetCapReached, FaucetCooldown, ipHasher, treasurySender } from "../../src/services/faucet.ts";
 
 const testDb = useTestDb();

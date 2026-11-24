@@ -1,5 +1,5 @@
 import type { PublicClient } from "viem";
-import { VAULT_EVENTS } from "../chain/vault.ts";
+import { VAULT_EVENTS } from "@qredit/qore";
 import type { Db } from "../db/client.ts";
 import { applyVaultEvent, getWatchState, setWatchState, type VaultEvent } from "../db/store/index.ts";
 

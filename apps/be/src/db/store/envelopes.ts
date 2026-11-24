@@ -1,5 +1,5 @@
 import type { Queryable } from "../client.ts";
-import { envelopeHash } from "../../lib/hash.ts";
+import { envelopeHash } from "@qredit/qore";
 import { lc } from "./lc.ts";
 
 export type EnvelopeKind = "request" | "report" | "sample";

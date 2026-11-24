@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { FUSD_DENOM, loadConfig } from "../src/config.ts";
+import { FUSD_DENOM } from "@qredit/qore";
+import { loadConfig } from "../src/config.ts";
 
 const base = {
   DATABASE_URL: "postgresql://u:p@host:5432/postgres",

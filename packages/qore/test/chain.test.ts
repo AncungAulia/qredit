@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { parseKeyList, parseKeySpec } from "../../src/chain/keys.ts";
-import { executionFailure, serial, txEvents } from "../../src/chain/tx.ts";
-import { PAY_SUPPLIER_SELECTOR, VAULT_EVENTS } from "../../src/chain/vault.ts";
+import { parseKeyList, parseKeySpec } from "../src/keys.ts";
+import { executionFailure, serial, txEvents } from "../src/tx.ts";
+import { PAY_SUPPLIER_SELECTOR, VAULT_EVENTS } from "../src/abi.ts";
 
 describe("key specs", () => {
   test("mnemonic and seed forms", () => {

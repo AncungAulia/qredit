@@ -1,7 +1,7 @@
 import { isQoreSealError, verifyRecipientCard, type RecipientCard } from "@qorechain/qoreseal";
 import { fetchMlkemPublicKey } from "@qorechain/qoreseal/network";
 import { fetchPqcStatus } from "@qorechain/sdk";
-import type { Net } from "../chain/tx.ts";
+import type { Net } from "@qredit/qore";
 import { memoizeAsync } from "../lib/ttl-cache.ts";
 
 export type CardVerdict = { ok: true } | { ok: false; reason: "mismatch" | "unavailable" };

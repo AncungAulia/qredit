@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import { type Db } from "../../src/db/client.ts";
 import { useTestDb } from "../helpers/db.ts";
-import { envelopeHash } from "../../src/lib/hash.ts";
+import { envelopeHash } from "@qredit/qore";
 import * as store from "../../src/db/store/index.ts";
 
 const V = "0x00000000000000000000000000000000000000aa";

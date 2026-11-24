@@ -1,6 +1,6 @@
 import { openEvmWindowMsg, type UnifiedAccount } from "@qorechain/sdk";
 import { evmWindowStatus } from "@qorechain/evm";
-import { broadcastHybrid, type Net, serial, txEvents } from "../chain/tx.ts";
+import { broadcastHybrid, type Net, serial, txEvents } from "@qredit/qore";
 
 export type WindowOptions = { blocks: number; maxTxs: number; maxValue: bigint };
 export interface WindowChain {

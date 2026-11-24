@@ -1,0 +1,9 @@
+{
+  "name": "qredit",
+  "private": true,
+  "workspaces": ["apps/be", "packages/*"],
+  "scripts": {
+    "test": "bun --filter '*' test",
+    "typecheck": "bun --filter '*' typecheck"
+  }
+}

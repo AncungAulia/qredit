@@ -1,7 +1,6 @@
 import { createHash } from "node:crypto";
 import type { UnifiedAccount } from "@qorechain/sdk";
-import { broadcastHybrid, BroadcastRefused, BroadcastUnconfirmed, type Net, serial, TxFailedOnChain, txEvents } from "../chain/tx.ts";
-import { FUSD_DENOM } from "../config.ts";
+import { broadcastHybrid, BroadcastRefused, BroadcastUnconfirmed, FUSD_DENOM, type Net, serial, TxFailedOnChain, txEvents } from "@qredit/qore";
 import type { Db } from "../db/client.ts";
 import { cancelGrant, completeGrant, reserveGrant } from "../db/store/index.ts";
 
