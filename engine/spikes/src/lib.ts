@@ -2,7 +2,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { StargateClient } from "@cosmjs/stargate";
-import type { EncodeObject } from "@cosmjs/proto-signing";
+import type { EncodeObject, Registry } from "@cosmjs/proto-signing";
 import {
   EthNativeSigner,
   deriveUnifiedAccount,
@@ -71,11 +71,12 @@ export async function broadcast(
   messages: EncodeObject[],
   mode: "hybrid" | "classical" = "hybrid",
   memo = "",
+  registry?: Registry,
 ): Promise<{ hash: string; code: number; rawLog?: string }> {
   const a = await getJson<{ account: Record<string, unknown> }>(`/cosmos/auth/v1beta1/accounts/${acc.cosmos}`);
   if (!a) throw new Error(`${acc.cosmos} does not exist on chain yet: fund it from the faucet first`);
   const base = (a.account.base_account ?? a.account) as Record<string, string>;
-  const signer = new EthNativeSigner(acc, { signMode: mode, rest: NET.rest });
+  const signer = new EthNativeSigner(acc, { signMode: mode, rest: NET.rest, registry });
   const transport = await StargateClient.connect(NET.rpc);
   try {
     const res = await signer.signAndBroadcast(transport, {

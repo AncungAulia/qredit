@@ -3,6 +3,8 @@
 //   bun src/s5-fusd.ts convert <name> <fusd>       MsgConvertCoin, bank coin -> ERC-20
 //   bun src/s5-fusd.ts send <from> <to> <fusd>     ERC-20 transfer (sender needs an open window)
 import { formatUnits, parseAbi, parseUnits } from "viem";
+import { qorechainRegistry } from "@qorechain/sdk";
+import { MSG_CONVERT_COIN, MsgConvertCoinType } from "./erc20.ts";
 import { NET, broadcast, loadAccount, pass, publicClient, txEvents, uqorBalance, walletFor } from "./lib.ts";
 
 const FUSD = "0x97143B771D34ddb9130b807b135Ae675A5a963CA" as const;
@@ -37,10 +39,10 @@ if (cmd === "info") {
   const [name, fusd] = args;
   const acc = await loadAccount(name);
   const amount = parseUnits(fusd, decimals).toString();
-  const m = { typeUrl: "/cosmos.evm.erc20.v1.MsgConvertCoin", value: { coin: { denom: DENOM, amount }, receiver: acc.evm, sender: acc.cosmos } };
+  const m = { typeUrl: MSG_CONVERT_COIN, value: { coin: { denom: DENOM, amount }, receiver: acc.evm, sender: acc.cosmos } };
   const before = await erc20Fusd(acc.evm);
   const q0 = await uqorBalance(acc.cosmos);
-  const res = await broadcast(acc, [m], "hybrid", "S5 convert fUSD");
+  const res = await broadcast(acc, [m], "hybrid", "S5 convert fUSD", qorechainRegistry([[MSG_CONVERT_COIN, MsgConvertCoinType]]));
   pass("MsgConvertCoin bank fUSD -> ERC-20", res.code === 0, res.code === 0 ? res.hash : res.rawLog);
   if (res.code === 0) {
     await txEvents(res.hash);
