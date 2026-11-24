@@ -82,6 +82,6 @@ const app = createSupplierApp({
   },
 });
 
-const port = Number(process.env.SUPPLIERS_PORT ?? 8788);
+const port = Number(process.env.SUPPLIERS_PORT ?? process.env.PORT ?? 8788);
 Bun.serve({ port, fetch: app.fetch });
 console.log(`[suppliers] listening on :${port}`);

@@ -1,6 +1,7 @@
 import { hexToQor, publicClientFor, TESTNET, VAULT_ABI, VAULT_STATE } from "@qredit/qore";
 import { loadEngineConfig, requireAgentConfig, type AgentConfig } from "../config.ts";
 import type { Keystore } from "../keystore.ts";
+import { healthPort, startHealthServer } from "../health.ts";
 import { loadSupplierAddresses, runtimeKeystore } from "../runtime-keys.ts";
 import { SERVICES } from "../services/index.ts";
 import { agentKey } from "../setup/accounts.ts";
@@ -29,12 +30,15 @@ export async function runLoop(o: {
   claim: (vaults: string[]) => Promise<Order | null>;
   handle?: (order: Order, biz: BusinessRuntime, deps: PipelineDeps) => Promise<Outcome>;
   sleep?: (ms: number) => Promise<void>;
+  /** Called at the start of every loop iteration (liveness). */
+  onTick?: () => void;
 }): Promise<void> {
   const handle = o.handle ?? handleOrder;
   const sleep = o.sleep ?? defaultSleep;
   const byVault = new Map(o.businesses.map((b) => [b.vault.toLowerCase(), b]));
   const vaults = o.businesses.map((b) => b.vault);
   while (!o.signal.aborted) {
+    o.onTick?.();
     let order: Order | null = null;
     try {
       order = await o.claim(vaults);
@@ -120,10 +124,14 @@ async function main(): Promise<void> {
   const log = defaultLog;
   const { runtimes, deps, api } = await buildRuntime(cfg, runtimeKeystore(process.env, cfg.KEYS_DIR), log);
 
+  let lastLoopAt: Date | null = null;
+  const port = healthPort();
+  if (port !== undefined) log(`health on :${startHealthServer({ port, lastLoopAt: () => lastLoopAt }).port}`);
+
   const ctl = new AbortController();
   for (const sig of ["SIGINT", "SIGTERM"] as const) process.on(sig, () => { log(`${sig}: stopping after the current step`); ctl.abort(); });
   log(`running for ${runtimes.length} business(es)`);
-  await runLoop({ businesses: runtimes, deps, pollMs: cfg.AGENT_POLL_MS, signal: ctl.signal, claim: (v) => api.claim(v) });
+  await runLoop({ businesses: runtimes, deps, pollMs: cfg.AGENT_POLL_MS, signal: ctl.signal, claim: (v) => api.claim(v), onTick: () => { lastLoopAt = new Date(); } });
   log("stopped");
 }
 

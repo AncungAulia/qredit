@@ -24,6 +24,14 @@ function app(paid: bigint | Error) {
 }
 
 describe("suppliers", () => {
+  test("GET /health answers ok without a payment check", async () => {
+    const { a, calls } = app(new Error("must not be called"));
+    const res = await a.request("/health");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+    expect(calls).toEqual([]);
+  });
+
   test("402 with the price until paid", async () => {
     const { a } = app(10_000n);
     const res = await a.request(`/v1/dataIndexer?vault=${V}&orderId=7&address=qor1x`);

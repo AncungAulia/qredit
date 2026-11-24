@@ -22,6 +22,7 @@ export function createSupplierApp(deps: {
   data: Record<SupplierRole, (query: Record<string, string>) => Promise<unknown>>;
 }): Hono {
   const app = new Hono();
+  app.get("/health", (c) => c.json({ ok: true }));
   app.get("/v1/:role", async (c) => {
     const role = c.req.param("role");
     if (!Object.hasOwn(deps.catalog, role)) return c.json({ error: "unknown supplier" }, 404);

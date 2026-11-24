@@ -6,6 +6,8 @@
     "owner": "bun --env-file=.env src/cli/owner.ts",
     "suppliers": "bun --env-file=.env src/suppliers/server.ts",
     "agent": "bun --env-file=.env src/agent/run.ts",
+    "start:agent": "bun src/agent/run.ts",
+    "start:suppliers": "bun src/suppliers/server.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
   },
