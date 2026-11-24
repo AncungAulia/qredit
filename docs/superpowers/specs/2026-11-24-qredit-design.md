@@ -106,16 +106,21 @@ None of the fest's existing projects is a credit market for agents (Agama lends 
 |---|---|---|---|
 | 1 | `LoanVault.sol` | Solidity, Foundry | One per agent: holds capital, escrows orders, pays suppliers, splits revenue, verifies policy orders |
 | 2 | `VaultFactory.sol` | Solidity | Deploys vaults and lists them for the market |
-| 3 | Agent runtime | TypeScript, Mastra, Node | One generic agent; per-agent config in `RequestContext`; one skill per service; decision policy |
+| 3 | Agent runtime (`engine/`) | TypeScript, Mastra, Node | One generic agent; per-agent config in `RequestContext`; one skill per service; decision policy. Holds only the agent and operator keys; takes orders from the database and asks `apps/be` to relay |
 | 4 | Service skills ×4 | TypeScript + `SKILL.md` | `(order) → report`; each grants a fixed tool list |
-| 5 | Relayer | TypeScript | Wraps the spender key's signature in `MsgExecuteEVM`, pays fees; forwards only calls to Qredit vaults |
-| 6 | Mailbox API | TypeScript | Stores sealed envelopes, recipient cards and the public decision log; cannot read envelopes |
-| 7 | Simulated suppliers | TypeScript HTTP + testnet accounts | Data Indexer, List Oracle, Compute Basic, Compute Deep; each returns data only after it sees its payment on chain |
-| 8 | Owner CLI | TypeScript | Creates accounts and vaults, links the agent key, sets rules, opens and renews operator windows, signs orders without a wallet |
+| 5 | Relayer (`apps/be`) | TypeScript | Wraps the spender key's signature in `MsgExecuteEVM`, pays fees; forwards only calls to Qredit vaults |
+| 6 | Mailbox API (`apps/be`) | TypeScript, Supabase | HTTP API for the web app and the agent: stores sealed envelopes (Supabase Storage), recipient cards and the public decision log (Postgres); cannot read envelopes |
+| 6b | Watcher (`apps/be`) | TypeScript, viem | Reads `OrderPlaced` and the other vault events from chain into the `orders` table |
+| 7 | Simulated suppliers (`engine/`) | TypeScript HTTP + testnet accounts | Data Indexer, List Oracle, Compute Basic, Compute Deep; each returns data only after it sees its payment on chain |
+| 8 | Owner CLI (`engine/`) | TypeScript | Creates accounts and vaults, links the agent key, sets rules, opens and renews operator windows, signs orders without a wallet |
 | 9 | Web app | Next.js 16, React 19, QoreX connector, wagmi/viem | Market, agent pages, lend, shop, inbox, owner console, attacks, proof |
 | 10 | `qredit verify` CLI | TypeScript | Checks every public claim with no keys |
 
-Package manager: Bun. Agent storage: on-chain state plus a small SQLite queue. LLM: an OpenAI-compatible provider through `@ai-sdk/openai-compatible`; the provider is chosen during implementation and named in the README.
+Package manager: Bun. Source of truth: on-chain state. Off-chain storage: Supabase (Postgres for the order queue, recipient cards and the decision log; Storage for sealed envelopes), written only by `apps/be` and `engine` with the service-role key, which never reaches the web app. Only ciphertext and data already public on chain are stored; no key ever is.
+
+**Process split.** `apps/be` (mailbox, relayer, watcher) holds the relayer key and no AI. `engine` (the agents) receives outside input, so it holds only the agent and operator keys and cannot touch the relayer key; the relayer forwards only calls to Qredit vaults. Hosting: the web app on Vercel; `apps/be` and `engine` as two always-on services (chosen in the engine plan).
+
+LLM: an OpenAI-compatible provider through `@ai-sdk/openai-compatible`; the provider is chosen during implementation and named in the README.
 
 ### Accounts per agent business
 
@@ -199,7 +204,7 @@ Kinds: `REMOVE_SUPPLIER`, `LOWER_SUPPLIER_CAP`, `LOWER_DAILY_CAP`, `PAUSE`, `UNP
 
 1. The buyer writes a request in the web app and seals it to the agent's ML-KEM key (QoreSeal `sealToAddresses`); the envelope goes to the Mailbox API.
 2. The buyer calls `vault.buy(serviceId, hash(envelope))`; the payment sits in escrow.
-3. The watcher sees `OrderPlaced` and queues the order in SQLite.
+3. The watcher in `apps/be` sees `OrderPlaced` and inserts the order into the `orders` table; the agent claims it from there.
 4. The agent fetches the envelope, checks its hash against `requestRef`, and opens it.
 5. **The agent decides** (below): decline, or plan which suppliers to buy from.
 6. The agent calls `pay_supplier` → spender's agent key signs → relayer → `MsgExecuteEVM` → `vault.paySupplier`.
@@ -276,7 +281,7 @@ Build order: 1, 2, 3, 4. If time runs short, the remaining businesses are listed
 | Swapped report envelope | Hash does not match the `Delivered` event |
 | Owner claims revenue while behind schedule | `TrappedNoOwnerClaim` |
 
-Each attack is run for real on testnet and recorded with its transaction hash. `THREAT_MODEL.md` lists what is checked on chain and what is still trusted: the relayer chooses timing and can censor but cannot forge; the mailbox stores ciphertext and can withhold it; the agent operator runs the runtime; the owner CLI renews windows during judging; supplier data and flag lists are synthetic.
+Each attack is run for real on testnet and recorded with its transaction hash. `THREAT_MODEL.md` lists what is checked on chain and what is still trusted: the relayer chooses timing and can censor but cannot forge; the mailbox and its Supabase database store ciphertext and can withhold it; the agent operator runs the runtime; the owner CLI renews windows during judging; supplier data and flag lists are synthetic.
 
 ## 10. Testing
 
