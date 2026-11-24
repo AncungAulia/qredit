@@ -8,7 +8,7 @@ import { createFaucet, ipHasher, treasurySender } from "./faucet.ts";
 import { createApp } from "./http.ts";
 import { MIGRATIONS_DIR, runMigrations } from "./migrate.ts";
 import { createRelayer } from "./relayer.ts";
-import { listBusinesses } from "./store.ts";
+import { listBusinesses } from "./db/store/index.ts";
 import { syncVault, viemLogSource } from "./watcher.ts";
 import { assertWindowOptions, keepWindows, sdkWindowChain, serialPerAccount } from "./windows.ts";
 

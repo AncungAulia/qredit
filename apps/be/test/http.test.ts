@@ -4,7 +4,7 @@ import { FaucetCapReached, FaucetCooldown } from "../src/faucet.ts";
 import { createApp } from "../src/http.ts";
 import { MIGRATIONS_DIR, runMigrations } from "../src/migrate.ts";
 import { RelayRejected } from "../src/relayer.ts";
-import { applyVaultEvent } from "../src/store.ts";
+import { applyVaultEvent } from "../src/db/store/index.ts";
 
 const TOKEN = "t".repeat(32);
 const V = "0x00000000000000000000000000000000000000aa";

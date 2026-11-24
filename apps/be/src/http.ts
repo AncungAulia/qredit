@@ -10,7 +10,7 @@ import type { Db } from "./db.ts";
 import { FaucetCapReached, FaucetCooldown } from "./faucet.ts";
 import { createRateLimiter } from "./ratelimit.ts";
 import { type RelayRequest, RelayRejected, type RelayResult } from "./relayer.ts";
-import * as store from "./store.ts";
+import * as store from "./db/store/index.ts";
 
 export type AppDeps = {
   db: Db;
