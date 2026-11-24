@@ -123,4 +123,31 @@ contract LoanVaultOrdersTest is Base {
         (uint256 e, uint256 l, uint256 o, uint256 x, uint256 h) = vault.books();
         assertEq(e + l + o + x + h, fusd.balanceOf(address(vault)));
     }
+
+    function test_deliverAtDeadlineOkAndReclaimRefused() public {
+        uint256 id = _buy(1);
+        (,, uint64 deadline,,,) = vault.orders(id);
+        uint256 t = deadline;
+        vm.warp(t);
+        vm.prank(buyer);
+        vm.expectRevert(LoanVault.OrderNotExpired.selector);
+        vault.reclaim(id);
+        _deliver(id);
+        (,,, LoanVault.OrderStatus st,,) = vault.orders(id);
+        assertEq(uint8(st), uint8(LoanVault.OrderStatus.Delivered));
+    }
+
+    function test_reclaimAfterDeadlinePlusOneAndDeliverRefused() public {
+        uint256 id = _buy(1);
+        (,, uint64 deadline,,,) = vault.orders(id);
+        uint256 t = uint256(deadline) + 1;
+        vm.warp(t);
+        vm.prank(operator);
+        vm.expectRevert(LoanVault.OrderExpired.selector);
+        vault.deliver(id, bytes32(0));
+        vm.prank(buyer);
+        vault.reclaim(id);
+        (,,, LoanVault.OrderStatus st,,) = vault.orders(id);
+        assertEq(uint8(st), uint8(LoanVault.OrderStatus.Reclaimed));
+    }
 }

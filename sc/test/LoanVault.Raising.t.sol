@@ -117,4 +117,34 @@ contract LoanVaultRaisingTest is Base {
         vm.expectRevert(LoanVault.BadConfig.selector);
         new LoanVault(i);
     }
+
+    function test_depositAtRaiseDeadlineWorksAndOneAfterReverts() public {
+        uint256 t = raiseDeadline;
+        vm.warp(t);
+        vm.prank(lenderA);
+        vault.deposit(10e18);
+        t += 1;
+        vm.warp(t);
+        vm.prank(lenderA);
+        vm.expectRevert(LoanVault.WrongState.selector);
+        vault.deposit(10e18);
+    }
+
+    function test_refundTwoLendersAfterPartialRaise() public {
+        vm.prank(lenderA);
+        vault.deposit(30e18);
+        vm.prank(lenderB);
+        vault.deposit(25e18);
+        uint256 a0 = fusd.balanceOf(lenderA);
+        uint256 b0 = fusd.balanceOf(lenderB);
+        vm.warp(raiseDeadline + 1);
+        vm.prank(lenderA);
+        vault.refund();
+        vm.prank(lenderB);
+        vault.refund();
+        assertEq(fusd.balanceOf(lenderA) - a0, 30e18);
+        assertEq(fusd.balanceOf(lenderB) - b0, 25e18);
+        assertEq(fusd.balanceOf(address(vault)), 0);
+        assertEq(vault.raisedHeld(), 0);
+    }
 }
