@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { ChainUnavailable, createCardVerifier, KeysNotRegistered } from "../src/cards.ts";
+import { ChainUnavailable, createCardVerifier, KeysNotRegistered } from "../../src/services/cards.ts";
 
 const keys = { mlkem: new Uint8Array([1]), pq: new Uint8Array([2]) };
 const mk = (fetchKeys: () => Promise<typeof keys>, verify: () => unknown = () => undefined, now = () => 0) =>

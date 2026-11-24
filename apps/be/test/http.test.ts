@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, test } from "bun:test";
-import { type Db, memoryDb } from "../src/db.ts";
-import { FaucetCapReached, FaucetCooldown } from "../src/faucet.ts";
+import { type Db, memoryDb } from "../src/db/client.ts";
+import { FaucetCapReached, FaucetCooldown } from "../src/services/faucet.ts";
 import { createApp } from "../src/http.ts";
-import { MIGRATIONS_DIR, runMigrations } from "../src/migrate.ts";
-import { RelayRejected } from "../src/relayer.ts";
+import { MIGRATIONS_DIR, runMigrations } from "../src/db/migrate.ts";
+import { RelayRejected } from "../src/services/relayer.ts";
 import { applyVaultEvent } from "../src/db/store/index.ts";
 
 const TOKEN = "t".repeat(32);

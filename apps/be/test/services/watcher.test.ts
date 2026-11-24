@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, test } from "bun:test";
-import { type Db, memoryDb } from "../src/db.ts";
-import { MIGRATIONS_DIR, runMigrations } from "../src/migrate.ts";
-import { getWatchState, listOrders, type VaultEvent } from "../src/db/store/index.ts";
-import { type LogSource, syncVault } from "../src/watcher.ts";
+import { type Db, memoryDb } from "../../src/db/client.ts";
+import { MIGRATIONS_DIR, runMigrations } from "../../src/db/migrate.ts";
+import { getWatchState, listOrders, type VaultEvent } from "../../src/db/store/index.ts";
+import { type LogSource, syncVault } from "../../src/services/watcher.ts";
 
 const V = "0x00000000000000000000000000000000000000aa";
 let db: Db;

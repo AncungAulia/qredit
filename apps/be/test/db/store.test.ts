@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, test } from "bun:test";
-import { type Db, memoryDb } from "../src/db.ts";
-import { envelopeHash } from "../src/hash.ts";
-import { MIGRATIONS_DIR, runMigrations } from "../src/migrate.ts";
-import * as store from "../src/db/store/index.ts";
+import { type Db, memoryDb } from "../../src/db/client.ts";
+import { envelopeHash } from "../../src/lib/hash.ts";
+import { MIGRATIONS_DIR, runMigrations } from "../../src/db/migrate.ts";
+import * as store from "../../src/db/store/index.ts";
 
 const V = "0x00000000000000000000000000000000000000aa";
 let db: Db;

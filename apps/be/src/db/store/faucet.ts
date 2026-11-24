@@ -1,4 +1,4 @@
-import type { Queryable } from "../../db.ts";
+import type { Queryable } from "../client.ts";
 import { lc } from "./lc.ts";
 
 /** A reservation still 'pending' after this long is a crashed send and no longer counts toward the cooldown. */

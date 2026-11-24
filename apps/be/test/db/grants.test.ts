@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test } from "bun:test";
-import { type Db, memoryDb } from "../src/db.ts";
-import { MIGRATIONS_DIR, runMigrations } from "../src/migrate.ts";
-import { cancelGrant, completeGrant, getWatchState, reserveGrant, setWatchState } from "../src/db/store/index.ts";
+import { type Db, memoryDb } from "../../src/db/client.ts";
+import { MIGRATIONS_DIR, runMigrations } from "../../src/db/migrate.ts";
+import { cancelGrant, completeGrant, getWatchState, reserveGrant, setWatchState } from "../../src/db/store/index.ts";
 
 let db: Db;
 beforeEach(async () => {

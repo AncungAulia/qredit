@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, test } from "bun:test";
-import { type Db, memoryDb } from "../src/db.ts";
-import { BroadcastRefused, BroadcastUnconfirmed, TxFailedOnChain } from "../src/chain/tx.ts";
-import { createFaucet, FaucetCapReached, FaucetCooldown, ipHasher, treasurySender } from "../src/faucet.ts";
-import { MIGRATIONS_DIR, runMigrations } from "../src/migrate.ts";
+import { type Db, memoryDb } from "../../src/db/client.ts";
+import { BroadcastRefused, BroadcastUnconfirmed, TxFailedOnChain } from "../../src/chain/tx.ts";
+import { createFaucet, FaucetCapReached, FaucetCooldown, ipHasher, treasurySender } from "../../src/services/faucet.ts";
+import { MIGRATIONS_DIR, runMigrations } from "../../src/db/migrate.ts";
 
 let db: Db;
 beforeEach(async () => {

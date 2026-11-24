@@ -1,8 +1,8 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { type Db, pgDb } from "./db.ts";
+import { type Db, pgDb } from "./client.ts";
 
-export const MIGRATIONS_DIR = join(import.meta.dir, "..", "migrations");
+export const MIGRATIONS_DIR = join(import.meta.dir, "..", "..", "migrations");
 
 export async function runMigrations(db: Db, dir: string): Promise<string[]> {
   const files = readdirSync(dir).filter((f) => /^[0-9]{3}_[a-z0-9_]+\.sql$/.test(f)).sort();

@@ -1,7 +1,7 @@
 import type { PublicClient } from "viem";
-import { VAULT_EVENTS } from "./chain/vault.ts";
-import type { Db } from "./db.ts";
-import { applyVaultEvent, getWatchState, setWatchState, type VaultEvent } from "./db/store/index.ts";
+import { VAULT_EVENTS } from "../chain/vault.ts";
+import type { Db } from "../db/client.ts";
+import { applyVaultEvent, getWatchState, setWatchState, type VaultEvent } from "../db/store/index.ts";
 
 export interface LogSource {
   latestBlock(): Promise<number>;

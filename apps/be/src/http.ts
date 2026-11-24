@@ -5,11 +5,11 @@ import { getConnInfo } from "hono/bun";
 import { bodyLimit } from "hono/body-limit";
 import { cors } from "hono/cors";
 import { z } from "zod";
-import type { CardVerdict } from "./cards.ts";
-import type { Db } from "./db.ts";
-import { FaucetCapReached, FaucetCooldown } from "./faucet.ts";
-import { createRateLimiter } from "./ratelimit.ts";
-import { type RelayRequest, RelayRejected, type RelayResult } from "./relayer.ts";
+import type { CardVerdict } from "./services/cards.ts";
+import type { Db } from "./db/client.ts";
+import { FaucetCapReached, FaucetCooldown } from "./services/faucet.ts";
+import { createRateLimiter } from "./lib/ratelimit.ts";
+import { type RelayRequest, RelayRejected, type RelayResult } from "./services/relayer.ts";
 import * as store from "./db/store/index.ts";
 
 export type AppDeps = {

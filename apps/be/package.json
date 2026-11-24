@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "bun --env-file=.env src/server.ts",
     "start": "bun src/server.ts",
-    "migrate": "bun --env-file=.env src/migrate.ts",
+    "migrate": "bun --env-file=.env src/db/migrate.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
   },

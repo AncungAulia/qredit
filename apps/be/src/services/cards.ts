@@ -1,8 +1,8 @@
 import { isQoreSealError, verifyRecipientCard, type RecipientCard } from "@qorechain/qoreseal";
 import { fetchMlkemPublicKey } from "@qorechain/qoreseal/network";
 import { fetchPqcStatus } from "@qorechain/sdk";
-import type { Net } from "./chain/tx.ts";
-import { memoizeAsync } from "./ttlcache.ts";
+import type { Net } from "../chain/tx.ts";
+import { memoizeAsync } from "../lib/ttl-cache.ts";
 
 export type CardVerdict = { ok: true } | { ok: false; reason: "mismatch" | "unavailable" };
 export type ChainKeys = { mlkem: Uint8Array; pq: Uint8Array };

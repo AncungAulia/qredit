@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { memoryDb } from "../src/db.ts";
-import { MIGRATIONS_DIR, runMigrations } from "../src/migrate.ts";
+import { memoryDb } from "../../src/db/client.ts";
+import { MIGRATIONS_DIR, runMigrations } from "../../src/db/migrate.ts";
 
 describe("runMigrations", () => {
   test("creates the qredit schema once", async () => {

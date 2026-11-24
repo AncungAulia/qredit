@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { createRateLimiter } from "../src/ratelimit.ts";
-import { memoizeAsync } from "../src/ttlcache.ts";
+import { createRateLimiter } from "../../src/lib/ratelimit.ts";
+import { memoizeAsync } from "../../src/lib/ttl-cache.ts";
 
 describe("createRateLimiter", () => {
   test("allows up to the limit, then reports seconds to wait, per key", () => {

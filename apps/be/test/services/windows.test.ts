@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { UnifiedAccount } from "@qorechain/sdk";
-import { assertWindowOptions, keepWindows, serialPerAccount, type WindowChain } from "../src/windows.ts";
+import { assertWindowOptions, keepWindows, serialPerAccount, type WindowChain } from "../../src/services/windows.ts";
 
 const acc = (cosmos: string) => ({ cosmos, evm: "0x0" }) as unknown as UnifiedAccount;
 const opts = { blocks: 17280, maxTxs: 500, maxValue: 25_000_000n, minBlocks: 3600, minTxs: 10 };

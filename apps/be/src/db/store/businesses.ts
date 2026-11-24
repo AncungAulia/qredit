@@ -1,4 +1,4 @@
-import type { Queryable } from "../../db.ts";
+import type { Queryable } from "../client.ts";
 import { lc } from "./lc.ts";
 
 export interface Business {
