@@ -26,6 +26,7 @@ export const VAULT_ABI = parseAbi([
   "function raised() view returns (uint256)",
   "function repaid() view returns (uint256)",
   "function opexBalance() view returns (uint256)",
+  "function loan() view returns (uint256 target, uint256 totalOwed, uint64 raiseDeadline, uint64 period, uint64 grace, uint256 installment)",
   "function servicePrice(uint256 serviceId) view returns (uint256)",
   "function serviceCount() view returns (uint256)",
   "function spender() view returns (address)",
@@ -49,3 +50,12 @@ export const ERC20_ABI = parseAbi([
 ]);
 
 export const PAY_SUPPLIER_SELECTOR = toFunctionSelector("paySupplier(address,uint256,uint256)");
+
+/**
+ * Block of the VaultFactory deployment tx 0x11a99af52774dca850678ffd9c344012339aa7c19e11f88b60571676d70bd2af
+ * (0xa2c700, from sc/broadcast/DeployFactory.s.sol/9800/run-latest.json). No factory log can exist before it.
+ */
+export const FACTORY_START_BLOCK = 10_667_776;
+
+/** LoanVault.State, in declaration order. */
+export const VAULT_STATE = { Raising: 0, Active: 1, Trapped: 2, Repaid: 3, Refunded: 4 } as const;
