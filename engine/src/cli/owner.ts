@@ -6,7 +6,7 @@ import { loadEngineConfig } from "../config.ts";
 import { keystore } from "../keystore.ts";
 import { accountNames, agentKey, ensureAccounts, loadAccount, SUPPLIER_ACCOUNTS } from "../setup/accounts.ts";
 import { loadBusinesses, vaultInit } from "../setup/businesses.ts";
-import { convertFusd, createVault, linkAgent, openWindow, registerBusiness, registerKey, sendQor } from "../setup/chain.ts";
+import { convertFusd, createVault, lend, linkAgent, openWindow, registerBusiness, registerKey, sendQor } from "../setup/chain.ts";
 import { readDeployments, writeDeployment } from "../setup/deployments.ts";
 
 const cfg = loadEngineConfig();
@@ -102,6 +102,12 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
       });
       console.log(`${b.slug}: registered with the API`);
     }
+  },
+  async "lend"([slug, fusd]) {
+    const d = readDeployments()[slug];
+    if (!d) throw new Error(`no deployment for ${slug}; run business create first`);
+    const r = await lend(await loadAccount(ks, "treasury"), d.vault, units(fusd));
+    console.log(`${slug}: approved ${r.approveTx}, deposited ${r.depositTx}`);
   },
   async "be-env"() {
     const spec = (n: string) => JSON.stringify(ks.read(n));

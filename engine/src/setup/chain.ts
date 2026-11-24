@@ -3,7 +3,7 @@ import {
   type UnifiedAccount,
 } from "@qorechain/sdk";
 import {
-  broadcastHybrid, convertCoinMsg, FACTORY_ABI, FACTORY_ADDRESS, FUSD_DENOM, PAY_SUPPLIER_SELECTOR, publicClientFor, qoreRegistry, TESTNET, txEvents, walletFor,
+  broadcastHybrid, convertCoinMsg, ERC20_ABI, FACTORY_ABI, FACTORY_ADDRESS, FUSD_ADDRESS, FUSD_DENOM, PAY_SUPPLIER_SELECTOR, VAULT_ABI, publicClientFor, qoreRegistry, TESTNET, txEvents, walletFor,
 } from "@qredit/qore";
 import { decodeEventLog, encodeFunctionData } from "viem";
 import type { vaultInit } from "./businesses.ts";
@@ -96,4 +96,17 @@ export async function registerBusiness(apiUrl: string, token: string, body: unkn
     signal: AbortSignal.timeout(15_000),
   });
   if (res.status !== 204) throw new Error(`business registration failed: HTTP ${res.status} ${await res.text()}`);
+}
+
+export async function lend(lender: UnifiedAccount, vault: string, units: bigint): Promise<{ approveTx: string; depositTx: string }> {
+  const wallet = walletFor(lender.privateKey as `0x${string}`, TESTNET.evm);
+  const send = async (to: `0x${string}`, data: `0x${string}`) => {
+    const hash = await wallet.sendTransaction({ account: wallet.account!, chain: wallet.chain, to, data });
+    const r = await client.waitForTransactionReceipt({ hash });
+    if (r.status !== "success") throw new Error(`reverted: ${hash}`);
+    return hash;
+  };
+  const approveTx = await send(FUSD_ADDRESS, encodeFunctionData({ abi: ERC20_ABI, functionName: "approve", args: [vault as `0x${string}`, units] }));
+  const depositTx = await send(vault as `0x${string}`, encodeFunctionData({ abi: VAULT_ABI, functionName: "deposit", args: [units] }));
+  return { approveTx, depositTx };
 }
