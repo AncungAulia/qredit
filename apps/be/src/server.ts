@@ -85,5 +85,5 @@ loop("windows", cfg.WINDOW_CHECK_INTERVAL_MS, async () => {
 });
 
 // Hono reads the socket peer from env.server (used when there is no trusted proxy header).
-Bun.serve({ port: cfg.PORT, maxRequestBodySize: 512 * 1024, fetch: (req, server) => app.fetch(req, { server }) });
+Bun.serve({ hostname: "::", port: cfg.PORT, maxRequestBodySize: 512 * 1024, fetch: (req, server) => app.fetch(req, { server }) });
 console.log(`[http] listening on :${cfg.PORT}; relayer ${relayer.cosmos}; treasury ${treasury.cosmos}; operators ${operators.length}`);

@@ -28,3 +28,7 @@ sc/.deployer.key
 
 # Engine keys
 engine/.keys/
+
+# Railway CLI link files (never commit)
+.railway/
+.env.railway

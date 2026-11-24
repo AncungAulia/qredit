@@ -5,6 +5,7 @@ export function healthResponse(lastLoopAt: Date | null): Response {
 
 export function startHealthServer(o: { port: number; lastLoopAt: () => Date | null }): { port: number; stop: () => void } {
   const server = Bun.serve({
+    hostname: "::",
     port: o.port,
     fetch: (req) => {
       const { pathname } = new URL(req.url);

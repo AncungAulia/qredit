@@ -83,5 +83,6 @@ const app = createSupplierApp({
 });
 
 const port = Number(process.env.SUPPLIERS_PORT ?? process.env.PORT ?? 8788);
-Bun.serve({ port, fetch: app.fetch });
+// "::" listens on IPv4 and IPv6 (Railway private networking is IPv6).
+Bun.serve({ hostname: "::", port, fetch: app.fetch });
 console.log(`[suppliers] listening on :${port}`);
