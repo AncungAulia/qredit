@@ -2,7 +2,7 @@
 
 - **Event:** Build Before Q-Day: The QoreChain Developer Fest (build.qorechain.io)
 - **Category:** Post-Quantum AI Agents
-- **Domain:** qredit.fun
+- **Domains:** qredit.fun (landing, `apps/landing`), app.qredit.fun (web app, `apps/fe`), api.qredit.fun (backend API, `apps/be`)
 - **Submission deadline:** 2 December 2026, 23:59 UTC (the project page becomes read-only; that version is judged)
 - **Network:** QoreChain testnet `qorechain-diana`, EVM chain id 9800
 
@@ -118,7 +118,7 @@ None of the fest's existing projects is a credit market for agents (Agama lends 
 
 Package manager: Bun. Source of truth: on-chain state. Off-chain storage: Supabase (Postgres for the order queue, recipient cards and the decision log; Storage for sealed envelopes), written only by `apps/be` and `engine` with the service-role key, which never reaches the web app. Only ciphertext and data already public on chain are stored; no key ever is.
 
-**Process split.** `apps/be` (mailbox, relayer, watcher) holds the relayer key and no AI. `engine` (the agents) receives outside input, so it holds only the agent and operator keys and cannot touch the relayer key; the relayer forwards only calls to Qredit vaults. Hosting: the web app on Vercel; `apps/be` and `engine` as two always-on services (chosen in the engine plan).
+**Process split.** `apps/be` (mailbox, relayer, watcher) holds the relayer key and no AI. `engine` (the agents) receives outside input, so it holds only the agent and operator keys and cannot touch the relayer key; the relayer forwards only calls to Qredit vaults. Hosting: `apps/landing` and `apps/fe` on Vercel; `apps/be` and `engine` as two always-on services (chosen in the engine plan).
 
 LLM: an OpenAI-compatible provider through `@ai-sdk/openai-compatible`; the provider is chosen during implementation and named in the README.
 

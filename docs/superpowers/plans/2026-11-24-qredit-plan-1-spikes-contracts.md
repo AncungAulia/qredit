@@ -28,8 +28,9 @@
 Root layout (kept clean; every top-level folder has one job):
 
 ```
-apps/web/        web app (Plan 3)
-apps/be/         mailbox API, relayer, watcher (Plan 2)
+apps/landing/    landing page at qredit.fun (Plan 3)
+apps/fe/         web app at app.qredit.fun (Plan 3)
+apps/be/         mailbox API, relayer, watcher at api.qredit.fun (Plan 2)
 engine/          agents, simulated suppliers, owner CLI (Plan 2); spikes live in engine/spikes/
 sc/              smart contracts (Foundry)
 docs/            spec, plans, threat model
@@ -180,8 +181,9 @@ Qredit is a credit market for AI agent businesses on the QoreChain testnet, buil
 
 | Folder | What |
 |---|---|
-| `apps/web` | Web app (Next.js) |
-| `apps/be` | Backend: mailbox API, relayer, watcher (Supabase); holds the relayer key, no AI |
+| `apps/landing` | Landing page, served at qredit.fun |
+| `apps/fe` | Web app (Next.js), served at app.qredit.fun |
+| `apps/be` | Backend: mailbox API, relayer, watcher (Supabase); holds the relayer key, no AI; served at api.qredit.fun |
 | `engine` | The agents (Mastra), simulated suppliers, owner CLI; never holds the relayer key; `engine/spikes` holds the testnet spikes |
 | `sc` | Smart contracts (Foundry): `LoanVault`, `VaultFactory` |
 | `docs` | Spec, plans, threat model |
@@ -194,7 +196,7 @@ Testnet only: chain id `qorechain-diana`, EVM chain id 9800. PQC precompiles in 
 
 1. **Use evidence, not assumptions.** "Works", "safe" or "done" must be backed by test output, a transaction hash or a log seen in this session; otherwise write "not proven yet".
 2. **Verify QoreChain facts** against the installed package types (`node_modules/@qorechain/*/dist/*.d.ts`) and docs.qorechain.io before relying on them. Pin package versions; do not upgrade mid-build.
-3. **Secrets never enter git.** Keys, mnemonics, recovery codes and `.env` files stay in gitignored paths (`engine/spikes/.keys/`, `.env`). Each folder keeps a `.env.example` with names only. The Supabase service-role key lives only in `apps/be` and `engine`, never in `apps/web`.
+3. **Secrets never enter git.** Keys, mnemonics, recovery codes and `.env` files stay in gitignored paths (`engine/spikes/.keys/`, `.env`). Each folder keeps a `.env.example` with names only. The Supabase service-role key lives only in `apps/be` and `engine`, never in `apps/fe` or `apps/landing`.
 4. **Everything in the repo is in English.** Never mention how long the project took or a day-by-day schedule in any committed file.
 5. **Stop and ask when blocked.** If a test fails twice, an API differs from the plan, or an instruction is ambiguous, stop and report what you saw, what you tried and the options. Do not change scope or design on your own.
 
