@@ -1,0 +1,28 @@
+# Spike results
+
+Network: qorechain-diana (EVM chain id 9800). SDK @qorechain/sdk 0.14.0. QoreX extension 0.4.3.
+
+| # | Question | Result | Evidence (tx / output) | Decision |
+|---|---|---|---|---|
+| S1 | Linked agent key → MsgExecuteEVM: msg.sender, key scheme, selector rule | PASS. ed25519 key with permissions `["evm"]` works. msg.sender is the spender account (`0x55c3620256C2b00897eBE7B80247ce2Cb70Dd781`). A call to a selector not in `allowedEvmCalls` is refused. Refused calls show as tx code 0 with event `abstractaccount_execution_failed`. No secp256k1 fallback needed. | Link: `0x7F4D4B8270C7AC339A3F3EF06298712030E44A4785EC8B6ECFAF3174D544100B`. Ping: `0x6BB553F0805728558D15864A36E66C6BB70A82FF7447CD1A722C4F3F27FE5585`. Refused `other()`: `0xB955AF4EFFF0EF7AFCAC17DF723FFABF3665FA0D4292845EA7D9EA051184E86B` (earlier refusal: `0xC04EAB1F13097818A9DC76B52A5686E81D456058AF48CAF75A5EEC4B7EECEE84`). The "state unchanged" check is weak: the refused call writes nothing visible. | Keep the design (ed25519 linked key, `evm` permission, selector rule). |
+| S2 | Buyer ML-KEM key registration: (a) QoreX method, (b) script path | NOT RUN YET. Known: QoreX 0.4.3 lists `signDirectAddsPqcLayer` and `signAndBroadcast`. A bank MsgSend from a page via `signAndBroadcast` worked (500 fUSD moved to the deployer). | KEM-key registration from the browser test wallet is tested in the web-app plan. | Defer to the web-app plan. Fallback if needed: the official Workshop 3 script. |
+| S3 | QoreX/QoreSign ML-DSA message signature checked by pqcVerify; applyOrder on chain | PASS on both paths. Script path: prefixed ML-DSA-87 signature (4627 bytes) accepted by `pqcVerify`; flipped byte and unprefixed text refused. Script signature accepted by `applyOrder`; tampered signature refused. QoreX path: `signArbitrary` signature from QoreX 0.4.3 accepted by `applyOrder` on vault `0x0E343bF008E78630BD1dbb2Ff4F2DD5FB0F7B64f`; tampered signature refused. The QoreX account's key reports possessionProven = true. Note: the docs still call `signArbitrary` unsupported. | Script applyOrder: `0xb5187678d96d5f04f2cffbf2d9da3c275161e395cbada9c3a4974c379be18f24` (vault `0xF8100c2E87a61Fe201f9e43B6dF18db7DB15fC2f`). QoreX applyOrder: `0x2b1f52d113178190c2cd7ae6c1e0baf09738180357c8107ef5a0e5ef0dc720ca`. | Owner can sign policy orders in QoreX (`signArbitrary`) or with the owner script. |
+| S4 | Buyer approve + transfer through a scoped window; QoreX UX | PASS. Scoped window (fUSD + probe, 4 txs) opened. approve PASS. transfer 1 fUSD PASS after S5 (the earlier transfer reverted because the buyer had no ERC-20 fUSD). Out-of-scope target (factory) refused at eth_sendRawTransaction, no QOR spent. EVM cost for approve + transfer: 0.014222 QOR. | Window open: `0x97A76A0A29886CDC1DAF313204205C517B484C198DDFE05D9C7E514E8547B86B`. approve: `0x49283fed3adb71034da49936b9b9b1550c71cf1f6e9d6a468fd501164367a8b0` (first run). Rerun approve `0xb29efc2c...f75a` and transfer `0xd4517148...543a` (truncated in the report). | Buyer flow: open a scoped window, then approve and transfer through it. |
+| S5 | fUSD decimals, faucet amount, swap QOR → fUSD | PASS. fUSD has 6 decimals. No AMM pools exist, so there is no swap; faucet fUSD is a bank coin. `MsgConvertCoin` needed a custom protobuf type because SDK 0.14.0 has none. Convert 300 fUSD: deployer bank 500 → 200, ERC-20 0 → 300. ERC-20 send of 200 fUSD to buyer PASS. | convert: `0xF9CE06D96759A1FE201593382313B78C2F33AC98A7D6A29D8C8F7C02AAA70421`. send: `0x071a0246c4b99dbd5bd70c48ab2ee3ee580eb875bdade0427385802b9349c3a9`. | Use 6-decimal fUSD units in loan sizes and prices. Buyers get ERC-20 fUSD by converting bank fUSD. No swap. |
+| S6 | Classical-key-only operator in a scoped window; window limit; block time | PASS (3/3). Classical key alone calls the allowed target. msg.sender is the operator `0x1ce02B8d0E22b31fb9a59856853BcF6Ee49C6683`. A call outside the window is refused at eth_sendRawTransaction (no tx mined). Max window accepted on the first try: 17280 blocks (maxTxs 20, maxValue 50000000, one allowed target). Measured block time about 1.43 s/block, so 17280 blocks is about 6.9 h. | Window open: `0x5FDF9B6704C34D75D69C98B2BF03C290B0810442F0D6D25F68A54C1F2114A801`. Operator call: `0x330ccea77ed1e80f74a9c44241ed1fe0cbafa0231367d757397e39238166f8b6`. Refusal: "the window does not list 0x97143B771D34ddb9130b807b135Ae675A5a963CA as an allowed recipient: EVM authorisation window exhausted". | Renew the window about every 6 h during judging. |
+
+## Deployed on qorechain-diana
+
+| Contract | Address | Tx |
+|---|---|---|
+| SenderProbe | `0x80E58BEd020089A1CA432384aB8f6448e11C2faC` | `0xc0097542e23dcadf15392253c7de3e8c256dc8b3ea89a9ec20f628ddb0c85eaa` |
+| VaultFactory | `0xAc5324088A7735dda922c277db5A2E906c8f5b3A` | `0x11a99af52774dca850678ffd9c344012339aa7c19e11f88b60571676d70bd2af` |
+| Smoke vault, script owner (owner `0xFE39695136C2406486f2806909CA54F8E6826a06`) | `0xF8100c2E87a61Fe201f9e43B6dF18db7DB15fC2f` | `0xc3bb7f758d81bae435861d3b46c0a8bcb17df479f6af38088321c8d97710c5fb` |
+| Smoke vault, QoreX owner (owner `0x5f3c...0b40`) | `0x0E343bF008E78630BD1dbb2Ff4F2DD5FB0F7B64f` | Create tx: not in the spike reports. applyOrder: `0x2b1f52d113178190c2cd7ae6c1e0baf09738180357c8107ef5a0e5ef0dc720ca` |
+
+## Findings that differ from docs.qorechain.io
+
+- The QoreX extension testnet switch is hidden: tap the version text 7 times to reveal it.
+- QoreX 0.4.3 supports `signArbitrary`. The docs call it unsupported.
+- QoreX-registered keys are possession-proven (`possessionProven = true`).
+- `MsgConvertCoin` is missing from the SDK 0.14.0 registry, so a custom protobuf type is needed (see S5).

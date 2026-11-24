@@ -16,4 +16,4 @@ Local tests replace the QoreChain PQC precompiles with stand-ins (`test/mocks/Mo
 |---|---|---|
 | VaultFactory | `0xAc5324088A7735dda922c277db5A2E906c8f5b3A` | `0x11a99af52774dca850678ffd9c344012339aa7c19e11f88b60571676d70bd2af` |
 | Smoke vault (script signer) | `0xF8100c2E87a61Fe201f9e43B6dF18db7DB15fC2f` | `0xc3bb7f758d81bae435861d3b46c0a8bcb17df479f6af38088321c8d97710c5fb` |
-| Smoke vault (QoreX signer) | not created yet | — |
+| Smoke vault (QoreX signer) | `0x0E343bF008E78630BD1dbb2Ff4F2DD5FB0F7B64f` | create: see RESULTS.md; applyOrder: `0x2b1f52d113178190c2cd7ae6c1e0baf09738180357c8107ef5a0e5ef0dc720ca` |
