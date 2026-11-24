@@ -51,6 +51,22 @@ describe("orders", () => {
     expect(o.envelopeHash).toBe(`0x${"ab".repeat(32)}`);
   });
 
+  test("a closed order is not reopened and an unknown order returns false", async () => {
+    await store.applyVaultEvent(db, placed("1", 100));
+    const hash = `0x${"ab".repeat(32)}`;
+    expect(await store.applyVaultEvent(db, { kind: "Delivered", vault: V, orderId: "1", block: 101, logIndex: 0, tx: "0xd", envelopeHash: hash })).toBe(true);
+    expect(await store.applyVaultEvent(db, { kind: "Declined", vault: V, orderId: "1", block: 102, logIndex: 0, tx: "0xe" })).toBe(false);
+    expect((await store.listOrders(db, V))[0].status).toBe("delivered");
+    expect(await store.applyVaultEvent(db, { kind: "Reclaimed", vault: V, orderId: "99", block: 103, logIndex: 0, tx: "0xf" })).toBe(false);
+    expect(await store.applyVaultEvent(db, placed("1", 100))).toBe(false);
+  });
+
+  test("claimNextOrder orders numerically, not by text", async () => {
+    await store.applyVaultEvent(db, placed("10", 100));
+    await store.applyVaultEvent(db, placed("9", 100));
+    expect((await store.claimNextOrder(db, [V]))?.orderId).toBe("9");
+  });
+
   test("claimNextOrder hands out the oldest open order once", async () => {
     await store.applyVaultEvent(db, placed("2", 200));
     await store.applyVaultEvent(db, placed("1", 100));
@@ -64,7 +80,8 @@ describe("orders", () => {
     await store.applyVaultEvent(db, placed("1", 100));
     await store.claimNextOrder(db, [V]);
     await db.query("update qredit.orders set claimed_at = now() - interval '11 minutes'");
-    expect((await store.claimNextOrder(db, [V]))?.orderId).toBe("1");
+    expect(await store.claimNextOrder(db, [V])).toBeNull(); // default takeover age is 15 minutes
+    expect((await store.claimNextOrder(db, [V], 600))?.orderId).toBe("1");
   });
 
   test("declined and reclaimed orders are not claimable", async () => {
@@ -97,6 +114,13 @@ describe("cards, decisions, watcher state, grants", () => {
     await store.setWatchState(db, V, 500);
     await store.setWatchState(db, V, 600);
     expect(await store.getWatchState(db, V)).toBe(600);
+  });
+
+  test("addresses are matched case-insensitively", async () => {
+    await store.putCard(db, "QOR1ABC", { v: 1 });
+    expect(await store.getCard(db, "qor1abc")).toEqual({ v: 1 });
+    await store.recordGrant(db, "QOR1A", "ip1", "0xt");
+    expect(await store.lastGrant(db, "qor1a", "ipx")).toBeInstanceOf(Date);
   });
 
   test("faucet grants by address or ip", async () => {

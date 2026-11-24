@@ -19,7 +19,9 @@ export async function syncVault(db: Db, src: LogSource, vault: string, startBloc
     const events = (await src.events(vault, from, to)).sort((a, b) => a.block - b.block || a.logIndex - b.logIndex);
     // Events of one range and the saved position commit together, or not at all.
     await db.transaction(async (q) => {
-      for (const e of events) await applyVaultEvent(q, e);
+      for (const e of events) {
+        if (!(await applyVaultEvent(q, e))) console.warn(`watcher: ignored ${e.kind} for order ${e.orderId} in block ${e.block} (duplicate or order not open)`);
+      }
       await setWatchState(q, vault, to);
     });
     last = to;

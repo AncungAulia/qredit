@@ -87,12 +87,12 @@ export async function getEnvelope(db: Queryable, hash: string): Promise<{ kind: 
 export async function putCard(db: Queryable, address: string, card: unknown): Promise<void> {
   await db.query(
     "insert into qredit.cards (address, card) values ($1, $2::jsonb) on conflict (address) do update set card = excluded.card, updated_at = now()",
-    [address, JSON.stringify(card)],
+    [lc(address), JSON.stringify(card)],
   );
 }
 
 export async function getCard(db: Queryable, address: string): Promise<unknown | null> {
-  const [r] = await db.query<{ card: unknown }>("select card from qredit.cards where address = $1", [address]);
+  const [r] = await db.query<{ card: unknown }>("select card from qredit.cards where address = $1", [lc(address)]);
   return r?.card ?? null;
 }
 
@@ -115,22 +115,25 @@ export async function listDecisions(db: Queryable, vault: string, limit: number)
   }));
 }
 
-export async function applyVaultEvent(db: Queryable, e: VaultEvent): Promise<void> {
+/** Apply one vault event idempotently. Returns true when a row was inserted or updated, false when the event was a duplicate or did not fit the order's state. */
+export async function applyVaultEvent(db: Queryable, e: VaultEvent): Promise<boolean> {
   if (e.kind === "OrderPlaced") {
-    await db.query(
+    const rows = await db.query(
       `insert into qredit.orders (vault, order_id, buyer, service_id, price, request_ref, deadline, status, placed_tx, placed_block)
-       values ($1, $2, $3, $4, $5, $6, $7, 'open', $8, $9) on conflict (vault, order_id) do nothing`,
+       values ($1, $2, $3, $4, $5, $6, $7, 'open', $8, $9) on conflict (vault, order_id) do nothing returning 1`,
       [lc(e.vault), e.orderId, lc(e.buyer), e.serviceId, e.price, lc(e.requestRef), e.deadline, lc(e.tx), e.block],
     );
-    return;
+    return rows.length > 0;
   }
   const status = e.kind === "Delivered" ? "delivered" : e.kind === "Declined" ? "declined" : "reclaimed";
   const hash = e.kind === "Delivered" ? lc(e.envelopeHash) : null;
-  await db.query(
+  // Only an open or claimed order can be closed; a late or replayed event never rewrites a closed one.
+  const rows = await db.query(
     `update qredit.orders set status = $3, envelope_hash = coalesce($4, envelope_hash), closed_tx = $5, updated_at = now()
-     where vault = $1 and order_id = $2`,
+     where vault = $1 and order_id = $2 and status in ('open', 'claimed') returning 1`,
     [lc(e.vault), e.orderId, status, hash, lc(e.tx)],
   );
+  return rows.length > 0;
 }
 
 export async function getWatchState(db: Queryable, vault: string): Promise<number | null> {
@@ -152,20 +155,24 @@ const toOrder = (r: OrderRow): Order => ({
   placedBlock: Number(r.placed_block), envelopeHash: r.envelope_hash,
 });
 
-/** Atomically claim the oldest open order (or one whose claim went stale) among the given vaults. */
-export async function claimNextOrder(db: Queryable, vaults: string[]): Promise<Order | null> {
+/**
+ * Atomically claim the oldest open order (or one whose claim is older than staleAfterSeconds) among the given vaults.
+ * A takeover of a stale claim can only repeat off-chain work: the vault refuses a second delivery (OrderNotOpen).
+ */
+export async function claimNextOrder(db: Queryable, vaults: string[], staleAfterSeconds = 900): Promise<Order | null> {
   if (vaults.length === 0) return null;
   const [r] = await db.query<OrderRow>(
     `update qredit.orders set status = 'claimed', claimed_at = now(), updated_at = now()
      where (vault, order_id) = (
        select vault, order_id from qredit.orders
-       where vault = any($1::text[])
-         and (status = 'open' or (status = 'claimed' and claimed_at < now() - interval '10 minutes'))
-       order by placed_block, order_id
+       where vault = any(string_to_array($1, ','))
+         and (status = 'open' or (status = 'claimed' and claimed_at < now() - make_interval(secs => $2)))
+       order by placed_block, order_id::numeric
        limit 1
        for update skip locked)
      returning *`,
-    [vaults.map(lc)],
+    // Joined text: addresses contain no commas, and this behaves the same in postgres.js and PGlite.
+    [vaults.map(lc).join(","), staleAfterSeconds],
   );
   return r ? toOrder(r) : null;
 }
@@ -178,13 +185,13 @@ export async function listOrders(db: Queryable, vault: string, status?: Order["s
 }
 
 export async function recordGrant(db: Queryable, address: string, ipHash: string, tx: string): Promise<void> {
-  await db.query("insert into qredit.faucet_grants (address, ip_hash, tx) values ($1, $2, $3)", [address, ipHash, tx]);
+  await db.query("insert into qredit.faucet_grants (address, ip_hash, tx) values ($1, $2, $3)", [lc(address), ipHash, tx]);
 }
 
 export async function lastGrant(db: Queryable, address: string, ipHash: string): Promise<Date | null> {
   const [r] = await db.query<{ at: Date | null }>(
     "select max(created_at) as at from qredit.faucet_grants where address = $1 or ip_hash = $2",
-    [address, ipHash],
+    [lc(address), ipHash],
   );
   return r?.at ? new Date(r.at) : null;
 }
@@ -205,7 +212,7 @@ export async function reserveGrant(
   }
   const [r] = await q.query<{ id: string | number }>(
     "insert into qredit.faucet_grants (address, ip_hash, tx, created_at) values ($1, $2, 'pending', $3) returning id",
-    [address, ipHash, now.toISOString()],
+    [lc(address), ipHash, now.toISOString()],
   );
   return { ok: true, id: Number(r.id) };
 }
