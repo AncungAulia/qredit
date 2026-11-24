@@ -21,3 +21,13 @@ The Qredit backend (api.qredit.fun): mailbox API, relayer, vault watcher, operat
 - Rate limits (`RATE_ENVELOPES_PER_MIN` 30, `RATE_CARDS_PER_MIN` 10, `RATE_FAUCET_PER_MIN` 5, per client ip, 429 with `retryAfter`) are in memory and **per instance**: this is a single-instance deployment; scaling out needs a shared store. Engine-authenticated envelope posts are not limited.
 - The faucet also has a global cap (`FAUCET_DAILY_CAP`, default 200 grants per rolling 24 h, 503 when reached). A grant is cancelled only when nothing was broadcast (`BroadcastRefused`); once a hash may exist it is never released.
 - `/v1/decisions` (GET) is public by design: the decision log is a transparency feature and contains no private data.
+
+## Layout
+
+- `src/server.ts` wiring only; `src/config.ts` env parsing.
+- `src/db/`: `client.ts` (Db, pgDb, memoryDb), `migrate.ts`, `store/` (queries by domain: businesses, orders, envelopes, cards, decisions, faucet, watcher-state; import through `store/index.ts`).
+- `src/chain/`: keys, tx, vault, address adapters.
+- `src/services/`: relayer, watcher, windows, faucet, cards (business logic, dependencies injected).
+- `src/http/`: `app.ts` (middleware + route mounting), `middleware/` (engine-auth, client-ip, rate-limit, body-limit), `routes/` (one file per resource), `validation.ts` (shared schemas and helpers).
+- `src/lib/`: generic helpers (hash, ratelimit, ttl-cache, expiring).
+- `test/` mirrors `src/`; `test/helpers/db.ts` gives one migrated PGlite per test file, truncated between tests.

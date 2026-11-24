@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, test } from "bun:test";
-import { type Db, memoryDb } from "../../src/db/client.ts";
+import { type Db } from "../../src/db/client.ts";
+import { useTestDb } from "../helpers/db.ts";
 import { BroadcastRefused, BroadcastUnconfirmed, TxFailedOnChain } from "../../src/chain/tx.ts";
 import { createFaucet, FaucetCapReached, FaucetCooldown, ipHasher, treasurySender } from "../../src/services/faucet.ts";
-import { MIGRATIONS_DIR, runMigrations } from "../../src/db/migrate.ts";
 
+const testDb = useTestDb();
 let db: Db;
 beforeEach(async () => {
-  db = await memoryDb();
-  await runMigrations(db, MIGRATIONS_DIR);
+  db = await testDb();
 });
 
 describe("faucet", () => {

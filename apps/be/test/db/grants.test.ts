@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, test } from "bun:test";
-import { type Db, memoryDb } from "../../src/db/client.ts";
-import { MIGRATIONS_DIR, runMigrations } from "../../src/db/migrate.ts";
+import { type Db } from "../../src/db/client.ts";
+import { useTestDb } from "../helpers/db.ts";
 import { cancelGrant, completeGrant, getWatchState, reserveGrant, setWatchState } from "../../src/db/store/index.ts";
 
+const testDb = useTestDb();
 let db: Db;
 beforeEach(async () => {
-  db = await memoryDb();
-  await runMigrations(db, MIGRATIONS_DIR);
+  db = await testDb();
 });
 const NOW = new Date("2030-01-01T00:00:00Z");
 

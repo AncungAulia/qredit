@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, test } from "bun:test";
-import { type Db, memoryDb } from "../../src/db/client.ts";
-import { MIGRATIONS_DIR, runMigrations } from "../../src/db/migrate.ts";
+import { type Db } from "../../src/db/client.ts";
+import { useTestDb } from "../helpers/db.ts";
 import { getWatchState, listOrders, type VaultEvent } from "../../src/db/store/index.ts";
 import { type LogSource, syncVault } from "../../src/services/watcher.ts";
 
 const V = "0x00000000000000000000000000000000000000aa";
+const testDb = useTestDb();
 let db: Db;
 beforeEach(async () => {
-  db = await memoryDb();
-  await runMigrations(db, MIGRATIONS_DIR);
+  db = await testDb();
 });
 
 function fakeSource(head: number, events: VaultEvent[]) {

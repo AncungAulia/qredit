@@ -1,21 +1,21 @@
 import { beforeEach, describe, expect, test } from "bun:test";
-import { type Db, memoryDb } from "../../src/db/client.ts";
+import { type Db } from "../../src/db/client.ts";
+import { useTestDb } from "../helpers/db.ts";
 import { FaucetCapReached, FaucetCooldown } from "../../src/services/faucet.ts";
 import { createApp } from "../../src/http/app.ts";
-import { MIGRATIONS_DIR, runMigrations } from "../../src/db/migrate.ts";
 import { RelayRejected } from "../../src/services/relayer.ts";
 import { applyVaultEvent } from "../../src/db/store/index.ts";
 
 const TOKEN = "t".repeat(32);
 const V = "0x00000000000000000000000000000000000000aa";
 const ADDR = "qor1lcukj5fkcfqxfphjsp5snjj5lrngy6sxug7jwl";
+const testDb = useTestDb();
 let db: Db;
 let app: ReturnType<typeof createApp>;
 let faucetCalls: [string, string][];
 
 beforeEach(async () => {
-  db = await memoryDb();
-  await runMigrations(db, MIGRATIONS_DIR);
+  db = await testDb();
   faucetCalls = [];
   app = createApp({
     db, engineToken: TOKEN, corsOrigins: ["https://app.qredit.fun"], relayerAddress: "qor1relayer",
