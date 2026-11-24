@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Qredit spike: QoreX probe</title>
+  <style>
+    body { font: 15px/1.5 system-ui, sans-serif; max-width: 900px; margin: 24px auto; padding: 0 16px; }
+    button { margin: 4px 8px 4px 0; padding: 6px 12px; }
+    input { width: 100%; padding: 6px; margin: 4px 0 12px; font-family: monospace; }
+    pre { background: #f4f4f4; padding: 12px; white-space: pre-wrap; word-break: break-all; }
+  </style>
+</head>
+<body>
+  <h1>QoreX probe</h1>
+  <p>Install QoreX, switch it to Testnet, then use the buttons. Copy the output into <code>engine/spikes/out/</code>.</p>
+  <button id="caps">1. Capabilities and methods (S2a, S4a)</button>
+  <label>Text to sign (S3a)</label>
+  <input id="text" value="qredit-order-v1:0x1234" />
+  <button id="sign">2. signArbitrary (S3a)</button>
+  <pre id="out"></pre>
+  <script type="module">
+    const CHAIN = "qorechain-diana";
+    const out = (x) => {
+      document.getElementById("out").textContent +=
+        (typeof x === "string" ? x : JSON.stringify(x, (_, v) => (v instanceof Uint8Array ? `0x${[...v].map((b) => b.toString(16).padStart(2, "0")).join("")}` : v), 2)) + "\n";
+    };
+    const native = async () => {
+      const q = window.qorex?.native;
+      if (!q) throw new Error("window.qorex.native not found: install QoreX, switch to Testnet, reload");
+      await q.enable(CHAIN);
+      return q;
+    };
+    document.getElementById("caps").onclick = async () => {
+      try {
+        const q = window.qorex;
+        out({
+          qorexKeys: q ? Object.keys(q) : null,
+          nativeMethods: q?.native ? Object.keys(q.native) : null,
+          capabilities: q?.native?.capabilities ?? null,
+          evmProvider: !!(q?.ethereum || window.ethereum),
+        });
+        out(await (await native()).getKey(CHAIN));
+      } catch (e) { out(`ERROR ${e.message}`); }
+    };
+    document.getElementById("sign").onclick = async () => {
+      try {
+        const q = await native();
+        const { bech32Address } = await q.getKey(CHAIN);
+        const data = document.getElementById("text").value.trim();
+        const sig = await q.signArbitrary(CHAIN, bech32Address, data);
+        out({ signer: bech32Address, data, sig });
+      } catch (e) { out(`ERROR ${e.message}`); }
+    };
+  </script>
+</body>
+</html>
