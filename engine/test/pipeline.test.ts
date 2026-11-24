@@ -4,7 +4,7 @@ import { envelopeHash } from "@qredit/qore";
 import type { Llm, PlanInput } from "../src/agent/llm.ts";
 import { handleOrder, type BusinessRuntime, type PipelineDeps } from "../src/agent/pipeline.ts";
 import { sealRequest } from "../src/agent/seal.ts";
-import { createSuppliersClient } from "../src/agent/suppliers-client.ts";
+import { createSuppliersClient, SupplierRefused } from "../src/agent/suppliers-client.ts";
 import type { Order, Prices } from "../src/agent/types.ts";
 import { SERVICES } from "../src/services/index.ts";
 import type { SupplierRole } from "../src/setup/businesses.ts";
@@ -34,6 +34,8 @@ type Opts = {
   service?: string; serviceId?: number; input?: string; price?: string; envelope?: "ok" | "missing" | "junk";
   opex?: bigint; buyer?: boolean; prepaid?: SupplierRole[]; relayFail?: boolean; closed?: boolean; now?: number;
   llm?: Partial<Llm>; wrongHash?: boolean;
+  relayThrow?: boolean; payThrow?: boolean; waitForFail?: boolean; getError?: Error; deliverThrow?: boolean; shared?: Set<SupplierRole>;
+  decisionThrow?: boolean;
 };
 
 function setup(o: Opts = {}) {
@@ -45,7 +47,7 @@ function setup(o: Opts = {}) {
     relay: [] as string[], deliver: [] as unknown[][], decline: [] as unknown[][],
     decisions: [] as Record<string, any>[], planCalls: 0, writeCalls: 0,
   };
-  const paid = new Set<SupplierRole>(o.prepaid ?? []);
+  const paid = o.shared ?? new Set<SupplierRole>(o.prepaid ?? []);
   let stored = "";
   const roleOf = (to: string) => (Object.keys(address) as SupplierRole[]).find((r) => address[r] === to)!;
   const llm: Llm = {
@@ -61,14 +63,15 @@ function setup(o: Opts = {}) {
       relay: async (r) => {
         const role = roleOf(r.value.to);
         calls.relay.push(role);
+        if (o.relayThrow) throw new Error(`fetch failed for ${ADDR}`);
         if (o.relayFail) return { txHash: "0xdead", success: false, code: "refused", reason: "nope" };
         paid.add(role);
         return { txHash: "0xbeef", success: true };
       },
     },
-    signer: { payRequest: async (_v, supplier) => ({ typeUrl: "t", value: { to: supplier } as never }) },
+    signer: { payRequest: async (_v, supplier) => { if (o.payThrow) throw new Error(`rpc down ${ADDR}`); return { typeUrl: "t", value: { to: supplier } as never }; } },
     operator: {
-      deliver: async (...a: unknown[]) => { calls.deliver.push(a); return o.closed ? { tx: null, alreadyClosed: true } : { tx: "0xdel", alreadyClosed: false }; },
+      deliver: async (...a: unknown[]) => { calls.deliver.push(a); if (o.deliverThrow) throw new Error("rpc down"); return o.closed ? { tx: null, alreadyClosed: true } : { tx: "0xdel", alreadyClosed: false }; },
       decline: async (...a: unknown[]) => { calls.decline.push(a); return { tx: "0xdec", alreadyClosed: false }; },
     } as never,
     vaults: {
@@ -76,8 +79,8 @@ function setup(o: Opts = {}) {
       supplierCap: async () => 1_000_000n,
     },
     suppliers: {
-      get: async (role) => (paid.has(role) ? roleData[role] : null),
-      waitFor: async (role) => { if (!paid.has(role)) throw new Error("timeout"); return roleData[role]; },
+      get: async (role) => { if (o.getError) throw o.getError; return paid.has(role) ? roleData[role] : null; },
+      waitFor: async (role) => { if (o.waitForFail || !paid.has(role)) throw new Error(`timeout for ${ADDR}`); return roleData[role]; },
     },
     llm, prices, chainId, log: () => {},
     resolveBuyer: async () => (o.buyer === false ? null : recipientOf(buyerKeys)),
@@ -131,6 +134,111 @@ describe("crash recovery", () => {
     expect(t.calls.relay).toEqual([]);
     expect(t.calls.planCalls).toBe(0);
     expect(t.calls.decisions[0]).toMatchObject({ cost: 80000n });
+  });
+});
+
+describe("crash recovery against post-payment funds", () => {
+  test("run 1 pays then crashes before deliver; run 2 with no opex left still delivers without paying", async () => {
+    const shared = new Set<SupplierRole>();
+    const one = setup({ ...DD, shared, deliverThrow: true, llm: { async plan(o) { await o.pay("computeBasic"); return { model: "m" }; } } });
+    expect((await handleOrder(one.order, one.biz, one.deps)).status).toBe("failed");
+    expect(one.calls.relay).toEqual(["dataIndexer", "computeBasic"]);
+    expect(one.calls.decisions[0]).toMatchObject({ decision: "failed", cost: 80000n });
+    const two = setup({ ...DD, shared, opex: 0n });
+    expect((await handleOrder(two.order, two.biz, two.deps)).status).toBe("delivered");
+    expect(two.calls.relay).toEqual([]);
+    expect(two.calls.planCalls).toBe(0);
+    expect(two.calls.decisions[0]).toMatchObject({ decision: "delivered", cost: 80000n });
+  });
+  test("only computeDeep paid earlier: deep is reused and basic is never paid", async () => {
+    const t = setup({ ...DD, prepaid: ["dataIndexer", "computeDeep"], opex: 40000n });
+    expect((await handleOrder(t.order, t.biz, t.deps)).status).toBe("delivered");
+    expect(t.calls.relay).toEqual([]);
+    expect(t.calls.decisions[0]).toMatchObject({ cost: 150000n });
+  });
+  test("resume pays only the unpaid required roles and picks the cheapest usable choice", async () => {
+    const t = setup({ ...DD, prepaid: ["computeDeep"] });
+    expect((await handleOrder(t.order, t.biz, t.deps)).status).toBe("delivered");
+    expect(t.calls.relay).toEqual(["dataIndexer"]);
+    const u = setup({ ...DD, prepaid: ["dataIndexer"], opex: 50000n });
+    await handleOrder(u.order, u.biz, u.deps);
+    expect(u.calls.relay).toEqual(["computeBasic"]);
+    expect(u.calls.planCalls).toBe(0);
+  });
+});
+
+describe("serialized tool callbacks", () => {
+  test("concurrent distinct roles: one relay, the other refused", async () => {
+    const msgs: string[] = [];
+    const t = setup({ ...DD, opex: 1_000_000n, llm: { async plan(o) { msgs.push(...(await Promise.all([o.pay("computeBasic"), o.pay("computeDeep")]))); return { model: "m" }; } } });
+    await handleOrder(t.order, t.biz, t.deps);
+    expect(t.calls.relay).toEqual(["dataIndexer", "computeBasic"]);
+    expect(msgs[1]).toStartWith("refused");
+  });
+  test("concurrent same role: exactly one relay", async () => {
+    const t = setup({ ...DD, llm: { async plan(o) { await Promise.all([o.pay("computeBasic"), o.pay("computeBasic")]); return { model: "m" }; } } });
+    await handleOrder(t.order, t.biz, t.deps);
+    expect(t.calls.relay).toEqual(["dataIndexer", "computeBasic"]);
+  });
+  test("pay after an honoured decline is refused", async () => {
+    let msg = "";
+    const t = setup({ ...DD, llm: { async plan(o) { await o.decline(1, "x"); msg = await o.pay("computeBasic"); return { model: "m" }; } } });
+    const out = await handleOrder(t.order, t.biz, t.deps);
+    expect(out).toMatchObject({ status: "declined", code: 1 });
+    expect(msg).toStartWith("refused");
+    expect(t.calls.relay).toEqual(["dataIndexer"]);
+  });
+  test("the default plan picks the cheapest when basic and deep are both affordable", async () => {
+    const t = setup({ ...DD, opex: 1_000_000n });
+    await handleOrder(t.order, t.biz, t.deps);
+    expect(t.calls.relay).toEqual(["dataIndexer", "computeBasic"]);
+  });
+});
+
+describe("retriable failures", () => {
+  const retry = { status: "failed" as const, reason: "temporary failure; will retry" };
+  const cases: [string, Opts][] = [
+    ["relay throws", { relayThrow: true }],
+    ["payRequest throws", { payThrow: true }],
+    ["supplier 5xx or network error", { getError: new Error(`fetch failed ${ADDR}`) }],
+    ["waitFor times out", { waitForFail: true }],
+    ["deliver throws", { deliverThrow: true }],
+  ];
+  for (const [name, o] of cases) {
+    test(`${name}: failed, no chain decline, reason is fixed`, async () => {
+      const t = setup(o);
+      const out = await handleOrder(t.order, t.biz, t.deps);
+      expect(out).toEqual(retry);
+      expect(t.calls.decline).toHaveLength(0);
+      expect(t.calls.decisions).toHaveLength(1);
+      expect(t.calls.decisions[0]!.decision).toBe("failed");
+      expect(t.calls.decisions[0]!.reason).toBe(retry.reason);
+      expect(JSON.stringify(t.calls.decisions[0], (_k, v) => (typeof v === "bigint" ? v.toString() : v))).not.toContain(ADDR);
+    });
+  }
+  test("a paid role whose data never arrived is failed with its cost", async () => {
+    const t = setup({ waitForFail: true });
+    await handleOrder(t.order, t.biz, t.deps);
+    expect(t.calls.decisions[0]).toMatchObject({ cost: 50000n });
+    expect(t.calls.deliver).toHaveLength(0);
+  });
+  test("deliver throwing records the cost", async () => {
+    const t = setup({ deliverThrow: true });
+    await handleOrder(t.order, t.biz, t.deps);
+    expect(t.calls.decisions[0]).toMatchObject({ decision: "failed", cost: 50000n });
+  });
+  test("a supplier answering 4xx declines with 6", async () => {
+    const t = setup({ getError: new SupplierRefused("HTTP 400") });
+    expect(await handleOrder(t.order, t.biz, t.deps)).toMatchObject({ status: "declined", code: 6 });
+  });
+  test("a closed order posts no decision (deliver and decline)", async () => {
+    const a = setup({ closed: true });
+    expect((await handleOrder(a.order, a.biz, a.deps)).status).toBe("already-closed");
+    expect(a.calls.decisions).toHaveLength(0);
+    const b = setup({ buyer: false });
+    b.deps.operator.decline = (async () => ({ tx: null, alreadyClosed: true })) as never;
+    expect((await handleOrder(b.order, b.biz, b.deps)).status).toBe("already-closed");
+    expect(b.calls.decisions).toHaveLength(0);
   });
 });
 
