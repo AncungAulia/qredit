@@ -147,4 +147,33 @@ contract LoanVaultPolicyTest is Base {
         vm.expectRevert(LoanVault.UnknownKind.selector);
         vault.applyOrder(o, hex"");
     }
+
+    function test_addSupplierRefusesRolesAfterRepaid() public {
+        _sell(2, 4);
+        assertEq(uint8(vault.state()), uint8(LoanVault.State.Repaid));
+        address[5] memory roles = [ownerPayout, ownerPq, spender, operator, address(vault)];
+        for (uint256 k; k < roles.length; k++) {
+            LoanVault.PolicyOrder memory o = _order(ADD_SUPPLIER, roles[k], 1e18);
+            bytes memory sig = _sign(o);
+            vm.expectRevert(LoanVault.BadOrder.selector);
+            vault.applyOrder(o, sig);
+        }
+    }
+
+    function test_unpauseWhenNotPausedReverts() public {
+        LoanVault.PolicyOrder memory o = _order(UNPAUSE, address(0), 0);
+        bytes memory sig = _sign(o);
+        vm.expectRevert(LoanVault.BadOrder.selector);
+        vault.applyOrder(o, sig);
+        assertEq(vault.policyNonce(), 0);
+    }
+
+    function test_pauseWhenAlreadyPausedReverts() public {
+        _apply(_order(PAUSE, address(0), 0));
+        LoanVault.PolicyOrder memory o = _order(PAUSE, address(0), 0);
+        bytes memory sig = _sign(o);
+        vm.expectRevert(LoanVault.BadOrder.selector);
+        vault.applyOrder(o, sig);
+        assertEq(vault.policyNonce(), 1);
+    }
 }

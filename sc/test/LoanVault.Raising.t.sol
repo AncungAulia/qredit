@@ -95,4 +95,26 @@ contract LoanVaultRaisingTest is Base {
         (uint256 e, uint256 l, uint256 o, uint256 x, uint256 h) = vault.books();
         assertEq(e + l + o + x + h, fusd.balanceOf(address(vault)));
     }
+
+    function _initWithSupplier(address who) internal view returns (LoanVault.Init memory i) {
+        i = _init();
+        i.suppliers[0] = who;
+    }
+
+    function test_constructorRejectsSelfDealingSuppliers() public {
+        address[4] memory roles = [spender, operator, ownerPq, ownerPayout];
+        for (uint256 k; k < roles.length; k++) {
+            LoanVault.Init memory i = _initWithSupplier(roles[k]);
+            vm.expectRevert(LoanVault.BadConfig.selector);
+            new LoanVault(i);
+        }
+    }
+
+    function test_constructorRejectsVaultItselfAsSupplier() public {
+        // the vault is created at the next CREATE address of this test contract
+        address predicted = vm.computeCreateAddress(address(this), vm.getNonce(address(this)));
+        LoanVault.Init memory i = _initWithSupplier(predicted);
+        vm.expectRevert(LoanVault.BadConfig.selector);
+        new LoanVault(i);
+    }
 }

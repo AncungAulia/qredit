@@ -179,7 +179,9 @@ contract LoanVault {
         loan = l;
         dailyCap = init.dailyCap;
         for (uint256 i; i < init.suppliers.length; i++) {
-            if (init.suppliers[i] == address(0) || init.supplierCaps[i] == 0) revert BadConfig();
+            address sup = init.suppliers[i];
+            if (sup == address(0) || init.supplierCaps[i] == 0) revert BadConfig();
+            if (_isRole(sup, init.spender, init.operator, init.ownerPq, init.ownerPayout)) revert BadConfig();
             suppliers[init.suppliers[i]] = Supplier(true, init.supplierCaps[i]);
         }
         for (uint256 i; i < init.servicePrices.length; i++) {
@@ -409,11 +411,14 @@ contract LoanVault {
             if (value >= dailyCap) revert NotNarrowing();
             dailyCap = value;
         } else if (k == Kind.Pause) {
+            if (paused) revert BadOrder();
             paused = true;
         } else if (k == Kind.Unpause) {
+            if (!paused) revert BadOrder();
             paused = false;
         } else if (k == Kind.AddSupplier) {
             if (target == address(0) || value == 0 || suppliers[target].allowed) revert BadOrder();
+            if (_isRole(target, spender, operator, ownerPq, ownerPayout)) revert BadOrder();
             suppliers[target] = Supplier(true, value);
         } else if (k == Kind.RaiseSupplierCap) {
             Supplier storage s = suppliers[target];
@@ -424,6 +429,11 @@ contract LoanVault {
             if (value <= dailyCap) revert BadOrder();
             dailyCap = value;
         }
+    }
+
+    /// True when a supplier address would let a role pay itself through the supplier path.
+    function _isRole(address a, address sp, address op, address pq, address payout) internal view returns (bool) {
+        return a == sp || a == op || a == pq || a == payout || a == address(this);
     }
 
     function _hex(bytes32 d) internal pure returns (bytes memory s) {
