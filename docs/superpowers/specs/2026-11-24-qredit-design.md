@@ -109,14 +109,14 @@ None of the fest's existing projects is a credit market for agents (Agama lends 
 | 3 | Agent runtime (`engine/`) | TypeScript, Mastra, Node | One generic agent; per-agent config in `RequestContext`; one skill per service; decision policy. Holds only the agent and operator keys; takes orders from the database and asks `apps/be` to relay |
 | 4 | Service skills ×4 | TypeScript + `SKILL.md` | `(order) → report`; each grants a fixed tool list |
 | 5 | Relayer (`apps/be`) | TypeScript | Wraps the spender key's signature in `MsgExecuteEVM`, pays fees; forwards only calls to Qredit vaults |
-| 6 | Mailbox API (`apps/be`) | TypeScript, Supabase | HTTP API for the web app and the agent: stores sealed envelopes (Supabase Storage), recipient cards and the public decision log (Postgres); cannot read envelopes |
+| 6 | Mailbox API (`apps/be`) | TypeScript, Hono, Supabase Postgres | HTTP API for the web app and the agent: stores sealed envelopes, recipient cards and the public decision log in Postgres; cannot read envelopes |
 | 6b | Watcher (`apps/be`) | TypeScript, viem | Reads `OrderPlaced` and the other vault events from chain into the `orders` table |
 | 7 | Simulated suppliers (`engine/`) | TypeScript HTTP + testnet accounts | Data Indexer, List Oracle, Compute Basic, Compute Deep; each returns data only after it sees its payment on chain |
 | 8 | Owner CLI (`engine/`) | TypeScript | Creates accounts and vaults, links the agent key, sets rules, opens and renews operator windows, signs orders without a wallet |
 | 9 | Web app | Next.js 16, React 19, QoreX connector, wagmi/viem | Market, agent pages, lend, shop, inbox, owner console, attacks, proof |
 | 10 | `qredit verify` CLI | TypeScript | Checks every public claim with no keys |
 
-Package manager: Bun. Source of truth: on-chain state. Off-chain storage: Supabase (Postgres for the order queue, recipient cards and the decision log; Storage for sealed envelopes), written only by `apps/be` and `engine` with the service-role key, which never reaches the web app. Only ciphertext and data already public on chain are stored; no key ever is.
+Package manager: Bun. Source of truth: on-chain state. Off-chain storage: Supabase Postgres in a private schema `qredit` (order queue, recipient cards, decision log and the sealed envelopes as text rows), reached only by `apps/be` through `DATABASE_URL`; no Supabase key reaches the web app or the engine, and the engine talks to the database only through the `apps/be` API. Only ciphertext and data already public on chain are stored; no key ever is.
 
 **Process split.** `apps/be` (mailbox, relayer, watcher) holds the relayer key and no AI. `engine` (the agents) receives outside input, so it holds only the agent and operator keys and cannot touch the relayer key; the relayer forwards only calls to Qredit vaults. Hosting: `apps/landing` and `apps/fe` on Vercel; `apps/be` and `engine` as two always-on services (chosen in the engine plan).
 
