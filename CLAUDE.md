@@ -29,6 +29,10 @@ Testnet only: chain id `qorechain-diana`, EVM chain id 9800. PQC precompiles in 
 4. **Everything in the repo is in English.** Never mention how long the project took or a day-by-day schedule in any committed file.
 5. **Stop and ask when blocked.** If a test fails twice, an API differs from the plan, or an instruction is ambiguous, stop and report what you saw, what you tried and the options. Do not change scope or design on your own.
 
+## Engineering standards
+
+Every change follows SOLID (one responsibility per module, dependencies injected), DRY (shared code lives in one place; chain helpers shared by `apps/be` and `engine` go to `packages/qore`), and best practice for its stack. Backend writes that take more than one step are ACID: wrap them in a transaction or a lock, never check-then-act outside one, and keep event handlers idempotent. Prefer small, reusable, typed functions.
+
 ## Commits
 
 Small commits, one logical step each, each building and passing its tests. Conventional prefix with a scope (`feat(sc): …`, `test(engine): …`, `docs: …`). The body says why and which tests ran.

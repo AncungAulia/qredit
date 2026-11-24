@@ -21,6 +21,7 @@
 - Database: Supabase Postgres via the **session pooler** URL, `prepare: false`; all tables in schema `qredit`, RLS enabled, identity primary keys, lowercase identifiers, `timestamptz`.
 - Secrets only in `apps/be/.env` (gitignored): `DATABASE_URL`, `ENGINE_TOKEN`, `IP_SALT`, `RELAYER_KEY`, `TREASURY_KEY`, `OPERATOR_KEYS`. Never log them. `.env.example` lists names only.
 - Pin package versions; Bun is the package manager and runtime; everything committed is in English; no build durations or schedules in committed files.
+- Engineering standards (binding for every task and review): SOLID (one responsibility per module, dependencies injected as interfaces), DRY (no duplicated logic; shared chain code moves to `packages/qore` when the engine needs it), ACID for every multi-step write (wrap it in `db.transaction`; no check-then-act outside a transaction or lock), idempotent handlers where the chain can replay events, small reusable functions with typed inputs and outputs.
 - Commits: one per task, conventional prefix with scope `be` (`feat(be): …`, `test(be): …`), body ends `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
 
 ## File Structure
@@ -1028,6 +1029,179 @@ git commit -m "feat(be): add key loading, hybrid broadcast and the vault ABI"
 
 ---
 
+### Task 4b: Transactions, and an atomic faucet reservation
+
+**Files:**
+- Modify: `apps/be/src/db.ts`, `apps/be/src/store.ts`
+- Create: `apps/be/test/tx.test.ts`
+
+**Interfaces:**
+- Produces:
+  - `type Queryable = { query<T = Record<string, unknown>>(text: string, params?: unknown[]): Promise<T[]> }`; `Db` gains `transaction<T>(fn: (q: Queryable) => Promise<T>): Promise<T>` (commit on resolve, rollback on throw).
+  - Every store function takes `q: Queryable` instead of `db: Db` (a `Db` is a `Queryable`, so existing callers keep working).
+  - `reserveGrant(q: Queryable, address: string, ipHash: string, cooldownHours: number, now: Date): Promise<{ ok: true; id: number } | { ok: false; retryAt: Date }>` — must run inside `db.transaction`; takes `pg_advisory_xact_lock(hashtext('qredit.faucet'))`, checks the cooldown, inserts a row with `tx = 'pending'`.
+  - `completeGrant(q: Queryable, id: number, tx: string): Promise<void>`; `cancelGrant(q: Queryable, id: number): Promise<void>`.
+
+- [ ] **Step 1: Write the failing test `apps/be/test/tx.test.ts`**
+
+```ts
+import { beforeEach, describe, expect, test } from "bun:test";
+import { type Db, memoryDb } from "../src/db.ts";
+import { MIGRATIONS_DIR, runMigrations } from "../src/migrate.ts";
+import { cancelGrant, completeGrant, getWatchState, reserveGrant, setWatchState } from "../src/store.ts";
+
+let db: Db;
+beforeEach(async () => {
+  db = await memoryDb();
+  await runMigrations(db, MIGRATIONS_DIR);
+});
+const NOW = new Date("2030-01-01T00:00:00Z");
+
+describe("transaction", () => {
+  test("commits on success and rolls back on error", async () => {
+    await db.transaction((q) => setWatchState(q, "0xa", 5));
+    await expect(db.transaction(async (q) => { await setWatchState(q, "0xa", 9); throw new Error("boom"); })).rejects.toThrow("boom");
+    expect(await getWatchState(db, "0xa")).toBe(5);
+  });
+});
+
+describe("faucet reservation", () => {
+  test("only one reservation per address or ip inside the cooldown", async () => {
+    const a = await db.transaction((q) => reserveGrant(q, "qor1a", "ip1", 24, NOW));
+    expect(a.ok).toBe(true);
+    const b = await db.transaction((q) => reserveGrant(q, "qor1a", "ip2", 24, NOW));
+    const c = await db.transaction((q) => reserveGrant(q, "qor1b", "ip1", 24, NOW));
+    expect(b.ok || c.ok).toBe(false);
+    if (!b.ok) expect(b.retryAt.getTime()).toBeGreaterThan(Date.now());
+  });
+
+  test("concurrent reservations for the same address grant exactly one", async () => {
+    const results = await Promise.all(
+      [1, 2, 3].map(() => db.transaction((q) => reserveGrant(q, "qor1a", "ip1", 24, NOW))),
+    );
+    expect(results.filter((r) => r.ok).length).toBe(1);
+  });
+
+  test("a cancelled reservation frees the slot; a completed one records the tx", async () => {
+    const a = await db.transaction((q) => reserveGrant(q, "qor1a", "ip1", 24, NOW));
+    if (!a.ok) throw new Error("expected ok");
+    await cancelGrant(db, a.id);
+    const b = await db.transaction((q) => reserveGrant(q, "qor1a", "ip1", 24, NOW));
+    if (!b.ok) throw new Error("expected ok after cancel");
+    await completeGrant(db, b.id, "0xtx");
+    const [row] = await db.query<{ tx: string }>("select tx from qredit.faucet_grants where id = $1", [b.id]);
+    expect(row.tx).toBe("0xtx");
+  });
+});
+```
+
+- [ ] **Step 2: Run it to verify it fails**
+
+Run: `bun test test/tx.test.ts`
+Expected: FAIL (`db.transaction` is not a function / `reserveGrant` not exported).
+
+- [ ] **Step 3: Add transactions to `apps/be/src/db.ts`**
+
+Replace the file with:
+```ts
+import postgres from "postgres";
+
+export type Queryable = {
+  query<T = Record<string, unknown>>(text: string, params?: unknown[]): Promise<T[]>;
+};
+
+export interface Db extends Queryable {
+  exec(text: string): Promise<void>;
+  /** Run fn in one transaction: commit when it resolves, roll back when it throws. */
+  transaction<T>(fn: (q: Queryable) => Promise<T>): Promise<T>;
+  close(): Promise<void>;
+}
+
+/** Supabase Postgres through the session pooler; prepared statements off for pooling. */
+export function pgDb(url: string): Db {
+  // onnotice: Postgres NOTICEs (e.g. "already exists, skipping") are not errors; keep logs clean.
+  const sql = postgres(url, { max: 5, prepare: false, idle_timeout: 30, connect_timeout: 15, onnotice: () => {} });
+  const queryable = (s: postgres.Sql | postgres.TransactionSql): Queryable => ({
+    // Return a plain array, without postgres.js result metadata.
+    query: async <T>(text: string, params: unknown[] = []) => Array.from(await s.unsafe(text, params as never[])) as T[],
+  });
+  return {
+    ...queryable(sql),
+    exec: async (text: string) => {
+      await sql.unsafe(text);
+    },
+    transaction: <T>(fn: (q: Queryable) => Promise<T>) => sql.begin((t) => fn(queryable(t))) as Promise<T>,
+    close: () => sql.end(),
+  };
+}
+
+/** In-process Postgres (PGlite) for tests. */
+export async function memoryDb(): Promise<Db> {
+  const { PGlite } = await import("@electric-sql/pglite");
+  const pg = new PGlite();
+  return {
+    query: async <T>(text: string, params: unknown[] = []) => (await pg.query(text, params)).rows as T[],
+    exec: async (text: string) => {
+      await pg.exec(text);
+    },
+    transaction: <T>(fn: (q: Queryable) => Promise<T>) =>
+      pg.transaction((t) => fn({ query: async <R>(text: string, params: unknown[] = []) => (await t.query(text, params)).rows as R[] })),
+    close: () => pg.close(),
+  };
+}
+```
+
+- [ ] **Step 4: Make the store work on any `Queryable` and add the reservation functions**
+
+In `apps/be/src/store.ts`: change the import to `import type { Queryable } from "./db.ts";`, rename every `db: Db` parameter to `db: Queryable` (no other change to those functions), and append:
+
+```ts
+/** Reserve a faucet slot atomically. Call inside db.transaction. */
+export async function reserveGrant(
+  q: Queryable,
+  address: string,
+  ipHash: string,
+  cooldownHours: number,
+  now: Date,
+): Promise<{ ok: true; id: number } | { ok: false; retryAt: Date }> {
+  await q.query("select pg_advisory_xact_lock(hashtext('qredit.faucet'))");
+  const last = await lastGrant(q, address, ipHash);
+  if (last) {
+    const retryAt = new Date(last.getTime() + cooldownHours * 3_600_000);
+    if (retryAt > now) return { ok: false, retryAt };
+  }
+  const [r] = await q.query<{ id: string | number }>(
+    "insert into qredit.faucet_grants (address, ip_hash, tx) values ($1, $2, 'pending') returning id",
+    [address, ipHash],
+  );
+  return { ok: true, id: Number(r.id) };
+}
+
+export async function completeGrant(q: Queryable, id: number, tx: string): Promise<void> {
+  await q.query("update qredit.faucet_grants set tx = $2 where id = $1", [id, tx]);
+}
+
+export async function cancelGrant(q: Queryable, id: number): Promise<void> {
+  await q.query("delete from qredit.faucet_grants where id = $1", [id]);
+}
+```
+
+`lastGrant` keeps its query; `recordGrant` stays for now (Task 7 stops using it; remove it there).
+
+- [ ] **Step 5: Run the whole suite**
+
+Run: `bun test && bun run typecheck`
+Expected: every earlier suite still passes, plus 4 in `tx.test.ts`.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add apps/be/src/db.ts apps/be/src/store.ts apps/be/test/tx.test.ts
+git commit -m "feat(be): add transactions and an atomic faucet reservation"
+```
+
+---
+
 ### Task 5: Relayer
 
 **Files:**
@@ -1218,7 +1392,7 @@ git commit -m "feat(be): add the relayer that forwards only vault.paySupplier"
 - Create: `apps/be/src/watcher.ts`, `apps/be/test/watcher.test.ts`
 
 **Interfaces:**
-- Consumes: `applyVaultEvent`, `getWatchState`, `setWatchState`, `VaultEvent` (Task 3); `VAULT_EVENTS` (Task 4).
+- Consumes: `applyVaultEvent`, `getWatchState`, `setWatchState`, `VaultEvent` (Task 3); `db.transaction` (Task 4b); `VAULT_EVENTS` (Task 4).
 - Produces: `interface LogSource { latestBlock(): Promise<number>; events(vault: string, from: number, to: number): Promise<VaultEvent[]> }`; `syncVault(db: Db, src: LogSource, vault: string, startBlock: number, maxRange?: number): Promise<number>`; `viemLogSource(client: PublicClient): LogSource`.
 
 - [ ] **Step 1: Write the failing test `apps/be/test/watcher.test.ts`**
@@ -1309,8 +1483,11 @@ export async function syncVault(db: Db, src: LogSource, vault: string, startBloc
   while (from <= head) {
     const to = Math.min(head, from + maxRange - 1);
     const events = (await src.events(vault, from, to)).sort((a, b) => a.block - b.block || a.logIndex - b.logIndex);
-    for (const e of events) await applyVaultEvent(db, e);
-    await setWatchState(db, vault, to);
+    // Events of one range and the saved position commit together, or not at all.
+    await db.transaction(async (q) => {
+      for (const e of events) await applyVaultEvent(q, e);
+      await setWatchState(q, vault, to);
+    });
     last = to;
     from = to + 1;
   }
@@ -1360,7 +1537,7 @@ git commit -m "feat(be): add the vault watcher"
 - Create: `apps/be/src/windows.ts`, `apps/be/src/faucet.ts`, `apps/be/test/windows.test.ts`, `apps/be/test/faucet.test.ts`
 
 **Interfaces:**
-- Consumes: `broadcastHybrid`, `txEvents`, `serial`, `Net` (Task 4); `recordGrant`, `lastGrant` (Task 3); `FUSD_DENOM` (Task 1).
+- Consumes: `broadcastHybrid`, `txEvents`, `serial`, `Net` (Task 4); `reserveGrant`, `completeGrant`, `cancelGrant`, `db.transaction` (Task 4b); `FUSD_DENOM` (Task 1). Remove the now unused `recordGrant` from `store.ts` and its use in `store.test.ts` (keep `lastGrant`, which `reserveGrant` uses).
 - Produces:
   - `interface WindowChain { status(address: string): Promise<{ blocks: number; txs: number }>; open(acc: UnifiedAccount, targets: string[], o: WindowOptions): Promise<string> }`; `type WindowOptions = { blocks: number; maxTxs: number; maxValue: bigint }`
   - `keepWindows(items: { account: UnifiedAccount; targets: string[] }[], chain: WindowChain, o: WindowOptions & { minBlocks: number; minTxs?: number }): Promise<{ address: string; action: "kept" | "renewed" | "error"; tx?: string; error?: string }[]>`
@@ -1439,6 +1616,14 @@ describe("faucet", () => {
     await faucet("qor1a", "1.1.1.1");
     await db.query("update qredit.faucet_grants set created_at = $1", [new Date("2030-01-01T00:00:00Z")]);
     now = new Date("2030-01-01T01:00:01Z");
+    expect(await faucet("qor1a", "1.1.1.1")).toEqual({ tx: "TX" });
+  });
+
+  test("a failed send releases the reservation", async () => {
+    let fail = true;
+    const faucet = createFaucet({ db, cooldownHours: 24, hashIp: ipHasher("salt-salt-salt-salt"), send: async () => { if (fail) throw new Error("rpc down"); return "TX"; } });
+    await expect(faucet("qor1a", "1.1.1.1")).rejects.toThrow("rpc down");
+    fail = false;
     expect(await faucet("qor1a", "1.1.1.1")).toEqual({ tx: "TX" });
   });
 
@@ -1522,7 +1707,7 @@ import type { UnifiedAccount } from "@qorechain/sdk";
 import { broadcastHybrid, type Net, serial, txEvents } from "./chain/tx.ts";
 import { FUSD_DENOM } from "./config.ts";
 import type { Db } from "./db.ts";
-import { lastGrant, recordGrant } from "./store.ts";
+import { cancelGrant, completeGrant, reserveGrant } from "./store.ts";
 
 export class FaucetCooldown extends Error {
   constructor(readonly retryAt: Date) {
@@ -1542,14 +1727,17 @@ export function createFaucet(deps: {
   const now = deps.now ?? (() => new Date());
   return async (address, ip) => {
     const ipHash = deps.hashIp(ip);
-    const last = await lastGrant(deps.db, address, ipHash);
-    if (last) {
-      const retryAt = new Date(last.getTime() + deps.cooldownHours * 3_600_000);
-      if (retryAt > now()) throw new FaucetCooldown(retryAt);
+    // Reserve atomically (advisory lock + check + insert in one transaction), then send.
+    const slot = await deps.db.transaction((q) => reserveGrant(q, address, ipHash, deps.cooldownHours, now()));
+    if (!slot.ok) throw new FaucetCooldown(slot.retryAt);
+    try {
+      const tx = await deps.send(address);
+      await completeGrant(deps.db, slot.id, tx);
+      return { tx };
+    } catch (e) {
+      await cancelGrant(deps.db, slot.id);
+      throw e;
     }
-    const tx = await deps.send(address);
-    await recordGrant(deps.db, address, ipHash, tx);
-    return { tx };
   };
 }
 
@@ -1574,7 +1762,7 @@ export function treasurySender(net: Net, treasury: UnifiedAccount, uqor: bigint,
 - [ ] **Step 5: Run the tests**
 
 Run: `bun test test/windows.test.ts test/faucet.test.ts && bun run typecheck`
-Expected: 5 pass. If `evmWindowStatus` field names differ (`remainingBlocks`, `remainingTxs`, `found`, `live`), take them from `node_modules/@qorechain/evm/dist/window.d.ts` (the spikes used these names).
+Expected: 6 pass. If `evmWindowStatus` field names differ (`remainingBlocks`, `remainingTxs`, `found`, `live`), take them from `node_modules/@qorechain/evm/dist/window.d.ts` (the spikes used these names).
 
 - [ ] **Step 6: Commit**
 
@@ -2039,7 +2227,7 @@ console.log(`[http] listening on :${cfg.PORT}; relayer ${relayer.cosmos}; treasu
 - [ ] **Step 2: Typecheck and run the full suite**
 
 Run (in `apps/be`): `bun run typecheck && bun test`
-Expected: all suites pass (config 4, migrate 2, store 10, chain 4, relayer 6, watcher 3, windows 2, faucet 3, http 8).
+Expected: all suites pass (config 4, migrate 2, store 10, chain 4, tx 4, relayer 6, watcher 3, windows 2, faucet 4, http 8).
 
 - [ ] **Step 3: Prepare a local `.env` for the smoke test**
 
