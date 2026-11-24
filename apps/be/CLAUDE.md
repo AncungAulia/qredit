@@ -16,7 +16,7 @@ The Qredit backend (api.qredit.fun): mailbox API, relayer, vault watcher, operat
 
 ## Public exposure
 
-- Client ip = the `x-forwarded-for` entry the trusted proxy appended (`TRUSTED_PROXY_HOPS`, default 1; 0 ignores the header), else the socket peer. Leftmost entries are never trusted. The origin must be reachable only through the proxy, otherwise a direct caller can set the header.
+- Client ip = the valid ip in the header named by `CLIENT_IP_HEADER` when set (the hosted api uses `x-real-ip`, which Railway's edge overwrites; only set it when the edge does), else the `x-forwarded-for` entry the trusted proxy appended (`TRUSTED_PROXY_HOPS`, default 1; 0 ignores the header), else the socket peer. Leftmost entries are never trusted. The origin must be reachable only through the proxy, otherwise a direct caller can set the header.
 - Body limits: 300 KB for `POST /v1/envelopes`, 16 KB elsewhere (413); `Bun.serve` caps at 512 KB.
 - Rate limits (`RATE_ENVELOPES_PER_MIN` 30, `RATE_CARDS_PER_MIN` 10, `RATE_FAUCET_PER_MIN` 5, per client ip, 429 with `retryAfter`) are in memory and **per instance**: this is a single-instance deployment; scaling out needs a shared store. Engine-authenticated envelope posts are not limited.
 - The faucet also has a global cap (`FAUCET_DAILY_CAP`, default 200 grants per rolling 24 h, 503 when reached). A grant is cancelled only when nothing was broadcast (`BroadcastRefused`); once a hash may exist it is never released.

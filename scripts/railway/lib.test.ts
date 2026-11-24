@@ -25,6 +25,7 @@ describe("service variables", () => {
     expect(v.GEMINI_API_KEY).toBeUndefined();
     expect(v.PORT).toBe("8787");
     expect(v.TRUSTED_PROXY_HOPS).toBe("1");
+    expect(v.CLIENT_IP_HEADER).toBe("x-real-ip");
     expect(v.CORS_ORIGINS).toBe("c");
   });
   test("api: missing required names are reported by name", () => {

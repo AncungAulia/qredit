@@ -46,6 +46,7 @@ const app = createApp({
   faucet,
   verifyCard: chainCardVerifier(net),
   trustedProxyHops: cfg.TRUSTED_PROXY_HOPS,
+  clientIpHeader: cfg.CLIENT_IP_HEADER,
   rateLimits: { envelopes: cfg.RATE_ENVELOPES_PER_MIN, cards: cfg.RATE_CARDS_PER_MIN, faucet: cfg.RATE_FAUCET_PER_MIN },
 });
 

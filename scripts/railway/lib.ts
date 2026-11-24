@@ -48,7 +48,7 @@ export function apiVars(be: Vars, allowed: string[]): Vars {
   const out: Vars = {};
   for (const k of allowed) if (k !== "PORT" && be[k] !== undefined) out[k] = be[k];
   need(out, ["DATABASE_URL", "ENGINE_TOKEN", "IP_SALT", "RELAYER_KEY", "TREASURY_KEY"], "apps/be/.env");
-  return { ...out, PORT: API_PORT, TRUSTED_PROXY_HOPS: "1" };
+  return { ...out, PORT: API_PORT, TRUSTED_PROXY_HOPS: "1", CLIENT_IP_HEADER: "x-real-ip" };
 }
 
 export function suppliersVars(engine: Vars): Vars {
