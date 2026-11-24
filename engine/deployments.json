@@ -1,0 +1,46 @@
+{
+  "contract-auditor": {
+    "slug": "contract-auditor",
+    "spender": "0x6003090bc242245d915edab5102da3cb4b8809ab",
+    "operator": "0x7be7de69a5185885c019691e6ec149afd178b86c",
+    "agentPubkey": "329c88370c8d31a442d81e9d9d2d918fe2e7179677b10a51bfa570ac9f6b5595",
+    "linkTx": "CDC4767DF9C610C90F8978FD8D64F4F8315FA53ECCCD26D5B081B16FA246C681",
+    "windowTx": "C709E2F21095212C7E1FC256CD48D0F9264A3D161EC55AFA0E3009A95D8496AA",
+    "vault": "0xe7f875479128d7676b3b7b40a05e68a5f7297f5a",
+    "startBlock": 10673670,
+    "createTx": "0x7f9f21efc60e2c6b67a3dc0b24ea0c69713cf9ea007e31f85a7f9ade66ceade5"
+  },
+  "counterparty-check": {
+    "slug": "counterparty-check",
+    "spender": "0x487f449c21a48eaf9d2eb3804f511dfb7715eea9",
+    "operator": "0xa995b8848d08320166817a2de1562b2f7be0d7ac",
+    "agentPubkey": "047e4ad46980b620d6c26543724add218741a8d756d02e6761ba23af6b91d778",
+    "linkTx": "B200CE67D996B843EDEDE1BA9B0D8813358E6A472BED951668AE0420F81CE9E9",
+    "windowTx": "B203AB3078056FFDA3375EE4CB0737C2C12439F70BFD6E4210F58FE969B1C5C5",
+    "vault": "0x37bbb37dd96a973a22ca64bc809a8bc4d54b03d4",
+    "startBlock": 10673594,
+    "createTx": "0x7f63e13fce1b443380c11e9cb96192ca7c411db41a19f0f29b1d34227517218f"
+  },
+  "due-diligence": {
+    "slug": "due-diligence",
+    "spender": "0xf735b2937c9bab020189afd3ea660a9afcf6339e",
+    "operator": "0x7ea605d13b1ba00d57a6ba48e98aa890d934c308",
+    "agentPubkey": "6cd447302022f985ac79006da641c62d796b9e9c65461395d17e4d151c59560b",
+    "linkTx": "E5E43C3B39423FE5F4729A71CEB5482D6318D11ED7481B47B5785D14582AC79C",
+    "windowTx": "01D0F34393D3056717DA739D570952DCB1C9B4E414D190E08F46EBE774359A94",
+    "vault": "0xc73572c3c7be0500d523f5f1e4062d690c70089e",
+    "startBlock": 10673644,
+    "createTx": "0x078ff05032344e0c22b05ad93890c6d72b7e8bb97596f5a63332bd30eaadb261"
+  },
+  "sanctions-screen": {
+    "slug": "sanctions-screen",
+    "spender": "0x6fbcea7fe25d1dc61fe7210e56da194cc2d066e2",
+    "operator": "0x7bcd82c65e2a7078ee71bb0df94d4efcc3ec61f6",
+    "agentPubkey": "c6e7bef992413b5d69f19fb514e1d3a44f2874eeaadc810125f5c7a71c62ab5e",
+    "linkTx": "EA7ABAFDCAFC268C5E7B6EBDC7C0D0EBB42E723CD3BC5C820C20D4B3AE5ADBE2",
+    "windowTx": "374C00F5CD4A7B2FC4879B19574F0E3F4C766D11875EF357AD836FC82279A39E",
+    "vault": "0x8f7354806358c87a32791418289f592376553d65",
+    "startBlock": 10673619,
+    "createTx": "0x8c99e84f75294ecaf64e024558def962e6a668bca86a37820fa6581f035fa8b9"
+  }
+}
