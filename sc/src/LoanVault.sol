@@ -18,7 +18,8 @@ contract LoanVault {
     IQorePQC internal constant PQC_KEYS = IQorePQC(0x0000000000000000000000000000000000000a02);
 
     uint256 internal constant BPS = 10_000;
-    uint256 internal constant ACC = 1e18;
+    // 1e36 keeps per-delivery truncation below 1 wei; toLenders * 1e36 and deposits * accPerShare stay far below 2^256.
+    uint256 internal constant ACC = 1e36;
     bytes32 internal constant POLICY_TAG = keccak256("qredit-policy-v1");
 
     enum State { Raising, Active, Trapped, Repaid, Refunded }

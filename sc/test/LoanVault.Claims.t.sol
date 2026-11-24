@@ -82,7 +82,14 @@ contract LoanVaultClaimsTest is Base {
     function test_businessKeepsSellingAfterRepaid() public {
         _sell(2, 4);
         assertEq(uint8(vault.state()), uint8(LoanVault.State.Repaid));
-        _sell(0, 1);
+        uint256 pool = vault.lenderPool();
+        uint256 repaidBefore = vault.repaid();
+        uint256 id = _buy(0);
+        _deliver(id);
+        (,,, LoanVault.OrderStatus st,,) = vault.orders(id);
+        assertEq(uint8(st), uint8(LoanVault.OrderStatus.Delivered));
+        assertEq(vault.lenderPool(), pool, "lender part must be 0");
+        assertEq(vault.repaid(), repaidBefore);
     }
 
     function test_withdrawRemainderOnlyByOwnerWhenRepaid() public {
@@ -105,8 +112,108 @@ contract LoanVaultClaimsTest is Base {
         vault.claimLender();
         vm.prank(lenderB);
         vault.claimLender();
-        assertGe(vault.lenderPool(), 0);
         (uint256 e, uint256 l, uint256 o, uint256 x, uint256 h) = vault.books();
         assertEq(e + l + o + x + h, fusd.balanceOf(address(vault)));
+    }
+
+    function test_oddDepositsAndPricesRoundDownSafely() public {
+        uint256[] memory prices = new uint256[](3);
+        prices[0] = 3_333_333_333_333_333_333;
+        prices[1] = 7e18 + 13;
+        prices[2] = 1_000_000_000_000_000_001;
+        _fresh(prices, 33e18, 67e18);
+        for (uint256 k; k < 9; k++) {
+            _deliver(_buy(k % 3));
+        }
+        uint256 delivered = vault.repaid();
+        assertGt(delivered, 0);
+        vm.prank(lenderA);
+        vault.claimLender();
+        vm.prank(lenderB);
+        vault.claimLender();
+        uint256 claimed = vault.lenderClaimed(lenderA) + vault.lenderClaimed(lenderB);
+        assertLe(claimed, delivered, "claims exceed lender part");
+        assertLe(delivered - claimed, 2, "dust must not exceed the number of lenders");
+        assertEq(vault.lenderPool(), delivered - claimed);
+        (uint256 e, uint256 l, uint256 o, uint256 x, uint256 h) = vault.books();
+        assertEq(e + l + o + x + h, fusd.balanceOf(address(vault)));
+    }
+
+    function test_oddDepositsAndPricesAtSixDecimalScale() public {
+        LoanVault.Init memory i = _init();
+        uint256[] memory prices = new uint256[](3);
+        prices[0] = 3_333_333;
+        prices[1] = 7e6 + 13;
+        prices[2] = 1_000_001;
+        i.servicePrices = prices;
+        i.loan.target = 100e6;
+        i.loan.totalOwed = 110e6;
+        i.loan.installment = 10e6;
+        i.dailyCap = 20e6;
+        i.supplierCaps[0] = 10e6;
+        i.supplierCaps[1] = 2e6;
+        _freshWith(i, 33e6, 67e6);
+        // buyer's 18-decimal balance is plenty for these small prices
+        for (uint256 k; k < 30; k++) {
+            _deliver(_buy(k % 3));
+        }
+        uint256 delivered = vault.repaid();
+        assertGt(delivered, 0);
+        vm.prank(lenderA);
+        vault.claimLender();
+        vm.prank(lenderB);
+        vault.claimLender();
+        uint256 claimed = vault.lenderClaimed(lenderA) + vault.lenderClaimed(lenderB);
+        assertLe(claimed, delivered, "claims exceed lender part");
+        assertLe(delivered - claimed, 2, "dust must not exceed the number of lenders");
+        (uint256 e, uint256 l, uint256 o, uint256 x, uint256 h) = vault.books();
+        assertEq(e + l + o + x + h, fusd.balanceOf(address(vault)));
+    }
+
+    function test_claimLenderAndOwnerWorkAfterRepaid() public {
+        _sell(2, 4);
+        assertEq(uint8(vault.state()), uint8(LoanVault.State.Repaid));
+        uint256 owner = vault.ownerPending();
+        assertGt(owner, 0);
+        vm.prank(lenderA);
+        vault.claimLender();
+        vm.prank(lenderB);
+        vault.claimLender();
+        assertEq(fusd.balanceOf(lenderA) + fusd.balanceOf(lenderB), 20_000e18 - TARGET + OWED);
+        vault.claimOwner();
+        assertEq(fusd.balanceOf(ownerPayout), owner);
+    }
+
+    function test_claimOwnerWorksAgainAfterTrappedReturnsToActive() public {
+        _sell(1, 1); // owner earns 1 fUSD while Active
+        assertEq(vault.ownerPending(), 1e18);
+        uint256 t = block.timestamp + GRACE + PERIOD;
+        vm.warp(t);
+        assertEq(uint8(vault.state()), uint8(LoanVault.State.Trapped));
+        _sell(1, 4); // 4 x 2.5 to lenders in Trapped, 1.5 already repaid -> 11.5 >= 10
+        assertEq(uint8(vault.state()), uint8(LoanVault.State.Active));
+        assertEq(vault.ownerPending(), 1e18, "pending kept");
+        vault.claimOwner();
+        assertEq(fusd.balanceOf(ownerPayout), 1e18);
+    }
+
+    function test_buyAndPaySupplierWorkWhileTrapped() public {
+        uint256 t = block.timestamp + GRACE + PERIOD;
+        vm.warp(t);
+        assertEq(uint8(vault.state()), uint8(LoanVault.State.Trapped));
+        uint256 id = _buy(0);
+        assertGt(id, 0);
+        vm.prank(spender);
+        vault.paySupplier(supplierA, 1e18, id);
+        assertEq(fusd.balanceOf(supplierA), 1e18);
+    }
+
+    function test_stateAtTrapBoundary() public {
+        uint256 t = block.timestamp + GRACE + PERIOD - 1;
+        vm.warp(t);
+        assertEq(uint8(vault.state()), uint8(LoanVault.State.Active));
+        t += 1;
+        vm.warp(t);
+        assertEq(uint8(vault.state()), uint8(LoanVault.State.Trapped));
     }
 }

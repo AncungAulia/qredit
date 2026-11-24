@@ -128,4 +128,24 @@ abstract contract Base is Test {
     function _sign(LoanVault.PolicyOrder memory o) internal view returns (bytes memory) {
         return abi.encodePacked(keccak256(abi.encodePacked("ok", hex"c0ffee", vault.signedBytes(o))));
     }
+
+    /// Replaces `vault` with a fresh one using custom service prices and funds it with two lenders' deposits.
+    function _fresh(uint256[] memory prices, uint256 amountA, uint256 amountB) internal {
+        LoanVault.Init memory i = _init();
+        i.servicePrices = prices;
+        _freshWith(i, amountA, amountB);
+    }
+
+    function _freshWith(LoanVault.Init memory i, uint256 amountA, uint256 amountB) internal {
+        vault = new LoanVault(i);
+        address[3] memory funded = [lenderA, lenderB, buyer];
+        for (uint256 k; k < funded.length; k++) {
+            vm.prank(funded[k]);
+            fusd.approve(address(vault), type(uint256).max);
+        }
+        vm.prank(lenderA);
+        vault.deposit(amountA);
+        vm.prank(lenderB);
+        vault.deposit(amountB);
+    }
 }
