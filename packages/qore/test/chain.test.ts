@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { parseKeyList, parseKeySpec } from "../src/keys.ts";
-import { executionFailure, serial, txEvents } from "../src/tx.ts";
+import { executionFailure, serial, signModeOf, txEvents } from "../src/tx.ts";
 import { PAY_SUPPLIER_SELECTOR, VAULT_EVENTS } from "../src/abi.ts";
 
 describe("key specs", () => {
@@ -67,5 +67,12 @@ describe("txEvents", () => {
     } finally {
       server.stop(true);
     }
+  });
+});
+
+describe("sign mode", () => {
+  test("defaults to hybrid; classical only when asked", () => {
+    expect(signModeOf({})).toBe("hybrid");
+    expect(signModeOf({ signMode: "classical" })).toBe("classical");
   });
 });

@@ -4,6 +4,9 @@ import { EthNativeSigner, type UnifiedAccount } from "@qorechain/sdk";
 import type { Net } from "./net.ts";
 
 export type RestEvent = { type: string; attributes: { key: string; value: string }[] };
+/** "hybrid" (secp256k1 + ML-DSA-87, the default) or "classical" (secp256k1 only; needed to register the ML-DSA key). */
+export type SignMode = "hybrid" | "classical";
+export const signModeOf = (opts: { signMode?: SignMode }): SignMode => opts.signMode ?? "hybrid";
 export type Sent = { hash: string; code: number; rawLog?: string };
 
 /** Nothing was broadcast: CheckTx refused it, or connecting/preparing failed before any hash existed. Safe to retry. */
@@ -55,12 +58,12 @@ export async function broadcastHybrid(
   net: Net,
   acc: UnifiedAccount,
   messages: EncodeObject[],
-  opts: { memo?: string; gas?: string; feeUqor?: string; registry?: Registry } = {},
+  opts: { memo?: string; gas?: string; feeUqor?: string; registry?: Registry; signMode?: SignMode } = {},
 ): Promise<Sent> {
   let accountNumber: bigint, sequence: bigint, signer: EthNativeSigner, transport: StargateClient;
   try {
     ({ accountNumber, sequence } = await accountNumbers(net.rest, acc.cosmos));
-    signer = new EthNativeSigner(acc, { signMode: "hybrid", rest: net.rest, registry: opts.registry });
+    signer = new EthNativeSigner(acc, { signMode: signModeOf(opts), rest: net.rest, registry: opts.registry });
     transport = await connectRpc(net.rpc);
   } catch (e) {
     throw new BroadcastRefused(e instanceof Error ? e.message : String(e), { cause: e });
