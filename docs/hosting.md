@@ -50,5 +50,5 @@ Three always-on services on the Hobby plan (usage-billed per CPU, memory and egr
 ## Known issues
 
 - Both Dockerfiles pin `oven/bun:1.3.13` (the version used locally); the floating `1.3` tag moved to 1.3.14.
-- A cold start can crash once with `require() async module ... is unsupported` (Bun 1.3.14 loading `@noble/hashes` or `@scure/base` through `@cosmjs`) and then starts on Railway's automatic restart. Seen on `api` and `agent` first starts.
+- Bun 1.3.14 (the floating `1.3` tag) crashed once on cold start with `require() async module ... is unsupported` (`@noble/hashes` / `@scure/base` through `@cosmjs`); with the 1.3.13 pin all three services start cleanly on the first try (verified after redeploy).
 - The hosted api sets `CLIENT_IP_HEADER=x-real-ip`: Railway's edge overwrites that header, so the per-IP limits and the faucet cooldown key on the real client. Checked live: 15 requests to the 10 per minute card route, each with a different spoofed `X-Real-IP` and `X-Forwarded-For`, got 429 from the 11th.
