@@ -5,6 +5,14 @@ const facts = { address: { hex: "0x487f449c21a48eaf9d2eb3804f511dfb7715eea9" }, 
 const verdict = { label: "C", rule: "no ML-DSA key registered" };
 
 describe("grounding", () => {
+  test("accepts terms and numbers that appear in the code findings; an invented number still fails", () => {
+    const findings = ["Implements ERC-20 selectors: transfer, approve."];
+    const prose = { summary: "Uses ERC-20 functions transfer and approve.", findings: [] };
+    expect(checkGrounding(prose, {}, verdict, undefined, findings)).toEqual({ ok: true });
+    expect(checkGrounding(prose, {}, verdict).ok).toBe(false);
+    expect(checkGrounding({ summary: "Uses ERC-20 and 45 functions.", findings: [] }, {}, verdict, undefined, findings).ok).toBe(false);
+    expect(checkGrounding({ summary: "Uses ERC-721.", findings: [] }, {}, verdict, undefined, findings).ok).toBe(false);
+  });
   test("accepts prose that only repeats facts", () => {
     expect(checkGrounding({ summary: "Grade C. The address 0x487f449c21a48eaf9d2eb3804f511dfb7715eea9 sent 2 transactions.", findings: ["No ML-DSA key registered."] }, facts, verdict)).toEqual({ ok: true });
   });

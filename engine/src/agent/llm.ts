@@ -99,7 +99,7 @@ export function createOpenRouterLlm(cfg: AgentConfig): Llm {
         });
         const prose = proseSchema.parse(res.object);
         const answered = res.response?.modelId ?? cfg.AGENT_MODELS[0]!;
-        const g = checkGrounding(prose, o.facts, o.verdict, o.labels);
+        const g = checkGrounding(prose, o.facts, o.verdict, o.labels, o.codeFindings);
         log(`write model=${answered} ms=${Math.round(performance.now() - t0)} grounding=${g.ok ? "ok" : g.reason}`);
         return g.ok ? { prose, model: answered } : null;
       } catch (e) {
