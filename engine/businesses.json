@@ -1,0 +1,58 @@
+{
+  "suppliers": {
+    "dataIndexer": { "name": "Data Indexer", "priceUnits": "50000" },
+    "listOracle": { "name": "List Oracle", "priceUnits": "100000" },
+    "computeBasic": { "name": "Compute Basic", "priceUnits": "500000" },
+    "computeDeep": { "name": "Compute Deep", "priceUnits": "1500000" }
+  },
+  "businesses": [
+    {
+      "slug": "counterparty-check",
+      "name": "Counterparty Check",
+      "tagline": "Is it safe to pay this address? A Q-Day-aware risk grade, sealed to you.",
+      "services": [{ "id": 0, "name": "Counterparty risk grade", "priceUnits": "250000" }],
+      "suppliers": [{ "role": "dataIndexer", "capUnits": "200000" }],
+      "split": { "lenderBps": 3000, "ownerBps": 2000 },
+      "dailyCapUnits": "20000000",
+      "orderTtlSeconds": 3600,
+      "loan": { "targetUnits": "50000000", "totalOwedUnits": "55000000", "raiseSeconds": 1209600, "periodSeconds": 86400, "graceSeconds": 86400, "installmentUnits": "1000000" },
+      "demoState": "active"
+    },
+    {
+      "slug": "sanctions-screen",
+      "name": "Sanctions Screen",
+      "tagline": "Screen an address against a sanctions list before you deal with it.",
+      "services": [{ "id": 0, "name": "Sanctions screen", "priceUnits": "500000" }],
+      "suppliers": [{ "role": "listOracle", "capUnits": "300000" }],
+      "split": { "lenderBps": 8000, "ownerBps": 1000 },
+      "dailyCapUnits": "10000000",
+      "orderTtlSeconds": 3600,
+      "loan": { "targetUnits": "2000000", "totalOwedUnits": "2200000", "raiseSeconds": 1209600, "periodSeconds": 86400, "graceSeconds": 86400, "installmentUnits": "500000" },
+      "demoState": "repaid"
+    },
+    {
+      "slug": "due-diligence",
+      "name": "Due Diligence",
+      "tagline": "A cited risk report on a token or contract before you trade it.",
+      "services": [{ "id": 0, "name": "Due diligence report", "priceUnits": "3000000" }],
+      "suppliers": [{ "role": "dataIndexer", "capUnits": "200000" }, { "role": "computeBasic", "capUnits": "1000000" }, { "role": "computeDeep", "capUnits": "2000000" }],
+      "split": { "lenderBps": 3000, "ownerBps": 2000 },
+      "dailyCapUnits": "15000000",
+      "orderTtlSeconds": 3600,
+      "loan": { "targetUnits": "20000000", "totalOwedUnits": "22000000", "raiseSeconds": 1209600, "periodSeconds": 3600, "graceSeconds": 0, "installmentUnits": "1000000" },
+      "demoState": "trapped"
+    },
+    {
+      "slug": "contract-auditor",
+      "name": "Contract Auditor",
+      "tagline": "Finds ECDSA dependencies and post-quantum gaps in a contract, sealed to its owner.",
+      "services": [{ "id": 0, "name": "Contract audit", "priceUnits": "5000000" }],
+      "suppliers": [{ "role": "computeBasic", "capUnits": "1000000" }, { "role": "computeDeep", "capUnits": "2000000" }],
+      "split": { "lenderBps": 3000, "ownerBps": 2000 },
+      "dailyCapUnits": "20000000",
+      "orderTtlSeconds": 7200,
+      "loan": { "targetUnits": "100000000", "totalOwedUnits": "110000000", "raiseSeconds": 1209600, "periodSeconds": 86400, "graceSeconds": 86400, "installmentUnits": "5000000" },
+      "demoState": "raising"
+    }
+  ]
+}

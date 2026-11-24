@@ -25,3 +25,6 @@ engine/spikes/out/
 sc/out/
 sc/cache/
 sc/.deployer.key
+
+# Engine keys
+engine/.keys/
