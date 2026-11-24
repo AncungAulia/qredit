@@ -1,18 +1,5 @@
+import type { RelayRequest, RelayResult } from "@qredit/qore";
 import type { Order } from "./types.ts";
-
-// Copied from apps/be/src/services/relayer.ts (the engine never imports apps/be at runtime); keep in sync.
-export type RelayRequest = {
-  typeUrl: string;
-  value: {
-    relayer: string; account: string; scheme: string;
-    pubkey: string; signature: string; // base64
-    to: string; value: string;
-    data: string; // base64 calldata
-    gasLimit: string; nonce: string;
-  };
-};
-export type RelayFailureCode = "not_broadcast" | "refused" | "unconfirmed" | "execution_failed";
-export type RelayResult = { txHash: string; success: true } | { txHash: string; success: false; code: RelayFailureCode; reason: string };
 
 export class ApiError extends Error {
   constructor(readonly status: number, message: string) {

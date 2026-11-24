@@ -7,3 +7,4 @@ export * from "./net.ts";
 export * from "./tx.ts";
 export * from "./logs.ts";
 export * from "./relayed.ts";
+export * from "./relay-types.ts";

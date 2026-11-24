@@ -32,7 +32,7 @@ const roleData: Partial<Record<SupplierRole, unknown>> = {
 
 type Opts = {
   service?: string; serviceId?: number; input?: string; price?: string; envelope?: "ok" | "missing" | "junk";
-  opex?: bigint; buyer?: boolean; prepaid?: SupplierRole[]; relayFail?: boolean; closed?: boolean; now?: number;
+  opex?: bigint; buyer?: boolean; prepaid?: SupplierRole[]; relayFail?: boolean | "not_broadcast" | "refused" | "unconfirmed" | "execution_failed"; closed?: boolean; now?: number;
   llm?: Partial<Llm>; wrongHash?: boolean;
   relayThrow?: boolean; payThrow?: boolean; waitForFail?: boolean; getError?: Error; deliverThrow?: boolean; shared?: Set<SupplierRole>;
   chain?: Set<SupplierRole>; slowRelay?: boolean;
@@ -47,6 +47,7 @@ function setup(o: Opts = {}) {
     relay: [] as string[], deliver: [] as unknown[][], decline: [] as unknown[][],
     decisions: [] as Record<string, any>[], planCalls: 0, writeCalls: 0,
   };
+  const logs: string[] = [];
   const chain = o.chain ?? new Set<SupplierRole>();
   const paid = o.shared ?? new Set<SupplierRole>(o.prepaid ?? []);
   let stored = "";
@@ -67,7 +68,7 @@ function setup(o: Opts = {}) {
         chain.add(role);
         if (o.slowRelay) await new Promise((r) => setTimeout(r, 30));
         if (o.relayThrow) throw new Error(`fetch failed for ${ADDR}`);
-        if (o.relayFail) return { txHash: "0xdead", success: false, code: "refused", reason: "nope" };
+        if (o.relayFail) return { txHash: "0xdead", success: false, code: o.relayFail === true ? "refused" : o.relayFail, reason: "nope" };
         paid.add(role);
         return { txHash: "0xbeef", success: true };
       },
@@ -86,14 +87,14 @@ function setup(o: Opts = {}) {
       waitFor: async (role) => { if (o.waitForFail || !(paid.has(role) || chain.has(role))) throw new Error(`timeout for ${ADDR}`); return roleData[role]; },
     },
     paidOnChain: async (_v, _o, supplier) => (chain.has(roleOf(supplier)) ? prices[roleOf(supplier)] : 0n),
-    llm, prices, chainId, log: () => {},
+    llm, prices, chainId, log: (l) => { logs.push(l); },
     resolveBuyer: async () => (o.buyer === false ? null : recipientOf(buyerKeys)),
     now: () => o.now ?? NOW,
   };
   const biz: BusinessRuntime = { slug, vault, spenderQor: "qor1s", service: SERVICES[slug]!, servicePrices: [200000n], sealKeys: agentKeys, supplierAddress: address };
   const report = () =>
     JSON.parse(new TextDecoder().decode(open({ chainId, purpose: "qredit/report/v1", envelope: envelopeFromText(stored), keys: buyerKeys, aad: new TextEncoder().encode(`${vault}:7`) })));
-  return { order, biz, deps, calls, report, stored: () => stored };
+  return { order, biz, deps, calls, logs, report, stored: () => stored };
 }
 
 const DD = { service: "due-diligence", price: "300000" } as const;
@@ -248,6 +249,20 @@ describe("retriable failures", () => {
       expect(JSON.stringify(t.calls.decisions[0], (_k, v) => (typeof v === "bigint" ? v.toString() : v))).not.toContain(ADDR);
     });
   }
+  for (const code of ["unconfirmed", "not_broadcast"] as const) {
+    test(`relay ${code}: failed, no chain decline (the payment may have landed)`, async () => {
+      const t = setup({ relayFail: code });
+      expect(await handleOrder(t.order, t.biz, t.deps)).toEqual(retry);
+      expect(t.calls.decline).toHaveLength(0);
+      expect(t.calls.decisions[0]).toMatchObject({ decision: "failed", reason: retry.reason });
+    });
+  }
+  test("a relay throw is logged with its step tag, never in the public reason", async () => {
+    const t = setup({ relayThrow: true });
+    await handleOrder(t.order, t.biz, t.deps);
+    expect(t.logs.some((l) => l.includes("[relay]"))).toBe(true);
+    expect(t.calls.decisions[0]!.reason).not.toContain("relay");
+  });
   test("a paid role whose data never arrived is failed with its cost", async () => {
     const t = setup({ waitForFail: true });
     await handleOrder(t.order, t.biz, t.deps);
@@ -338,6 +353,7 @@ describe("declines and failures", () => {
     ["unprofitable", { price: "50000" }, 2],
     ["low opex", { opex: 10000n }, 3],
     ["relay refused", { relayFail: true }, 6],
+    ["relay execution_failed", { relayFail: "execution_failed" }, 6],
   ];
   for (const [name, o, code] of cases) {
     test(`${name} -> ${code}`, async () => {
@@ -351,6 +367,12 @@ describe("declines and failures", () => {
       expect(t.calls.decisions[0]!.reason).not.toContain(ADDR);
     });
   }
+  test("a plan decline publishes the fixed reason; the detail goes to the log", async () => {
+    const t = setup({ price: "50000" });
+    await handleOrder(t.order, t.biz, t.deps);
+    expect(t.calls.decisions[0]!.reason).toBe("would lose money");
+    expect(t.logs.some((l) => l.includes("required margin"))).toBe(true);
+  });
   test("a failing decision post is logged, not thrown", async () => {
     const t = setup();
     t.deps.api.decision = async () => { throw new Error("api down"); };

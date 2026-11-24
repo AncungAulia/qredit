@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { encodeFunctionData, parseAbi } from "viem";
 import { hexToQor, TxFailedOnChain } from "@qredit/qore";
-import { createRelayer, EXECUTE_EVM_TYPE_URL, type RelayRequest, RelayRejected, validateRelay } from "../../src/services/relayer.ts";
+import { EXECUTE_EVM_TYPE_URL, type RelayRequest } from "@qredit/qore";
+import { createRelayer, RelayRejected, validateRelay } from "../../src/services/relayer.ts";
 
 const VAULT = "0x00000000000000000000000000000000000000aa";
 const SPENDER = "0x00000000000000000000000000000000000000dd";

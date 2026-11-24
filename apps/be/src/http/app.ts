@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import type { Db } from "../db/client.ts";
 import type { CardVerdict } from "../services/cards.ts";
-import type { RelayRequest, RelayResult } from "../services/relayer.ts";
+import type { RelayRequest, RelayResult } from "@qredit/qore";
 import { bodyLimits } from "./middleware/body-limit.ts";
 import { clientIpResolver } from "./middleware/client-ip.ts";
 import { engineAuth } from "./middleware/engine-auth.ts";

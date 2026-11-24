@@ -1,8 +1,7 @@
 import { ed25519 } from "@noble/curves/ed25519";
 import { buildPhantomExecuteEvm, fetchAuthNonce, resolveEvmAuthDigestVersion } from "@qorechain/sdk";
-import { publicClientFor, VAULT_ABI, walletFor, type Net } from "@qredit/qore";
+import { publicClientFor, type RelayRequest, VAULT_ABI, walletFor, type Net } from "@qredit/qore";
 import { BaseError, ContractFunctionRevertedError, encodeFunctionData, type Hex, type PublicClient } from "viem";
-import type { RelayRequest } from "./api.ts";
 import type { DeclineCode, VaultFunds } from "./types.ts";
 
 const PAY_GAS_LIMIT = 300_000;

@@ -1,8 +1,8 @@
 import type { SealKeyPair, SealRecipient } from "@qorechain/qoreseal";
-import { envelopeHash } from "@qredit/qore";
+import { envelopeHash, type RelayRequest } from "@qredit/qore";
 import type { ServiceModule, SupplierData, Verdict } from "../services/types.ts";
 import type { SupplierRole } from "../setup/businesses.ts";
-import type { Api, RelayRequest } from "./api.ts";
+import type { Api } from "./api.ts";
 import type { createOperator, createVaultReader } from "./chain.ts";
 import { factsOnlyProse, type Prose } from "./grounding.ts";
 import type { Llm } from "./llm.ts";
@@ -60,7 +60,11 @@ class Decline extends Error {
   }
 }
 /** A temporary fault: the order stays open so a later run can finish it. */
-class Retry extends Error {}
+class Retry extends Error {
+  constructor(message: string, public step?: string) {
+    super(message);
+  }
+}
 
 /** What one run learns: which suppliers are paid (catalog amount) and what they returned. */
 type Run = {
@@ -79,25 +83,37 @@ function classify(e: unknown): Decline | Retry {
   return new Retry(detail(e));
 }
 
-async function attempt<T>(fn: () => Promise<T>): Promise<T> {
+/** Runs one pipeline step; a temporary fault is tagged with `step` (for deps.log only, never for public reasons). */
+async function attempt<T>(step: string, fn: () => Promise<T>): Promise<T> {
   try {
     return await fn();
   } catch (e) {
-    throw classify(e);
+    const err = classify(e);
+    if (err instanceof Retry) err.step ??= step;
+    throw err;
   }
 }
 
-/** Pays one supplier through the relayer and waits for its data. Only `success: false` is a definitive decline. */
+const where = (e: unknown) => (e instanceof Retry && e.step ? `[${e.step}] ` : "");
+
+/**
+ * Pays one supplier through the relayer and waits for its data. Only "refused" and "execution_failed" are definitive
+ * declines; "not_broadcast" and "unconfirmed" leave the payment's fate unknown, so the order is retried and the next
+ * run's chain probe sees whether it landed.
+ */
 async function buy(r: Run, role: SupplierRole): Promise<void> {
   if (r.paid.has(role)) return;
   const { order, biz, deps } = r;
-  await attempt(async () => {
+  await attempt("relay", async () => {
     const req = await deps.signer.payRequest(order.vault, biz.supplierAddress[role], priceOf(r, role), BigInt(order.orderId));
     const res = await deps.api.relay(req);
-    if (!res.success) throw new Decline(DECLINE.supplierFailed, REASON.supplierRefused);
+    if (!res.success) {
+      if (res.code === "refused" || res.code === "execution_failed") throw new Decline(DECLINE.supplierFailed, REASON.supplierRefused);
+      throw new Retry(`relay ${res.code}: ${res.reason}`);
+    }
     r.paid.set(role, priceOf(r, role));
-    r.data[role] = await deps.suppliers.waitFor(role, order.vault, order.orderId, r.query);
   });
+  r.data[role] = await attempt("supplier", () => deps.suppliers.waitFor(role, order.vault, order.orderId, r.query));
 }
 
 function openOrder(order: Order, biz: BusinessRuntime, deps: PipelineDeps, text: string | null): RequestBody {
@@ -125,13 +141,13 @@ const onChain = (r: Run, role: SupplierRole) => r.deps.paidOnChain(r.order.vault
 async function probePaid(r: Run): Promise<void> {
   const { order, deps } = r;
   for (const role of allRoles(r)) {
-    const data = await attempt(() => deps.suppliers.get(role, order.vault, order.orderId, r.query));
+    const data = await attempt("supplier", () => deps.suppliers.get(role, order.vault, order.orderId, r.query));
     if (data !== null) {
       r.data[role] = data;
       r.paid.set(role, priceOf(r, role));
-    } else if ((await attempt(() => onChain(r, role))) >= priceOf(r, role)) {
+    } else if ((await attempt("chain-probe", () => onChain(r, role))) >= priceOf(r, role)) {
       r.paid.set(role, priceOf(r, role));
-      r.data[role] = await attempt(() => deps.suppliers.waitFor(role, order.vault, order.orderId, r.query));
+      r.data[role] = await attempt("supplier", () => deps.suppliers.waitFor(role, order.vault, order.orderId, r.query));
     }
   }
 }
@@ -157,7 +173,10 @@ async function planFor(r: Run): Promise<OkPlan> {
   const { order, biz, deps } = r;
   const funds = await deps.vaults.funds(order.vault);
   const plan = planOrder({ price: BigInt(order.price), supplierPlan: biz.service.suppliers, prices: deps.prices, caps: await supplierCaps(r), funds });
-  if (!plan.ok) throw new Decline(plan.code, plan.reason);
+  if (!plan.ok) {
+    deps.log(`order ${order.orderId} plan declined (${plan.code}): ${plan.reason}`);
+    throw new Decline(plan.code);
+  }
   return plan;
 }
 
@@ -184,7 +203,7 @@ function planTools(r: Run, plan: OkPlan) {
       return `paid ${role}; finish the order`;
     } catch (e) {
       state.failure = classify(e);
-      r.deps.log(`pay ${role} failed: ${detail(e)}`);
+      r.deps.log(`pay ${role} failed: ${where(state.failure)}${detail(e)}`);
       return "failed: payment did not complete; stop";
     }
   };
@@ -253,8 +272,8 @@ function requireData(r: Run): void {
 
 async function sealAndStore(r: Run, buyer: SealRecipient, report: Record<string, unknown>): Promise<string> {
   const { order, deps } = r;
-  const text = sealReport({ report, vault: order.vault, orderId: order.orderId, recipient: buyer, chainId: deps.chainId });
-  const hash = await deps.api.putReport(text);
+  const text = await attempt("seal", async () => sealReport({ report, vault: order.vault, orderId: order.orderId, recipient: buyer, chainId: deps.chainId }));
+  const hash = await attempt("store", () => deps.api.putReport(text));
   if (hash.toLowerCase() !== envelopeHash(text).toLowerCase()) throw new Retry("stored report hash does not match the sealed report");
   return hash;
 }
@@ -269,7 +288,7 @@ async function postDecision(r: Run, decision: "delivered" | "declined" | "failed
 }
 
 async function declineOrder(r: Run, d: Decline): Promise<Outcome> {
-  const closed = await r.deps.operator.decline(r.order.vault, BigInt(r.order.orderId), d.code);
+  const closed = await attempt("decline", () => r.deps.operator.decline(r.order.vault, BigInt(r.order.orderId), d.code));
   // An earlier run closed the order and already posted its decision.
   if (closed.alreadyClosed) return { status: "already-closed", code: d.code };
   await postDecision(r, "declined", d.reason);
@@ -277,7 +296,7 @@ async function declineOrder(r: Run, d: Decline): Promise<Outcome> {
 }
 
 async function failOrder(r: Run, e: unknown, reason: string = REASON.retry): Promise<Outcome> {
-  r.deps.log(`order ${r.order.orderId} failed: ${detail(e)}`);
+  r.deps.log(`order ${r.order.orderId} failed: ${where(e)}${detail(e)}`);
   await postDecision(r, "failed", reason);
   return { status: "failed", reason };
 }
@@ -296,7 +315,7 @@ async function deliverReport(r: Run, buyer: SealRecipient, subject: string): Pro
     generatedBy: model ?? "facts-only", suppliers: suppliersField(r),
     createdAt: new Date((deps.now ?? defaultNow)() * 1000).toISOString(),
   });
-  const closed = await deps.operator.deliver(order.vault, BigInt(order.orderId), hash as `0x${string}`);
+  const closed = await attempt("deliver", () => deps.operator.deliver(order.vault, BigInt(order.orderId), hash as `0x${string}`));
   if (closed.alreadyClosed) return { status: "already-closed" };
   await postDecision(r, "delivered", REASON.delivered);
   return { status: "delivered", tx: closed.tx ?? undefined };
