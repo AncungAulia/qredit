@@ -67,7 +67,7 @@ export function chainPayments(client: PublicClient, relayed?: { rest: string; re
       );
       const fromLogs = logs.reduce((sum, l) => sum + (l.args.amount ?? 0n), 0n);
       if (!relayed) return fromLogs;
-      const viaRelay = await relayedPayments({ ...relayed, vault, orderId: BigInt(orderId), supplier });
+      const viaRelay = await relayedPayments({ ...relayed, vault, orderId: BigInt(orderId), supplier, minHeight: startBlock });
       return viaRelay.reduce((sum, p) => sum + p.amount, fromLogs);
     },
   };

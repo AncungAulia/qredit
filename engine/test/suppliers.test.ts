@@ -90,7 +90,7 @@ describe("chainPayments with relayed payments", () => {
     const { VAULT_ABI } = await import("@qredit/qore");
     const data = (o: bigint) => Buffer.from(encodeFunctionData({ abi: VAULT_ABI, functionName: "paySupplier", args: [catalog.dataIndexer.address as `0x${string}`, 40n, o] }).slice(2), "hex").toString("base64");
     const msg = (o: bigint) => ({ "@type": "/qorechain.abstractaccount.v1.MsgExecuteEVM", to: V, data: data(o) });
-    const body = { txs: [{ body: { messages: [msg(7n)] } }, { body: { messages: [msg(8n)] } }], tx_responses: [{ txhash: "A", height: "1", code: 0, events: [] }, { txhash: "B", height: "1", code: 0, events: [] }] };
+    const body = { txs: [{ body: { messages: [msg(7n)] } }, { body: { messages: [msg(8n)] } }], tx_responses: [{ txhash: "A", height: "2000", code: 0, events: [] }, { txhash: "B", height: "2000", code: 0, events: [] }] };
     const client = { getBlockNumber: async () => 1_000n, getLogs: async () => [{ args: { amount: 10n } }] };
     const f = (async () => new Response(JSON.stringify(body))) as unknown as typeof fetch;
     const paid = await chainPayments(client as never, { rest: "http://x", relayer: "qor1r", fetch: f }).paid(V, "7", catalog.dataIndexer.address, 1_000);

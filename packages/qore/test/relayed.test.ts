@@ -39,18 +39,39 @@ describe("relayedPayments", () => {
     ])]);
     expect((await relayedPayments({ ...base, fetch: f })).map((p) => p.txHash)).toEqual(["OK"]);
   });
-  test("pages until a short page, and stops at maxPages", async () => {
-    const full = pageOf(Array.from({ length: 50 }, (_, i) => ({ hash: `H${i}`, data: pay(S1, 1n, 1n) })));
-    const { f, urls } = fake([full, pageOf([{ hash: "LAST", data: pay(S1, 1n, 1n) }])]);
-    expect((await relayedPayments({ ...base, fetch: f })).length).toBe(51);
-    expect(urls.length).toBe(2);
-    const capped = fake([full, full, full]);
-    await relayedPayments({ ...base, fetch: capped.f, maxPages: 2 });
-    expect(capped.urls.length).toBe(2);
-  });
-  test("an HTTP error on the first page throws; past the last page it ends quietly", async () => {
+  test("an HTTP error on any page throws, on the first and on a later one", async () => {
     await expect(relayedPayments({ ...base, fetch: fake([]).f })).rejects.toThrow(/HTTP 400/);
-    const full = pageOf(Array.from({ length: 50 }, (_, i) => ({ hash: `H${i}`, data: pay(S1, 1n, 1n) })));
-    expect((await relayedPayments({ ...base, fetch: fake([full]).f })).length).toBe(50);
+    const full = { ...pageOf(Array.from({ length: 50 }, (_, i) => ({ hash: `H${i}`, data: pay(S1, 1n, 1n) }))), total: "120" };
+    await expect(relayedPayments({ ...base, fetch: fake([full]).f })).rejects.toThrow(/HTTP 400 \(page 2\)/);
+  });
+  test("reads every page up to the reported total, then stops", async () => {
+    const mkPage = (n: number, tag: string, total: string) => ({ ...pageOf(Array.from({ length: n }, (_, i) => ({ hash: `${tag}${i}`, data: pay(S1, 1n, 1n) }))), total });
+    const { f, urls } = fake([mkPage(50, "A", "120"), mkPage(50, "B", "120"), mkPage(20, "C", "120"), mkPage(5, "D", "120")]);
+    expect((await relayedPayments({ ...base, fetch: f })).length).toBe(120);
+    expect(urls.length).toBe(3);
+    expect(urls[0]).toContain("limit=50&page=1");
+  });
+  test("a total in pagination.total is honoured; with no total a short page ends the list", async () => {
+    const p = pageOf([{ hash: "A", data: pay(S1, 1n, 1n) }]);
+    const a = fake([{ ...p, pagination: { total: "1" } }, p]);
+    await relayedPayments({ ...base, fetch: a.f });
+    expect(a.urls.length).toBe(1);
+    const b = fake([p, p]);
+    await relayedPayments({ ...base, fetch: b.f });
+    expect(b.urls.length).toBe(1);
+  });
+  test("minHeight stops once a whole page is older", async () => {
+    const old = (n: number) => { const x = pageOf(Array.from({ length: n }, (_, i) => ({ hash: `O${i}`, data: pay(S1, 1n, 1n) }))); x.tx_responses.forEach((r) => { r.height = "50"; }); return { ...x, total: "200" }; };
+    const newer = { ...pageOf(Array.from({ length: 50 }, (_, i) => ({ hash: `N${i}`, data: pay(S1, 1n, 1n) }))), total: "200" };
+    const { f, urls } = fake([newer, old(50), old(50), old(50)]);
+    const r = await relayedPayments({ ...base, fetch: f, minHeight: 100 });
+    expect(urls.length).toBe(2);
+    expect(r.length).toBe(50); // payments below minHeight are dropped
+  });
+  test("a mismatched response or a never-ending list throws instead of truncating", async () => {
+    const bad = { txs: pageOf([{ hash: "A", data: pay(S1, 1n, 1n) }]).txs, tx_responses: [] };
+    await expect(relayedPayments({ ...base, fetch: fake([bad]).f })).rejects.toThrow(/mismatched/);
+    const full = { ...pageOf(Array.from({ length: 50 }, (_, i) => ({ hash: `H${i}`, data: pay(S1, 1n, 1n) }))), total: "9999" };
+    await expect(relayedPayments({ ...base, fetch: fake([full, full, full]).f, maxPages: 2 })).rejects.toThrow(/did not end/);
   });
 });
