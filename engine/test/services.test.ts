@@ -61,6 +61,27 @@ describe("counterparty-check", () => {
     const facts = s.facts({ address: "0xab" }, { dataIndexer: idx() });
     expect(JSON.parse(JSON.stringify(facts))).toEqual(facts);
   });
+  test("activity facts: txSent, exists, classicalKeyExposed", () => {
+    const facts = s.facts({ address: "0xab" }, { dataIndexer: idx({ sequence: 3, publicKeyType: "eth_secp256k1" }) });
+    expect(facts.txSent).toBe(3);
+    expect(facts.exists).toBe(true);
+    expect(facts.classicalKeyExposed).toBe(true);
+    expect(s.facts({}, { dataIndexer: idx({ sequence: 0, publicKeyType: "eth_secp256k1" }) }).classicalKeyExposed).toBe(false);
+    expect(s.facts({}, { dataIndexer: idx({ sequence: 2, publicKeyType: null }) }).classicalKeyExposed).toBe(false);
+  });
+  test("activity findings, including no-history line", () => {
+    const f = s.findings(s.facts({}, { dataIndexer: idx({ sequence: 3, publicKeyType: "eth_secp256k1" }) }));
+    expect(f).toContain("Transactions sent from this account: 3.");
+    expect(f).toContain("Classical public key exposed on chain: yes.");
+    expect(f.join(" ")).not.toContain("no on-chain history");
+    const none = s.findings(s.facts({}, { dataIndexer: idx({ exists: false, sequence: 0, publicKeyType: null }) }));
+    expect(none).toContain("Transactions sent from this account: 0.");
+    expect(none).toContain("Classical public key exposed on chain: no.");
+    expect(none).toContain("The account has no on-chain history.");
+  });
+  test("grade rules unchanged by activity facts", () => {
+    expect(s.verdict(s.facts({}, { dataIndexer: idx({ sequence: 9, publicKeyType: "eth_secp256k1" }) })).label).toBe("A");
+  });
 });
 
 describe("sanctions-screen", () => {
@@ -129,6 +150,29 @@ describe("due-diligence", () => {
     expect(v(code({ usesPqcVerify: true }))).toBe("low");
     expect(v(code({ usesPqcKeyStatus: true, ecrecoverHint: true }))).toBe("low");
     expect(v(deep({ usesPqcVerify: true }, HEX2), "computeDeep")).toBe("low");
+  });
+  test("flag list from indexer: listed is high and comes first", () => {
+    const flagged = { listed: true, entry: "known bad", list: "qredit-synthetic-flags-v1" };
+    const facts = s.facts({}, { dataIndexer: idx({ flagged }), computeBasic: code({ usesPqcVerify: true }) });
+    expect(facts.listed).toBe(true);
+    expect(facts.listEntry).toBe("known bad");
+    expect(facts.list).toBe("qredit-synthetic-flags-v1");
+    expect(s.verdict(facts)).toEqual({ label: "high", rule: "address is on the flag list" });
+    expect(s.findings(facts)).toContain("Address is on the flag list qredit-synthetic-flags-v1: known bad.");
+  });
+  test("not listed: no flag finding, rule falls through", () => {
+    const facts = s.facts({}, { dataIndexer: idx(), computeBasic: code({ usesPqcVerify: true }) });
+    expect(facts.listed).toBe(false);
+    expect(facts.listEntry).toBeNull();
+    expect(s.verdict(facts).label).toBe("low");
+    expect(s.findings(facts).join(" ")).not.toContain("flag list");
+  });
+  test("absent indexer data means not listed", () => {
+    const facts = s.facts({}, { computeBasic: code({ usesPqcVerify: true }) });
+    expect(facts.listed).toBe(false);
+    expect(facts.listEntry).toBeNull();
+    expect(facts.list).toBeNull();
+    expect(JSON.parse(JSON.stringify(facts))).toEqual(facts);
   });
   test("owner never counts for basic data", () => {
     expect(s.facts({}, { dataIndexer: idx(), computeBasic: code() }).ownerPresent).toBe(false);

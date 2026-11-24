@@ -12,6 +12,7 @@ Data Indexer (always), plus one of Compute Basic or Compute Deep. Choose Compute
 ## Verdict rules (first match wins)
 | Rule | Verdict |
 |---|---|
+| address is on the flag list | high |
 | no contract code at this address | high |
 | ecrecover hint and no PQC precompile use | high |
 | owner present (deep only) and no PQC precompile use | medium |

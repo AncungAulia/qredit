@@ -7,6 +7,7 @@ type F = {
   listed: boolean; listEntry: string | null; list: string;
   mldsaRegistered: boolean; possessionProven: boolean; keyType: string | null;
   windowLive: boolean; windowOpenToAny: boolean;
+  exists: boolean; txSent: number; classicalKeyExposed: boolean;
 };
 
 const RULES: Rule[] = [
@@ -28,6 +29,7 @@ export const counterparty: ServiceDef = {
       listed: d.flagged.listed, listEntry: d.flagged.entry, list: d.flagged.list,
       mldsaRegistered: d.pq.registered, possessionProven: d.pq.possessionProven, keyType: d.pq.keyType,
       windowLive: d.pq.window.live, windowOpenToAny: d.pq.window.live && d.pq.window.allowedTargets.length === 0,
+      exists: d.exists, txSent: d.sequence, classicalKeyExposed: d.publicKeyType !== null && d.sequence > 0,
     };
     return f;
   },
@@ -37,7 +39,10 @@ export const counterparty: ServiceDef = {
     const out = [
       f.listed ? `Address is on the flag list ${f.list}: ${f.listEntry ?? "no entry text"}.` : `Address is not on the flag list ${f.list}.`,
       `ML-DSA-87 key registered: ${f.mldsaRegistered ? "yes" : "no"}.`,
+      `Transactions sent from this account: ${f.txSent}.`,
+      `Classical public key exposed on chain: ${f.classicalKeyExposed ? "yes" : "no"}.`,
     ];
+    if (!f.exists) out.push("The account has no on-chain history.");
     if (f.mldsaRegistered) out.push(`Key possession proven: ${f.possessionProven ? "yes" : "no"}.`);
     if (!f.windowLive) out.push("No live EVM window.");
     else out.push(f.windowOpenToAny ? "Live EVM window open to any target." : "Live EVM window open to a limited set of targets.");
