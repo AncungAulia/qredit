@@ -1,4 +1,4 @@
-import type { Db } from "./db.ts";
+import type { Queryable } from "./db.ts";
 import { envelopeHash } from "./hash.ts";
 
 export type EnvelopeKind = "request" | "report" | "sample";
@@ -45,7 +45,7 @@ export type VaultEvent =
 
 const lc = (s: string) => s.toLowerCase();
 
-export async function upsertBusiness(db: Db, b: Business): Promise<void> {
+export async function upsertBusiness(db: Queryable, b: Business): Promise<void> {
   await db.query(
     `insert into qredit.businesses (slug, vault, name, tagline, services, operator, spender, start_block)
      values ($1, $2, $3, $4, $5::jsonb, $6, $7, $8)
@@ -61,16 +61,16 @@ const toBusiness = (r: BusinessRow): Business => ({
   operator: r.operator, spender: r.spender, startBlock: Number(r.start_block),
 });
 
-export async function listBusinesses(db: Db): Promise<Business[]> {
+export async function listBusinesses(db: Queryable): Promise<Business[]> {
   return (await db.query<BusinessRow>("select * from qredit.businesses order by created_at, slug")).map(toBusiness);
 }
 
-export async function getBusiness(db: Db, slug: string): Promise<Business | null> {
+export async function getBusiness(db: Queryable, slug: string): Promise<Business | null> {
   const [r] = await db.query<BusinessRow>("select * from qredit.businesses where slug = $1", [slug]);
   return r ? toBusiness(r) : null;
 }
 
-export async function putEnvelope(db: Db, kind: EnvelopeKind, body: string): Promise<string> {
+export async function putEnvelope(db: Queryable, kind: EnvelopeKind, body: string): Promise<string> {
   const hash = envelopeHash(body);
   await db.query(
     "insert into qredit.envelopes (hash, kind, body, size) values ($1, $2, $3, $4) on conflict (hash) do nothing",
@@ -79,24 +79,24 @@ export async function putEnvelope(db: Db, kind: EnvelopeKind, body: string): Pro
   return hash;
 }
 
-export async function getEnvelope(db: Db, hash: string): Promise<{ kind: EnvelopeKind; body: string } | null> {
+export async function getEnvelope(db: Queryable, hash: string): Promise<{ kind: EnvelopeKind; body: string } | null> {
   const [r] = await db.query<{ kind: EnvelopeKind; body: string }>("select kind, body from qredit.envelopes where hash = $1", [lc(hash)]);
   return r ?? null;
 }
 
-export async function putCard(db: Db, address: string, card: unknown): Promise<void> {
+export async function putCard(db: Queryable, address: string, card: unknown): Promise<void> {
   await db.query(
     "insert into qredit.cards (address, card) values ($1, $2::jsonb) on conflict (address) do update set card = excluded.card, updated_at = now()",
     [address, JSON.stringify(card)],
   );
 }
 
-export async function getCard(db: Db, address: string): Promise<unknown | null> {
+export async function getCard(db: Queryable, address: string): Promise<unknown | null> {
   const [r] = await db.query<{ card: unknown }>("select card from qredit.cards where address = $1", [address]);
   return r?.card ?? null;
 }
 
-export async function addDecision(db: Db, d: Decision): Promise<number> {
+export async function addDecision(db: Queryable, d: Decision): Promise<number> {
   const [r] = await db.query<{ id: string | number }>(
     "insert into qredit.decisions (vault, order_id, decision, reason, suppliers, cost) values ($1, $2, $3, $4, $5::jsonb, $6) returning id",
     [lc(d.vault), d.orderId, d.decision, d.reason, JSON.stringify(d.suppliers), d.cost],
@@ -104,7 +104,7 @@ export async function addDecision(db: Db, d: Decision): Promise<number> {
   return Number(r.id);
 }
 
-export async function listDecisions(db: Db, vault: string, limit: number): Promise<(Decision & { id: number; createdAt: string })[]> {
+export async function listDecisions(db: Queryable, vault: string, limit: number): Promise<(Decision & { id: number; createdAt: string })[]> {
   const rows = await db.query<{ id: string | number; vault: string; order_id: string | null; decision: Decision["decision"]; reason: string; suppliers: unknown[]; cost: string; created_at: Date }>(
     "select * from qredit.decisions where vault = $1 order by id desc limit $2",
     [lc(vault), limit],
@@ -115,7 +115,7 @@ export async function listDecisions(db: Db, vault: string, limit: number): Promi
   }));
 }
 
-export async function applyVaultEvent(db: Db, e: VaultEvent): Promise<void> {
+export async function applyVaultEvent(db: Queryable, e: VaultEvent): Promise<void> {
   if (e.kind === "OrderPlaced") {
     await db.query(
       `insert into qredit.orders (vault, order_id, buyer, service_id, price, request_ref, deadline, status, placed_tx, placed_block)
@@ -133,12 +133,12 @@ export async function applyVaultEvent(db: Db, e: VaultEvent): Promise<void> {
   );
 }
 
-export async function getWatchState(db: Db, vault: string): Promise<number | null> {
+export async function getWatchState(db: Queryable, vault: string): Promise<number | null> {
   const [r] = await db.query<{ last_block: string | number }>("select last_block from qredit.watcher_state where vault = $1", [lc(vault)]);
   return r ? Number(r.last_block) : null;
 }
 
-export async function setWatchState(db: Db, vault: string, block: number): Promise<void> {
+export async function setWatchState(db: Queryable, vault: string, block: number): Promise<void> {
   await db.query(
     "insert into qredit.watcher_state (vault, last_block) values ($1, $2) on conflict (vault) do update set last_block = excluded.last_block",
     [lc(vault), block],
@@ -153,7 +153,7 @@ const toOrder = (r: OrderRow): Order => ({
 });
 
 /** Atomically claim the oldest open order (or one whose claim went stale) among the given vaults. */
-export async function claimNextOrder(db: Db, vaults: string[]): Promise<Order | null> {
+export async function claimNextOrder(db: Queryable, vaults: string[]): Promise<Order | null> {
   if (vaults.length === 0) return null;
   const [r] = await db.query<OrderRow>(
     `update qredit.orders set status = 'claimed', claimed_at = now(), updated_at = now()
@@ -170,21 +170,50 @@ export async function claimNextOrder(db: Db, vaults: string[]): Promise<Order | 
   return r ? toOrder(r) : null;
 }
 
-export async function listOrders(db: Db, vault: string, status?: Order["status"]): Promise<Order[]> {
+export async function listOrders(db: Queryable, vault: string, status?: Order["status"]): Promise<Order[]> {
   const rows = status
     ? await db.query<OrderRow>("select * from qredit.orders where vault = $1 and status = $2 order by placed_block desc limit 100", [lc(vault), status])
     : await db.query<OrderRow>("select * from qredit.orders where vault = $1 order by placed_block desc limit 100", [lc(vault)]);
   return rows.map(toOrder);
 }
 
-export async function recordGrant(db: Db, address: string, ipHash: string, tx: string): Promise<void> {
+export async function recordGrant(db: Queryable, address: string, ipHash: string, tx: string): Promise<void> {
   await db.query("insert into qredit.faucet_grants (address, ip_hash, tx) values ($1, $2, $3)", [address, ipHash, tx]);
 }
 
-export async function lastGrant(db: Db, address: string, ipHash: string): Promise<Date | null> {
+export async function lastGrant(db: Queryable, address: string, ipHash: string): Promise<Date | null> {
   const [r] = await db.query<{ at: Date | null }>(
     "select max(created_at) as at from qredit.faucet_grants where address = $1 or ip_hash = $2",
     [address, ipHash],
   );
   return r?.at ? new Date(r.at) : null;
+}
+
+/** Reserve a faucet slot atomically. Call inside db.transaction. */
+export async function reserveGrant(
+  q: Queryable,
+  address: string,
+  ipHash: string,
+  cooldownHours: number,
+  now: Date,
+): Promise<{ ok: true; id: number } | { ok: false; retryAt: Date }> {
+  await q.query("select pg_advisory_xact_lock(hashtext('qredit.faucet'))");
+  const last = await lastGrant(q, address, ipHash);
+  if (last) {
+    const retryAt = new Date(last.getTime() + cooldownHours * 3_600_000);
+    if (retryAt > now) return { ok: false, retryAt };
+  }
+  const [r] = await q.query<{ id: string | number }>(
+    "insert into qredit.faucet_grants (address, ip_hash, tx, created_at) values ($1, $2, 'pending', $3) returning id",
+    [address, ipHash, now.toISOString()],
+  );
+  return { ok: true, id: Number(r.id) };
+}
+
+export async function completeGrant(q: Queryable, id: number, tx: string): Promise<void> {
+  await q.query("update qredit.faucet_grants set tx = $2 where id = $1", [id, tx]);
+}
+
+export async function cancelGrant(q: Queryable, id: number): Promise<void> {
+  await q.query("delete from qredit.faucet_grants where id = $1", [id]);
 }
