@@ -11,7 +11,9 @@ type Card = NonNullable<Parameters<typeof resolveRecipient>[0]["card"]>;
 export function createRecipientResolver(o: { rest: string; chainId: string; card: (qor: string) => Promise<unknown | null> }) {
   return async (address0x: string): Promise<SealRecipient | null> => {
     const address = hexToQor(address0x.toLowerCase());
-    const card = (await o.card(address)) as Card | null;
+    const raw = await o.card(address);
+    // The backend stores the card as JSON text; accept an object too.
+    const card = (typeof raw === "string" ? JSON.parse(raw) : raw) as Card | null;
     try {
       return await resolveRecipient({ rest: o.rest, chainId: o.chainId, address, card: card ?? undefined, mode: card ? "hybrid" : "mlkem" });
     } catch (e) {
