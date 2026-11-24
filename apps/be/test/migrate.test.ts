@@ -25,6 +25,24 @@ describe("runMigrations", () => {
     await db.close();
   });
 
+  test("order and decision checks reject malformed values", async () => {
+    const db = await memoryDb();
+    await runMigrations(db, MIGRATIONS_DIR);
+    const ins = (vault: string, orderId: string, price: string) =>
+      db.query(
+        "insert into qredit.orders (vault, order_id, buyer, service_id, price, request_ref, deadline, status, placed_tx, placed_block) values ($1, $2, $3, 0, $4, $5, 1, 'open', '0x', 1)",
+        [vault, orderId, `0x${"b".repeat(40)}`, price, `0x${"1".repeat(64)}`],
+      );
+    await ins(`0x${"a".repeat(40)}`, "1", "5");
+    await expect(ins(`0x${"A".repeat(40)}`, "2", "5")).rejects.toThrow();
+    await expect(ins(`0x${"a".repeat(40)}`, "x", "5")).rejects.toThrow();
+    await expect(ins(`0x${"a".repeat(40)}`, "3", "-1")).rejects.toThrow();
+    await expect(
+      db.query("insert into qredit.decisions (vault, decision, reason, cost) values ('v', 'accepted', 'r', 'abc')"),
+    ).rejects.toThrow();
+    await db.close();
+  });
+
   test("every table has row level security enabled", async () => {
     const db = await memoryDb();
     await runMigrations(db, MIGRATIONS_DIR);
