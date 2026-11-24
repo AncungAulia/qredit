@@ -94,7 +94,7 @@ sc/
   - `qoreTestnet` (viem `Chain`), `publicClient` (viem `PublicClient`)
   - `loadAccount(name: string): Promise<UnifiedAccount>` — from `engine/spikes/.keys/<name>.json`, either `{ mnemonic }` or `{ privateKey, recoveryCode }`
   - `saveKeyFile(name: string, data: Record<string, string>): void`
-  - `broadcast(acc: UnifiedAccount, messages: EncodeObject[], mode?: "hybrid" | "classical", memo?: string): Promise<{ hash: string; code: number; rawLog?: string; msgResponses?: unknown[]; events?: unknown[] }>`
+  - `broadcast(acc: UnifiedAccount, messages: EncodeObject[], mode?: "hybrid" | "classical", memo?: string): Promise<{ hash: string; code: number; rawLog?: string }>` (EthNativeSigner returns no events; use `txEvents`)
   - `txEvents(hash: string): Promise<unknown[]>` — events of a committed tx over REST
   - `uqorBalance(address: string): Promise<bigint>`
   - `walletFor(privateKey: `0x${string}`)` — viem `WalletClient` on `qoreTestnet`
@@ -791,7 +791,7 @@ if (cmd === "link") {
     const res = await broadcast(relayer, [msg], "hybrid", "S1 execute");
     if (res.code !== 0) return { ok: false, why: res.rawLog ?? `code ${res.code}`, hash: res.hash };
     const events = await txEvents(res.hash);
-    const [x] = decodeAuthenticatorExecutions({ msgResponses: (res.msgResponses ?? []) as never, events: events as never }, [msg]);
+    const [x] = decodeAuthenticatorExecutions({ msgResponses: [] as never, events: events as never }, [msg]);
     return { ok: !!x?.success, why: x?.reason || x?.vmError || "", hash: res.hash };
   };
   const ping = await call(encodeFunctionData({ abi: probeAbi, functionName: "ping", args: [7n] }));
