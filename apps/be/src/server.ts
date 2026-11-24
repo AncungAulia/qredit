@@ -5,7 +5,7 @@ import { chainCardVerifier } from "./services/cards.ts";
 import { loadConfig } from "./config.ts";
 import { pgDb } from "./db/client.ts";
 import { createFaucet, ipHasher, treasurySender } from "./services/faucet.ts";
-import { createApp } from "./http.ts";
+import { createApp } from "./http/app.ts";
 import { MIGRATIONS_DIR, runMigrations } from "./db/migrate.ts";
 import { createRelayer } from "./services/relayer.ts";
 import { listBusinesses } from "./db/store/index.ts";
