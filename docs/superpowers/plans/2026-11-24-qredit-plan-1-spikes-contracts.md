@@ -2330,10 +2330,12 @@ contract LoanVaultSuppliersTest is Base {
     }
 
     function test_cannotSpendMoreThanOpex() public {
+        uint256 t = block.timestamp; // local clock: via_ir caches block.timestamp within a function
         for (uint256 d; d < 5; d++) {
             _pay(supplierA, 10e18);
             _pay(supplierA, 10e18);
-            vm.warp(block.timestamp + 1 days);
+            t += 1 days;
+            vm.warp(t);
         }
         assertEq(vault.opexBalance(), 0);
         vm.prank(spender);
