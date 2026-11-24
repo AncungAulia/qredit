@@ -184,10 +184,6 @@ export async function listOrders(db: Queryable, vault: string, status?: Order["s
   return rows.map(toOrder);
 }
 
-export async function recordGrant(db: Queryable, address: string, ipHash: string, tx: string): Promise<void> {
-  await db.query("insert into qredit.faucet_grants (address, ip_hash, tx) values ($1, $2, $3)", [lc(address), ipHash, tx]);
-}
-
 export async function lastGrant(db: Queryable, address: string, ipHash: string): Promise<Date | null> {
   const [r] = await db.query<{ at: Date | null }>(
     "select max(created_at) as at from qredit.faucet_grants where address = $1 or ip_hash = $2",

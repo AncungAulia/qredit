@@ -119,13 +119,16 @@ describe("cards, decisions, watcher state, grants", () => {
   test("addresses are matched case-insensitively", async () => {
     await store.putCard(db, "QOR1ABC", { v: 1 });
     expect(await store.getCard(db, "qor1abc")).toEqual({ v: 1 });
-    await store.recordGrant(db, "QOR1A", "ip1", "0xt");
+    const g = await store.reserveGrant(db, "QOR1A", "ip1", 24, new Date());
+    expect(g.ok).toBe(true);
     expect(await store.lastGrant(db, "qor1a", "ipx")).toBeInstanceOf(Date);
   });
 
   test("faucet grants by address or ip", async () => {
     expect(await store.lastGrant(db, "qor1a", "ip1")).toBeNull();
-    await store.recordGrant(db, "qor1a", "ip1", "0xt");
+    const g = await store.reserveGrant(db, "qor1a", "ip1", 24, new Date());
+    if (!g.ok) throw new Error("reserve failed");
+    await store.completeGrant(db, g.id, "0xt");
     expect(await store.lastGrant(db, "qor1a", "ip2")).toBeInstanceOf(Date);
     expect(await store.lastGrant(db, "qor1b", "ip1")).toBeInstanceOf(Date);
     expect(await store.lastGrant(db, "qor1b", "ip2")).toBeNull();

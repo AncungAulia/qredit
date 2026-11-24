@@ -1,0 +1,36 @@
+import { describe, expect, test } from "bun:test";
+import type { UnifiedAccount } from "@qorechain/sdk";
+import { keepWindows, type WindowChain } from "../src/windows.ts";
+
+const acc = (cosmos: string) => ({ cosmos, evm: "0x0" }) as unknown as UnifiedAccount;
+const opts = { blocks: 17280, maxTxs: 500, maxValue: 25_000_000n, minBlocks: 3600, minTxs: 10 };
+
+describe("keepWindows", () => {
+  test("renews only windows that are low on blocks or txs", async () => {
+    const opened: [string, string[]][] = [];
+    const chain: WindowChain = {
+      status: async (a) => (a === "qor1full" ? { blocks: 9000, txs: 400 } : a === "qor1low" ? { blocks: 100, txs: 400 } : { blocks: 9000, txs: 3 }),
+      open: async (a, targets) => { opened.push([a.cosmos, targets]); return `TX-${a.cosmos}`; },
+    };
+    const res = await keepWindows(
+      [{ account: acc("qor1full"), targets: ["0xa"] }, { account: acc("qor1low"), targets: ["0xb"] }, { account: acc("qor1fewtx"), targets: ["0xc"] }],
+      chain, opts,
+    );
+    expect(res).toEqual([
+      { address: "qor1full", action: "kept" },
+      { address: "qor1low", action: "renewed", tx: "TX-qor1low" },
+      { address: "qor1fewtx", action: "renewed", tx: "TX-qor1fewtx" },
+    ]);
+    expect(opened).toEqual([["qor1low", ["0xb"]], ["qor1fewtx", ["0xc"]]]);
+  });
+
+  test("one failing account does not stop the others", async () => {
+    const chain: WindowChain = {
+      status: async (a) => { if (a === "qor1bad") throw new Error("rpc down"); return { blocks: 0, txs: 0 }; },
+      open: async () => "TX",
+    };
+    const res = await keepWindows([{ account: acc("qor1bad"), targets: [] }, { account: acc("qor1ok"), targets: [] }], chain, opts);
+    expect(res[0]).toEqual({ address: "qor1bad", action: "error", error: "rpc down" });
+    expect(res[1]).toEqual({ address: "qor1ok", action: "renewed", tx: "TX" });
+  });
+});
