@@ -3,6 +3,7 @@ pragma solidity 0.8.28;
 
 import {Base} from "./Base.t.sol";
 import {LoanVault} from "../src/LoanVault.sol";
+import {console} from "forge-std/console.sol";
 
 contract LoanVaultPolicyTest is Base {
     uint8 internal constant REMOVE_SUPPLIER = 0;
@@ -175,5 +176,84 @@ contract LoanVaultPolicyTest is Base {
         vm.expectRevert(LoanVault.BadOrder.selector);
         vault.applyOrder(o, sig);
         assertEq(vault.policyNonce(), 1);
+    }
+
+    /// Independent lowercase hex encoder (deliberately not the contract's _hex).
+    function _toHex(bytes32 d) internal pure returns (string memory) {
+        bytes memory out = new bytes(64);
+        for (uint256 i; i < 32; i++) {
+            uint8 hi = uint8(d[i]) / 16;
+            uint8 lo = uint8(d[i]) % 16;
+            out[2 * i] = bytes1(hi < 10 ? 48 + hi : 87 + hi);
+            out[2 * i + 1] = bytes1(lo < 10 ? 48 + lo : 87 + lo);
+        }
+        return string(out);
+    }
+
+    function test_fixedSigningVector() public {
+        address at = address(0x000000000000000000000000000000000000cA11);
+        deployCodeTo("LoanVault.sol:LoanVault", abi.encode(_init()), at);
+        LoanVault v = LoanVault(at);
+        LoanVault.PolicyOrder memory o = LoanVault.PolicyOrder({
+            kind: LOWER_DAILY_CAP,
+            target: address(0),
+            value: 5e18,
+            nonce: 0,
+            expiry: 1_900_000_000
+        });
+        bytes32 digest = keccak256(
+            abi.encode(keccak256("qredit-policy-v1"), block.chainid, at, o.kind, o.target, o.value, o.nonce, o.expiry)
+        );
+        string memory text = string.concat("qredit-order-v1:0x", _toHex(digest));
+        string memory full = string.concat("qorechain-msg-v1|qorechain-diana|", text);
+        assertEq(v.orderDigest(o), digest);
+        assertEq(keccak256(v.orderText(o)), keccak256(bytes(text)));
+        assertEq(keccak256(v.signedBytes(o)), keccak256(bytes(full)));
+        assertEq(v.orderText(o).length, 82);
+        // pinned literal for chainid 31337, vault 0x...Ca11
+        assertEq(digest, PINNED_DIGEST);
+        console.log("vector chainId:", block.chainid);
+        console.log("vector vault:", at);
+        console.log("vector kind/target/value:", o.kind, o.target, o.value);
+        console.log("vector nonce/expiry:", o.nonce, o.expiry);
+        console.log("vector digest:", _toHex(digest));
+        console.log("vector orderText:", text);
+        console.log("vector signedBytes:", full);
+    }
+
+    bytes32 internal constant PINNED_DIGEST = 0x5d5bb129b0e312312ed45b5145b6b48adb811be00569221b533c0e70a064939f;
+
+    function test_signatureForOtherVaultRefused() public {
+        LoanVault other = new LoanVault(_init());
+        assertTrue(address(other) != address(vault));
+        LoanVault.PolicyOrder memory o = _order(PAUSE, address(0), 0);
+        bytes memory sig = _sign(o); // valid for `vault`
+        vm.expectRevert(LoanVault.BadPqcSignature.selector);
+        other.applyOrder(o, sig);
+        vault.applyOrder(o, sig); // still valid for the vault it was made for
+    }
+
+    function test_signatureRefusedOnOtherChain() public {
+        LoanVault.PolicyOrder memory o = _order(PAUSE, address(0), 0);
+        bytes memory sig = _sign(o);
+        vm.chainId(block.chainid + 1);
+        vm.expectRevert(LoanVault.BadPqcSignature.selector);
+        vault.applyOrder(o, sig);
+    }
+
+    function test_signatureForOtherCosmosChainRefused() public {
+        LoanVault.Init memory i = _init();
+        i.cosmosChainId = "qorechain-vladi";
+        LoanVault vladi = new LoanVault(i);
+        LoanVault.PolicyOrder memory o = _order(PAUSE, address(0), 0);
+        // signed over the diana prefix, but with this vault's own digest
+        bytes memory dianaBytes = abi.encodePacked("qorechain-msg-v1|qorechain-diana|", vladi.orderText(o));
+        bytes memory sig = abi.encodePacked(keccak256(abi.encodePacked("ok", hex"c0ffee", dianaBytes)));
+        vm.expectRevert(LoanVault.BadPqcSignature.selector);
+        vladi.applyOrder(o, sig);
+        // sanity: the vault's own prefix is accepted
+        bytes memory own = abi.encodePacked("qorechain-msg-v1|qorechain-vladi|", vladi.orderText(o));
+        vladi.applyOrder(o, abi.encodePacked(keccak256(abi.encodePacked("ok", hex"c0ffee", own))));
+        assertTrue(vladi.paused());
     }
 }
