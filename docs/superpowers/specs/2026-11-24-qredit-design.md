@@ -160,7 +160,7 @@ Token: fUSD (`0x97143B771D34ddb9130b807b135Ae675A5a963CA`); decimals confirmed i
 |---|---|---|
 | `deposit(amount)` | Lender | Raising only; capped at `target - raised`; reaching target moves to Active |
 | `refund()` | Lender | Refunded only |
-| `buy(serviceId, requestRef)` | Buyer | Active/Trapped, not paused; pulls `price` fUSD into escrow; emits `OrderPlaced` |
+| `buy(serviceId, requestRef)` | Buyer | Active, Trapped or Repaid (a repaid business keeps trading), not paused; pulls `price` fUSD into escrow; emits `OrderPlaced` |
 | `deliver(orderId, envelopeHash)` | `operator` | Before order deadline; releases escrow and splits it; emits `Delivered` |
 | `decline(orderId, reasonCode)` | `operator` | Open order; refunds the buyer at once; emits `Declined` |
 | `reclaim(orderId)` | Buyer | After deadline with no delivery; returns escrow |
