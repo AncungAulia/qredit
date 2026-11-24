@@ -9,6 +9,19 @@ export type Sent = { hash: string; code: number; rawLog?: string };
 const REST_TIMEOUT_MS = 15_000;
 const restGet = (url: string) => fetch(url, { signal: AbortSignal.timeout(REST_TIMEOUT_MS) });
 
+const CONNECT_TIMEOUT_MS = 15_000;
+async function connectRpc(rpc: string): Promise<StargateClient> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`RPC connect timed out after ${CONNECT_TIMEOUT_MS / 1000} s`)), CONNECT_TIMEOUT_MS);
+  });
+  try {
+    return await Promise.race([StargateClient.connect(rpc), timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function accountNumbers(rest: string, address: string): Promise<{ accountNumber: bigint; sequence: bigint }> {
   const res = await restGet(`${rest}/cosmos/auth/v1beta1/accounts/${address}`);
   if (res.status === 404) throw new Error(`${address} does not exist on chain yet`);
@@ -31,7 +44,7 @@ export async function broadcastHybrid(
 ): Promise<Sent> {
   const { accountNumber, sequence } = await accountNumbers(net.rest, acc.cosmos);
   const signer = new EthNativeSigner(acc, { signMode: "hybrid", rest: net.rest });
-  const transport = await StargateClient.connect(net.rpc);
+  const transport = await connectRpc(net.rpc);
   try {
     const res = await signer.signAndBroadcast(transport, {
       chainId: net.chainId,

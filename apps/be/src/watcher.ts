@@ -13,6 +13,10 @@ export async function syncVault(db: Db, src: LogSource, vault: string, startBloc
   const saved = await getWatchState(db, vault);
   let from = saved === null ? startBlock : saved + 1;
   const head = await src.latestBlock();
+  if (saved !== null && saved > head) {
+    console.warn(`watcher: saved block ${saved} is ahead of chain head ${head} for ${vault}; skipping (chain reset or wrong node?)`);
+    return saved;
+  }
   let last = from - 1;
   while (from <= head) {
     const to = Math.min(head, from + maxRange - 1);
@@ -35,19 +39,29 @@ export function viemLogSource(client: PublicClient): LogSource {
     latestBlock: async () => Number(await client.getBlockNumber()),
     async events(vault, from, to) {
       const logs = await client.getLogs({ address: vault as `0x${string}`, events: VAULT_EVENTS, fromBlock: BigInt(from), toBlock: BigInt(to) });
-      return logs.map((l): VaultEvent => {
+      const out: VaultEvent[] = [];
+      for (const l of logs) {
         const base = { vault: vault.toLowerCase(), orderId: String(l.args.orderId), block: Number(l.blockNumber), logIndex: Number(l.logIndex), tx: l.transactionHash.toLowerCase() };
         switch (l.eventName) {
           case "OrderPlaced":
-            return { ...base, kind: "OrderPlaced", buyer: l.args.buyer!.toLowerCase(), serviceId: Number(l.args.serviceId), price: String(l.args.price), requestRef: l.args.requestRef!.toLowerCase(), deadline: Number(l.args.deadline) };
+            out.push({ ...base, kind: "OrderPlaced", buyer: l.args.buyer!.toLowerCase(), serviceId: Number(l.args.serviceId), price: String(l.args.price), requestRef: l.args.requestRef!.toLowerCase(), deadline: Number(l.args.deadline) });
+            break;
           case "Delivered":
-            return { ...base, kind: "Delivered", envelopeHash: l.args.envelopeHash!.toLowerCase() };
+            out.push({ ...base, kind: "Delivered", envelopeHash: l.args.envelopeHash!.toLowerCase() });
+            break;
           case "Declined":
-            return { ...base, kind: "Declined" };
-          default:
-            return { ...base, kind: "Reclaimed" };
+            out.push({ ...base, kind: "Declined" });
+            break;
+          case "Reclaimed":
+            out.push({ ...base, kind: "Reclaimed" });
+            break;
+          default: {
+            const unexpected: never = l;
+            console.warn(`watcher: skipped unknown event ${String((unexpected as { eventName?: string }).eventName)} in block ${base.block}`);
+          }
         }
-      });
+      }
+      return out;
     },
   };
 }

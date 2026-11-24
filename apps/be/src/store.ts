@@ -143,7 +143,7 @@ export async function getWatchState(db: Queryable, vault: string): Promise<numbe
 
 export async function setWatchState(db: Queryable, vault: string, block: number): Promise<void> {
   await db.query(
-    "insert into qredit.watcher_state (vault, last_block) values ($1, $2) on conflict (vault) do update set last_block = excluded.last_block",
+    "insert into qredit.watcher_state (vault, last_block) values ($1, $2) on conflict (vault) do update set last_block = greatest(qredit.watcher_state.last_block, excluded.last_block)",
     [lc(vault), block],
   );
 }
@@ -160,6 +160,7 @@ const toOrder = (r: OrderRow): Order => ({
  * A takeover of a stale claim can only repeat off-chain work: the vault refuses a second delivery (OrderNotOpen).
  */
 export async function claimNextOrder(db: Queryable, vaults: string[], staleAfterSeconds = 900): Promise<Order | null> {
+  if (!Number.isInteger(staleAfterSeconds) || staleAfterSeconds <= 0) throw new Error("staleAfterSeconds must be a positive integer");
   if (vaults.length === 0) return null;
   const [r] = await db.query<OrderRow>(
     `update qredit.orders set status = 'claimed', claimed_at = now(), updated_at = now()
@@ -184,10 +185,13 @@ export async function listOrders(db: Queryable, vault: string, status?: Order["s
   return rows.map(toOrder);
 }
 
-export async function lastGrant(db: Queryable, address: string, ipHash: string): Promise<Date | null> {
+/** A reservation still 'pending' after this long is a crashed send and no longer counts toward the cooldown. */
+export const PENDING_GRANT_TTL_MS = 10 * 60_000;
+
+export async function lastGrant(db: Queryable, address: string, ipHash: string, pendingSince = new Date(0)): Promise<Date | null> {
   const [r] = await db.query<{ at: Date | null }>(
-    "select max(created_at) as at from qredit.faucet_grants where address = $1 or ip_hash = $2",
-    [lc(address), ipHash],
+    "select max(created_at) as at from qredit.faucet_grants where (address = $1 or ip_hash = $2) and (tx <> 'pending' or created_at > $3)",
+    [lc(address), ipHash, pendingSince.toISOString()],
   );
   return r?.at ? new Date(r.at) : null;
 }
@@ -201,7 +205,7 @@ export async function reserveGrant(
   now: Date,
 ): Promise<{ ok: true; id: number } | { ok: false; retryAt: Date }> {
   await q.query("select pg_advisory_xact_lock(hashtext('qredit.faucet'))");
-  const last = await lastGrant(q, address, ipHash);
+  const last = await lastGrant(q, address, ipHash, new Date(now.getTime() - PENDING_GRANT_TTL_MS));
   if (last) {
     const retryAt = new Date(last.getTime() + cooldownHours * 3_600_000);
     if (retryAt > now) return { ok: false, retryAt };

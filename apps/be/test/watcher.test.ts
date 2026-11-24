@@ -54,3 +54,13 @@ describe("syncVault", () => {
     expect(calls).toEqual([]);
   });
 });
+
+describe("syncVault head regression", () => {
+  test("a saved block ahead of the head is left alone", async () => {
+    await db.query("insert into qredit.watcher_state (vault, last_block) values ($1, 500)", [V]);
+    const { src, calls } = fakeSource(100, []);
+    expect(await syncVault(db, src, V, 1)).toBe(500);
+    expect(calls).toEqual([]);
+    expect(await getWatchState(db, V)).toBe(500);
+  });
+});

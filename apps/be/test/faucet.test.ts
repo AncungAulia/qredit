@@ -29,6 +29,16 @@ describe("faucet", () => {
     expect(await faucet("qor1a", "1.1.1.1")).toEqual({ tx: "TX" });
   });
 
+  test("a pending reservation older than 10 minutes no longer blocks", async () => {
+    let now = new Date("2030-01-01T00:00:00Z");
+    const faucet = createFaucet({ db, cooldownHours: 24, hashIp: ipHasher("salt-salt-salt-salt"), send: async () => "TX", now: () => now });
+    await db.query("insert into qredit.faucet_grants (address, ip_hash, tx, created_at) values ('qor1a', 'x', 'pending', $1)", [now.toISOString()]);
+    now = new Date("2030-01-01T00:05:00Z");
+    await expect(faucet("qor1a", "1.1.1.1")).rejects.toBeInstanceOf(FaucetCooldown);
+    now = new Date("2030-01-01T00:10:01Z");
+    expect(await faucet("qor1a", "1.1.1.1")).toEqual({ tx: "TX" });
+  });
+
   test("a failed send releases the reservation", async () => {
     let fail = true;
     const faucet = createFaucet({ db, cooldownHours: 24, hashIp: ipHasher("salt-salt-salt-salt"), send: async () => { if (fail) throw new Error("rpc down"); return "TX"; } });

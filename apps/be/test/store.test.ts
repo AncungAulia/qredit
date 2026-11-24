@@ -67,6 +67,18 @@ describe("orders", () => {
     expect((await store.claimNextOrder(db, [V]))?.orderId).toBe("9");
   });
 
+  test("claimNextOrder rejects a bad staleAfterSeconds", async () => {
+    for (const bad of [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+      await expect(store.claimNextOrder(db, [V], bad)).rejects.toThrow(/staleAfterSeconds/);
+    }
+  });
+
+  test("setWatchState never moves backwards", async () => {
+    await store.setWatchState(db, V, 50);
+    await store.setWatchState(db, V, 40);
+    expect(await store.getWatchState(db, V)).toBe(50);
+  });
+
   test("claimNextOrder hands out the oldest open order once", async () => {
     await store.applyVaultEvent(db, placed("2", 200));
     await store.applyVaultEvent(db, placed("1", 100));
