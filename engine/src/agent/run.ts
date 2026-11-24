@@ -1,9 +1,10 @@
-import { publicClientFor, TESTNET, VAULT_ABI, VAULT_STATE } from "@qredit/qore";
-import { loadEngineConfig, requireAgentConfig } from "../config.ts";
-import { keystore } from "../keystore.ts";
+import { hexToQor, publicClientFor, TESTNET, VAULT_ABI, VAULT_STATE } from "@qredit/qore";
+import { loadEngineConfig, requireAgentConfig, type AgentConfig } from "../config.ts";
+import type { Keystore } from "../keystore.ts";
+import { loadSupplierAddresses, runtimeKeystore } from "../runtime-keys.ts";
 import { SERVICES } from "../services/index.ts";
-import { agentKey, loadAccount, SUPPLIER_ACCOUNTS } from "../setup/accounts.ts";
-import { loadCatalog, type SupplierRole } from "../setup/businesses.ts";
+import { agentKey } from "../setup/accounts.ts";
+import { loadCatalog } from "../setup/businesses.ts";
 import { readDeployments } from "../setup/deployments.ts";
 import { chainPayments } from "../suppliers/app.ts";
 import { createApi } from "./api.ts";
@@ -62,18 +63,16 @@ export async function runLoop(o: {
 
 const SERVING = new Set<number>([VAULT_STATE.Active, VAULT_STATE.Trapped, VAULT_STATE.Repaid]);
 
-async function main(): Promise<void> {
-  const cfg = requireAgentConfig(loadEngineConfig());
-  const ks = keystore(cfg.KEYS_DIR);
-  const log = (line: string) => console.log(`[agent ${new Date().toISOString()}] ${line}`);
+const defaultLog = (line: string) => console.log(`[agent ${new Date().toISOString()}] ${line}`);
+
+/** Builds everything the loop needs (keys, vaults, clients) without starting it; keys come from `ks` only. */
+export async function buildRuntime(cfg: AgentConfig, ks: Keystore, log: (line: string) => void = defaultLog): Promise<{ runtimes: BusinessRuntime[]; deps: PipelineDeps; api: ReturnType<typeof createApi> }> {
   const client = publicClientFor(TESTNET.evm);
   const api = createApi({ url: cfg.API_URL, token: cfg.ENGINE_TOKEN });
   const relayer = await api.relayer();
   const { suppliers: catalog, businesses: businessParams } = loadCatalog();
   const prices = Object.fromEntries(Object.entries(catalog).map(([r, s]) => [r, BigInt(s.priceUnits)])) as Prices;
-  const supplierAddress = Object.fromEntries(
-    await Promise.all(Object.entries(SUPPLIER_ACCOUNTS).map(async ([role, name]) => [role, (await loadAccount(ks, name)).evm.toLowerCase()])),
-  ) as Record<SupplierRole, string>;
+  const supplierAddress = loadSupplierAddresses();
 
   const deployments = readDeployments();
   const runtimes: BusinessRuntime[] = [];
@@ -84,12 +83,12 @@ async function main(): Promise<void> {
     if (!service) { log(`${d.slug}: no service module; skipped`); continue; }
     const state = Number(await client.readContract({ address: d.vault as Hex, abi: VAULT_ABI, functionName: "state" }));
     if (!SERVING.has(state)) { log(`${d.slug}: vault state ${state} is not serving orders; skipped`); continue; }
-    const spender = await loadAccount(ks, `${d.slug}-spender`);
+    const spenderQor = hexToQor(d.spender);
     const ag = agentKey(ks, d.slug);
-    signers.set(d.vault.toLowerCase(), createSpenderSigner({ agentSecret: ag.secret, spenderQor: spender.cosmos, relayer, net: TESTNET }));
+    signers.set(d.vault.toLowerCase(), createSpenderSigner({ agentSecret: ag.secret, spenderQor, relayer, net: TESTNET }));
     operators.set(d.vault.toLowerCase(), createOperator({ privateKey: ks.read(`${d.slug}-operator`).privateKey as Hex, evm: TESTNET.evm }));
     runtimes.push({
-      slug: d.slug, vault: d.vault, spenderQor: spender.cosmos, service,
+      slug: d.slug, vault: d.vault, spenderQor, service,
       servicePrices: businessParams.find((b) => b.slug === d.slug)!.services.map((x) => BigInt(x.priceUnits)), sealKeys: loadSealKeys(ks, d.slug), supplierAddress,
     });
     log(`${d.slug}: serving vault ${d.vault}`);
@@ -113,6 +112,13 @@ async function main(): Promise<void> {
       decline: (vault, ...rest) => operators.get(vault.toLowerCase())!.decline(vault, ...rest),
     },
   };
+  return { runtimes, deps, api };
+}
+
+async function main(): Promise<void> {
+  const cfg = requireAgentConfig(loadEngineConfig());
+  const log = defaultLog;
+  const { runtimes, deps, api } = await buildRuntime(cfg, runtimeKeystore(process.env, cfg.KEYS_DIR), log);
 
   const ctl = new AbortController();
   for (const sig of ["SIGINT", "SIGTERM"] as const) process.on(sig, () => { log(`${sig}: stopping after the current step`); ctl.abort(); });

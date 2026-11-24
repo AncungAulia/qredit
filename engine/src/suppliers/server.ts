@@ -4,9 +4,8 @@ import { MCPClient } from "@mastra/mcp";
 import { parseAbi, type Hex } from "viem";
 import { publicClientFor, TESTNET } from "@qredit/qore";
 import { createApi } from "../agent/api.ts";
-import { keystore } from "../keystore.ts";
 import { loadEngineConfig } from "../config.ts";
-import { loadAccount, SUPPLIER_ACCOUNTS } from "../setup/accounts.ts";
+import { loadSupplierAddresses } from "../runtime-keys.ts";
 import { loadCatalog } from "../setup/businesses.ts";
 import { readDeployments } from "../setup/deployments.ts";
 import { analyzeBytecode } from "./data/bytecode.ts";
@@ -15,15 +14,10 @@ import { loadList, matchList, normalizeAddress } from "./data/lists.ts";
 import { chainPayments, createSupplierApp } from "./app.ts";
 
 const cfg = loadEngineConfig();
-const ks = keystore(cfg.KEYS_DIR);
 const catalog = loadCatalog().suppliers;
+const addresses = loadSupplierAddresses();
 const entries = Object.fromEntries(
-  await Promise.all(
-    (Object.keys(SUPPLIER_ACCOUNTS) as (keyof typeof SUPPLIER_ACCOUNTS)[]).map(async (role) => [
-      role,
-      { ...catalog[role], address: (await loadAccount(ks, SUPPLIER_ACCOUNTS[role])).evm },
-    ]),
-  ),
+  (Object.keys(addresses) as (keyof typeof addresses)[]).map((role) => [role, { ...catalog[role], address: addresses[role] }]),
 ) as Parameters<typeof createSupplierApp>[0]["catalog"];
 
 const vaults = new Map(Object.values(readDeployments()).map((d) => [d.vault.toLowerCase(), { startBlock: d.startBlock }] as const));

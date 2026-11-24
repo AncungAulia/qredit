@@ -1,3 +1,4 @@
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fetchPqcStatus } from "@qorechain/sdk";
 import { FACTORY_ADDRESS, FUSD_ADDRESS, TESTNET } from "@qredit/qore";
@@ -9,6 +10,7 @@ import { loadBusinesses, vaultInit } from "../setup/businesses.ts";
 import { convertFusd, createVault, ensureWindow, findExistingVault, lend, linkAgent, openWindow, registerBusiness, registerKey, sendQor, TREASURY_WINDOW } from "../setup/chain.ts";
 import { ensureSealSeed, publishCard, registerSealKey } from "../setup/seal.ts";
 import { readDeployments, writeDeployment } from "../setup/deployments.ts";
+import { RUNTIME_KEY_FIELDS, SUPPLIERS_PATH } from "../runtime-keys.ts";
 import { upsertEnv } from "../setup/env.ts";
 import { initDemoBuyer, placeDemoOrder, readDemoReport } from "../setup/demo-buyer.ts";
 
@@ -163,6 +165,25 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
     if (!d || !orderId) throw new Error("usage: demo-report <slug> <orderId>");
     console.log(JSON.stringify(await readDemoReport(ks, loadEngineConfig().API_URL, { vault: d.vault, orderId }), null, 2));
   },
+  async "suppliers-json"() {
+    const out = Object.fromEntries(
+      await Promise.all(Object.entries(SUPPLIER_ACCOUNTS).map(async ([role, name]) => [role, (await loadAccount(ks, name)).evm.toLowerCase()])),
+    );
+    writeFileSync(SUPPLIERS_PATH, `${JSON.stringify(out, null, 2)}
+`);
+    console.log(`wrote ${SUPPLIERS_PATH} (public supplier addresses)`);
+  },
+  async "runtime-keys"([sub]) {
+    if (sub !== "check") throw new Error("usage: runtime-keys check");
+    for (const b of businesses) {
+      const parts = Object.entries(RUNTIME_KEY_FIELDS).map(([kind, fields]) => {
+        const name = `${b.slug}-${kind}`;
+        const rec = ks.has(name) ? ks.read(name) : {};
+        return `${name}: ${fields.map((f) => `${f} ${rec[f] ? "yes" : "MISSING"}`).join(", ")}`;
+      });
+      console.log(`${b.slug.padEnd(20)} ${parts.join(" | ")}`);
+    }
+  },
   async "be-env"() {
     const spec = (n: string) => JSON.stringify(ks.read(n));
     const operators = businesses.map((b) => ks.read(`${b.slug}-operator`));
@@ -178,7 +199,7 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
 const [cmd, ...args] = process.argv.slice(2);
 const run = commands[cmd ?? ""];
 if (!run) {
-  console.log("usage: owner accounts init|show|register | fund <from> <qor> <fusd> <name...> | convert <name> <fusd> | be-env | business create <slug>|all | lend <slug> <fusd> | windows | seal-keys <slug>|all | demo-buyer init | demo-order <slug> <input> | demo-report <slug> <orderId>");
+  console.log("usage: owner accounts init|show|register | fund <from> <qor> <fusd> <name...> | convert <name> <fusd> | be-env | suppliers-json | runtime-keys check | business create <slug>|all | lend <slug> <fusd> | windows | seal-keys <slug>|all | demo-buyer init | demo-order <slug> <input> | demo-report <slug> <orderId>");
   process.exit(1);
 }
 run(args).catch((e) => {

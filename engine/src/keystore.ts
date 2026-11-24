@@ -19,3 +19,21 @@ export function keystore(dir: string) {
   };
 }
 export type Keystore = ReturnType<typeof keystore>;
+
+/** Read-only keystore over key material held in memory (e.g. from ENGINE_KEYS_JSON); it never touches the disk. */
+export function memoryKeystore(files: Record<string, Record<string, string>>): Keystore {
+  const get = (name: string) => {
+    if (!NAME.test(name)) throw new Error(`invalid key name "${name}"`);
+    return Object.hasOwn(files, name) ? files[name] : undefined;
+  };
+  return {
+    has: (name) => get(name) !== undefined,
+    read: (name) => {
+      const f = get(name);
+      if (!f) throw new Error(`no key "${name}"`);
+      return { ...f };
+    },
+    write: () => { throw new Error("read-only keystore"); },
+    list: () => Object.keys(files).sort(),
+  };
+}

@@ -21,3 +21,9 @@ Qredit's agents, simulated suppliers and the owner CLI. Bun; shared chain code c
 - Orders are handled one at a time per spender: the spender's auth nonce and the tool-callback mutex rely on it. Add per-spender serialization before adding any concurrency.
 - Payment verification reads the tx index (`relayedPayments`, `limit`/`page` paging, newest first, bounded by the vault's start block), because `MsgExecuteEVM` emits no EVM logs. Any HTTP or parse error throws; a partial list could pay a supplier twice.
 - Relay failures: only `refused` and `execution_failed` decline (code 6); `unconfirmed` and `not_broadcast` fail the order for a retry, and the next run's chain probe sees whether the payment landed. Step tags (`[relay]`, `[supplier]`, ...) appear in logs only.
+
+## Runtime keys without key files
+
+- `ENGINE_KEYS_JSON` (an object of `{ "<slug>-agent": {ed25519}, "<slug>-operator": {privateKey}, "<slug>-seal": {seed} }`) makes the agent runner use a read-only in-memory keystore; unset, it uses `KEYS_DIR` files as before. Bad JSON is rejected with an error that names the variable only. `runtimeBundle` in `src/runtime-keys.ts` builds it from the keystore and drops every other field (mnemonics, recovery codes).
+- Supplier addresses are public and committed in `suppliers.json` (`bun run owner suppliers-json`); spender `qor1` addresses are derived from `deployments.json`. Neither the runner nor the suppliers read spender, treasury or supplier key files.
+- `bun run owner runtime-keys check` lists which runtime fields exist locally (names only). `bun --env-file=.env scripts/runtime-keys-proof.ts` rebuilds the runtime from an in-process bundle with an empty `KEYS_DIR`.
