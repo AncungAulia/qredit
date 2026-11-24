@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { UnifiedAccount } from "@qorechain/sdk";
-import { keepWindows, type WindowChain } from "../src/windows.ts";
+import { assertWindowOptions, keepWindows, serialPerAccount, type WindowChain } from "../src/windows.ts";
 
 const acc = (cosmos: string) => ({ cosmos, evm: "0x0" }) as unknown as UnifiedAccount;
 const opts = { blocks: 17280, maxTxs: 500, maxValue: 25_000_000n, minBlocks: 3600, minTxs: 10 };
@@ -32,5 +32,35 @@ describe("keepWindows", () => {
     const res = await keepWindows([{ account: acc("qor1bad"), targets: [] }, { account: acc("qor1ok"), targets: [] }], chain, opts);
     expect(res[0]).toEqual({ address: "qor1bad", action: "error", error: "rpc down" });
     expect(res[1]).toEqual({ address: "qor1ok", action: "renewed", tx: "TX" });
+  });
+
+  test("rejects out-of-range options before touching the chain", async () => {
+    const chain: WindowChain = { status: async () => { throw new Error("must not be called"); }, open: async () => "TX" };
+    for (const bad of [{ blocks: 0 }, { blocks: 17281 }, { maxTxs: 0 }, { maxTxs: 1001 }, { maxValue: 0n }, { blocks: 1.5 }, { minBlocks: 0 }, { minBlocks: 20000 }]) {
+      await expect(keepWindows([{ account: acc("qor1a"), targets: [] }], chain, { ...opts, ...bad })).rejects.toThrow(RangeError);
+    }
+    expect(() => assertWindowOptions({ blocks: 1, maxTxs: 1, maxValue: 1n })).not.toThrow();
+    expect(() => assertWindowOptions({ blocks: 17280, maxTxs: 1000, maxValue: 1n })).not.toThrow();
+  });
+});
+
+describe("serialPerAccount", () => {
+  test("sends from one account queue; different accounts run in parallel", async () => {
+    const log: string[] = [];
+    const gates = new Map<string, () => void>();
+    const chain: WindowChain = {
+      status: async () => ({ blocks: 0, txs: 0 }),
+      open: (a, t) => new Promise((res) => { log.push(`start ${a.cosmos}${t[0]}`); gates.set(`${a.cosmos}${t[0]}`, () => { log.push(`end ${a.cosmos}${t[0]}`); res("TX"); }); }),
+    };
+    const s = serialPerAccount(chain);
+    const o = { blocks: 1, maxTxs: 1, maxValue: 1n };
+    const ps = [s.open(acc("A"), ["1"], o), s.open(acc("A"), ["2"], o), s.open(acc("B"), ["1"], o)];
+    await Bun.sleep(5);
+    expect(log).toEqual(["start A1", "start B1"]);
+    gates.get("A1")!();
+    await Bun.sleep(5);
+    expect(log).toContain("start A2");
+    gates.get("A2")!(); gates.get("B1")!();
+    await Promise.all(ps);
   });
 });
