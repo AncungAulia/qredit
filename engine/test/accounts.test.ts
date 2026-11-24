@@ -27,3 +27,10 @@ describe("accounts", () => {
     expect(agentKey(ks, "x").publicKey.length).toBe(32);
   });
 });
+
+import { fundedFirst } from "../src/setup/accounts.ts";
+describe("fundedFirst", () => {
+  test("funded accounts first, order otherwise stable", () => {
+    expect(fundedFirst(["a", "b", "c", "d"], (x) => x === "c" || x === "d")).toEqual(["c", "d", "a", "b"]);
+  });
+});

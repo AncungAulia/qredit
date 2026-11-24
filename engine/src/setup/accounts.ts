@@ -44,3 +44,6 @@ export function agentKey(ks: Keystore, slug: string): { secret: Uint8Array; publ
   const secret = Uint8Array.from(Buffer.from(ks.read(`${slug}-agent`).ed25519, "hex"));
   return { secret, publicKey: ed25519.getPublicKey(secret) };
 }
+
+/** Stable order with funded accounts first (an unfunded account does not exist on chain yet, so its registration would fail). */
+export const fundedFirst = <T>(items: T[], isFunded: (item: T) => boolean): T[] => [...items.filter(isFunded), ...items.filter((i) => !isFunded(i))];

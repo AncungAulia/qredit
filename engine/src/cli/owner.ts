@@ -1,36 +1,33 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fetchPqcStatus } from "@qorechain/sdk";
 import { FACTORY_ADDRESS, FUSD_ADDRESS, TESTNET } from "@qredit/qore";
-import { loadEngineConfig } from "../config.ts";
+import { keysDir, loadEngineConfig } from "../config.ts";
 import { keystore } from "../keystore.ts";
-import { accountNames, agentKey, ensureAccounts, loadAccount, SUPPLIER_ACCOUNTS } from "../setup/accounts.ts";
+import { accountNames, agentKey, ensureAccounts, fundedFirst, loadAccount, SUPPLIER_ACCOUNTS } from "../setup/accounts.ts";
 import { loadBusinesses, vaultInit } from "../setup/businesses.ts";
-import { convertFusd, createVault, lend, linkAgent, openWindow, registerBusiness, registerKey, sendQor } from "../setup/chain.ts";
+import { convertFusd, createVault, ensureWindow, findExistingVault, lend, linkAgent, openWindow, registerBusiness, registerKey, sendQor, TREASURY_WINDOW } from "../setup/chain.ts";
 import { readDeployments, writeDeployment } from "../setup/deployments.ts";
+import { upsertEnv } from "../setup/env.ts";
 
-const cfg = loadEngineConfig();
-const ks = keystore(cfg.KEYS_DIR);
+const ks = keystore(keysDir());
 const businesses = loadBusinesses();
 const names = accountNames(businesses);
 const keyed = (n: string) => !n.endsWith("-agent");
 const units = (fusd: string) => BigInt(Math.round(Number(fusd) * 1e6));
 const uqor = (qor: string) => BigInt(Math.round(Number(qor) * 1e6));
 
-async function balance(address: string): Promise<string> {
+async function balances(address: string): Promise<{ qor: number; fusd: number }> {
   const r = await fetch(`${TESTNET.rest}/cosmos/bank/v1beta1/balances/${address}`);
   const b = r.ok ? ((await r.json()) as { balances: { denom: string; amount: string }[] }).balances : [];
-  const q = Number(b.find((x) => x.denom === "uqor")?.amount ?? 0) / 1e6;
-  const f = Number(b.find((x) => x.denom.startsWith("erc20:0x97143"))?.amount ?? 0) / 1e6;
-  return `${q} QOR, ${f} bank fUSD`;
+  return {
+    qor: Number(b.find((x) => x.denom === "uqor")?.amount ?? 0) / 1e6,
+    fusd: Number(b.find((x) => x.denom.startsWith("erc20:0x97143"))?.amount ?? 0) / 1e6,
+  };
 }
-
-function upsertEnv(path: string, entries: Record<string, string>) {
-  const lines = existsSync(path) ? readFileSync(path, "utf8").split(/\r?\n/) : [];
-  const kept = lines.filter((l) => !Object.keys(entries).some((k) => l.startsWith(`${k}=`)));
-  while (kept.length && kept[kept.length - 1] === "") kept.pop();
-  writeFileSync(path, [...kept, ...Object.entries(entries).map(([k, v]) => `${k}=${v}`), ""].join("\n"), { mode: 0o600 });
-}
+const balance = async (address: string): Promise<string> => {
+  const { qor, fusd } = await balances(address);
+  return `${qor} QOR, ${fusd} bank fUSD`;
+};
 
 const commands: Record<string, (args: string[]) => Promise<void>> = {
   async "accounts"([sub]) {
@@ -44,17 +41,24 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
         console.log(`${n.padEnd(28)} ${a.cosmos} ${a.evm}  ${await balance(a.cosmos)}  ML-DSA ${pqc.registered ? "yes" : "no"}`);
       }
     } else if (sub === "register") {
-      for (const n of names.filter(keyed)) {
+      const accounts = await Promise.all(names.filter(keyed).map(async (n) => ({ n, acc: await loadAccount(ks, n) })));
+      const funded = new Set<string>();
+      for (const { n, acc } of accounts) if ((await balances(acc.cosmos)).qor > 0) funded.add(n);
+      let failed = 0;
+      for (const { n, acc } of fundedFirst(accounts, (x) => funded.has(x.n))) {
         try {
-          const tx = await registerKey(await loadAccount(ks, n));
+          const tx = await registerKey(acc);
           console.log(`${n}: ${tx ?? "already registered"}`);
         } catch (e) {
-          console.log(`${n}: skipped (${(e as Error).message})`);
+          failed++;
+          console.error(`${n}: FAILED (${(e as Error).message})`);
         }
       }
+      if (failed) throw new Error(`${failed} account(s) failed to register`);
     } else throw new Error("usage: accounts init|show|register");
   },
   async "fund"([from, qor, fusd, ...to]) {
+    if (!from || qor === undefined || fusd === undefined || to.length === 0) throw new Error("usage: fund <from> <qor> <fusd> <name...>");
     const sender = await loadAccount(ks, from);
     const targets = await Promise.all(to.map(async (n) => (await loadAccount(ks, n)).cosmos));
     console.log("funded:", await sendQor(sender, targets, uqor(qor), units(fusd)));
@@ -65,10 +69,11 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
   async "windows"() {
     const treasury = await loadAccount(ks, "treasury");
     const vaults = Object.values(readDeployments()).map((d) => d.vault);
-    console.log("treasury window:", await openWindow(treasury, [FACTORY_ADDRESS, FUSD_ADDRESS, ...vaults], { blocks: 3600, maxTxs: 40, maxValue: 60_000_000n }));
+    console.log("treasury window:", await openWindow(treasury, [FACTORY_ADDRESS, FUSD_ADDRESS, ...vaults], TREASURY_WINDOW));
   },
   async "business"([sub, which]) {
     if (sub !== "create" || !which) throw new Error("usage: business create <slug>|all");
+    const cfg = loadEngineConfig();
     if (!cfg.ENGINE_TOKEN) throw new Error("ENGINE_TOKEN is required in engine/.env");
     const treasury = await loadAccount(ks, "treasury");
     const suppliers = Object.fromEntries(
@@ -80,9 +85,22 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
       const agent = agentKey(ks, b.slug);
       let d = readDeployments()[b.slug];
       if (!d) {
-        const init = vaultInit(b, { spender: spender.evm.toLowerCase() as `0x${string}`, operator: operator.evm.toLowerCase() as `0x${string}`, ownerPq: cfg.OWNER_ADDRESS.toLowerCase() as `0x${string}`, suppliers }, Math.floor(Date.now() / 1000));
-        const v = await createVault(treasury, init);
-        d = { slug: b.slug, vault: v.vault, startBlock: v.startBlock, createTx: v.tx, spender: spender.evm.toLowerCase(), operator: operator.evm.toLowerCase(), agentPubkey: Buffer.from(agent.publicKey).toString("hex"), linkTx: "", windowTx: "" };
+        const spenderHex = spender.evm.toLowerCase();
+        const ownerPq = cfg.OWNER_ADDRESS.toLowerCase();
+        const base = { slug: b.slug, spender: spenderHex, operator: operator.evm.toLowerCase(), agentPubkey: Buffer.from(agent.publicKey).toString("hex"), linkTx: "", windowTx: "" };
+        const existing = await findExistingVault(ownerPq, spenderHex);
+        let v;
+        if (existing) {
+          v = existing;
+          console.log(`${b.slug}: found existing vault ${v.vault} (block ${v.startBlock}); not creating another`);
+        } else {
+          const known = Object.values(readDeployments()).map((x) => x.vault);
+          const w = await ensureWindow(treasury, [FACTORY_ADDRESS, FUSD_ADDRESS, ...known], TREASURY_WINDOW);
+          if (w) console.log(`${b.slug}: treasury window ${w}`);
+          const init = vaultInit(b, { spender: spenderHex as `0x${string}`, operator: base.operator as `0x${string}`, ownerPq: ownerPq as `0x${string}`, suppliers }, Math.floor(Date.now() / 1000));
+          v = await createVault(treasury, init);
+        }
+        d = { ...base, vault: v.vault, startBlock: v.startBlock, createTx: v.tx };
         writeDeployment(d);
         console.log(`${b.slug}: vault ${d.vault} (block ${d.startBlock})`);
       }
@@ -91,10 +109,11 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
         writeDeployment(d);
         console.log(`${b.slug}: agent key linked ${d.linkTx}`);
       }
-      if (!d.windowTx) {
-        d = { ...d, windowTx: await openWindow(operator, [d.vault]) };
+      const opened = await ensureWindow(operator, [d.vault]);
+      if (opened) {
+        d = { ...d, windowTx: opened };
         writeDeployment(d);
-        console.log(`${b.slug}: operator window ${d.windowTx}`);
+        console.log(`${b.slug}: operator window ${opened}`);
       }
       await registerBusiness(cfg.API_URL, cfg.ENGINE_TOKEN, {
         slug: b.slug, vault: d.vault, name: b.name, tagline: b.tagline, services: b.services,
@@ -106,8 +125,10 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
   async "lend"([slug, fusd]) {
     const d = readDeployments()[slug];
     if (!d) throw new Error(`no deployment for ${slug}; run business create first`);
-    const r = await lend(await loadAccount(ks, "treasury"), d.vault, units(fusd));
-    console.log(`${slug}: approved ${r.approveTx}, deposited ${r.depositTx}`);
+    const known = Object.values(readDeployments()).map((x) => x.vault);
+    const r = await lend(await loadAccount(ks, "treasury"), d.vault, units(fusd), known);
+    if (r.skipped) console.log(`${slug}: ${r.skipped}`);
+    else console.log(`${slug}: deposited ${r.amount} units (${r.approveTx ? `approve ${r.approveTx}, ` : "allowance sufficient, "}deposit ${r.depositTx})`);
   },
   async "be-env"() {
     const spec = (n: string) => JSON.stringify(ks.read(n));
