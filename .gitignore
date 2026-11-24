@@ -1,0 +1,18 @@
+# Local notes, never committed
+*.local.md
+notes/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Dependencies and builds
+node_modules/
+.next/
+out/
+dist/
+cache/
+broadcast/
+*.sqlite
+*.sqlite-journal
