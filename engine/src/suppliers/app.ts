@@ -38,7 +38,14 @@ export function createSupplierApp(deps: {
       return c.json({ error: "payment check unavailable" }, 503);
     }
     if (paid < BigInt(entry.priceUnits)) return c.json({ error: "payment required", priceUnits: entry.priceUnits, payTo: entry.address }, 402);
-    return c.json({ supplier: entry.name, data: await deps.data[role as SupplierRole](q) });
+    try {
+      return c.json({ supplier: entry.name, data: await deps.data[role as SupplierRole](q) });
+    } catch (e) {
+      const message = (e as Error).message;
+      if (message.startsWith("invalid") || message.endsWith("required")) return c.json({ error: message }, 400);
+      console.error(`[suppliers] ${role} data failed: ${message}`);
+      return c.json({ error: "data source unavailable" }, 503);
+    }
   });
   return app;
 }

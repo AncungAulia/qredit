@@ -1,0 +1,9 @@
+{
+  "list": "qredit-synthetic-sanctions-v1",
+  "notice": "Synthetic test data for the Qredit demo. Not a real sanctions list.",
+  "entries": [
+    { "address": "0x00000000000000000000000000000000005a0001", "entry": "SYNTHETIC: demo sanctioned entity A" },
+    { "address": "0x00000000000000000000000000000000005a0002", "entry": "SYNTHETIC: demo sanctioned entity B" },
+    { "address": "0x00000000000000000000000000000000005a0003", "entry": "SYNTHETIC: demo sanctioned entity C" }
+  ]
+}

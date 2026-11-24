@@ -83,3 +83,18 @@ describe("chainPayments", () => {
     expect(paid).toBe(30n);
   });
 });
+
+describe("data function errors", () => {
+  const failing = (msg: string) => {
+    const payments: PaymentSource = { paid: async () => 10_000_000n };
+    const boom = async () => { throw new Error(msg); };
+    return createSupplierApp({ payments, vaults, catalog, data: { dataIndexer: boom, listOracle: boom, computeBasic: boom, computeDeep: boom } });
+  };
+  test("an invalid or required error is HTTP 400", async () => {
+    expect((await failing("invalid address").request(`/v1/dataIndexer?vault=${V}&orderId=7`)).status).toBe(400);
+    expect((await failing("address required").request(`/v1/dataIndexer?vault=${V}&orderId=7`)).status).toBe(400);
+  });
+  test("any other error is HTTP 503", async () => {
+    expect((await failing("mcp timeout").request(`/v1/dataIndexer?vault=${V}&orderId=7`)).status).toBe(503);
+  });
+});
