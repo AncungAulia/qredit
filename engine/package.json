@@ -5,17 +5,23 @@
   "scripts": {
     "owner": "bun --env-file=.env src/cli/owner.ts",
     "suppliers": "bun --env-file=.env src/suppliers/server.ts",
+    "agent": "bun --env-file=.env src/agent/run.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@ai-sdk/openai-compatible": "3.0.94",
+    "@mastra/core": "1.85.0",
+    "@mastra/mcp": "2.10.0",
+    "@qorechain/mcp": "0.1.1",
+    "@qorechain/qoreseal": "0.1.0",
     "@noble/curves": "1.9",
     "@qorechain/evm": "0.14.0",
     "@qorechain/sdk": "0.14.0",
     "@qredit/qore": "workspace:*",
     "hono": "4.6",
     "viem": "2",
-    "zod": "3.24"
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@types/bun": "^1.4.5",
