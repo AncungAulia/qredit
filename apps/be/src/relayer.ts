@@ -1,5 +1,6 @@
 import type { EncodeObject } from "@cosmjs/proto-signing";
 import { executionFailure, type RestEvent, type Sent, serial } from "./chain/tx.ts";
+import { qorToHex } from "./chain/address.ts";
 import { PAY_SUPPLIER_SELECTOR } from "./chain/vault.ts";
 
 export const EXECUTE_EVM_TYPE_URL = "/qorechain.abstractaccount.v1.MsgExecuteEVM";
@@ -20,30 +21,51 @@ export class RelayRejected extends Error {}
 
 const b64 = (s: string) => Uint8Array.from(Buffer.from(s, "base64"));
 
-export function validateRelay(req: RelayRequest, ctx: { relayer: string; vaults: Set<string>; maxGas: number }): string | null {
+const FIELDS = ["relayer", "account", "scheme", "pubkey", "signature", "to", "value", "data", "gasLimit", "nonce"] as const;
+const PAY_SUPPLIER_CALLDATA_BYTES = 4 + 3 * 32;
+const PUBKEY_LENGTHS: Record<string, number[]> = { ed25519: [32], secp256k1: [20, 33] };
+const SIGNATURE_LENGTHS: Record<string, number[]> = { ed25519: [64], secp256k1: [64, 65] };
+
+/** ctx.vaults maps a vault (lowercase 0x) to its registered spender (lowercase 0x). */
+export type RelayContext = { relayer: string; vaults: Map<string, string>; maxGas: number };
+
+export function validateRelay(req: RelayRequest, ctx: RelayContext): string | null {
   if (req.typeUrl !== EXECUTE_EVM_TYPE_URL) return `wrong message type: only ${EXECUTE_EVM_TYPE_URL} is relayed`;
-  const v = req.value;
-  if (v.relayer !== ctx.relayer) return "the message must name this relayer";
-  if (!/^0x[0-9a-fA-F]{40}$/.test(v.to) || !ctx.vaults.has(v.to.toLowerCase())) return "the target is not a Qredit vault";
-  if (v.value !== "0") return "value must be 0";
-  if (!/^[0-9]+$/.test(v.gasLimit) || Number(v.gasLimit) > ctx.maxGas || Number(v.gasLimit) === 0) return `gas limit must be 1..${ctx.maxGas}`;
-  if (!/^[0-9]+$/.test(v.nonce)) return "nonce must be a decimal integer";
-  const data = b64(v.data);
+  const v = req.value as Record<string, unknown> | undefined;
+  if (!v || typeof v !== "object") return "the message value is missing";
+  for (const f of FIELDS) if (typeof v[f] !== "string") return `${f} must be a string`;
+  const m = req.value;
+  if (m.relayer !== ctx.relayer) return "the message must name this relayer";
+  const spender = /^0x[0-9a-fA-F]{40}$/.test(m.to) ? ctx.vaults.get(m.to.toLowerCase()) : undefined;
+  if (spender === undefined) return "the target is not a Qredit vault";
+  if (qorToHex(m.account) !== spender) return "the account is not the registered spender of this vault";
+  if (m.value !== "0") return "value must be 0";
+  if (!/^[0-9]+$/.test(m.gasLimit) || Number(m.gasLimit) > ctx.maxGas || Number(m.gasLimit) === 0) return `gas limit must be 1..${ctx.maxGas}`;
+  if (!/^[0-9]+$/.test(m.nonce)) return "nonce must be a decimal integer";
+  const pubkeyLengths = PUBKEY_LENGTHS[m.scheme];
+  if (!pubkeyLengths) return 'scheme must be "ed25519" or "secp256k1"';
+  if (!pubkeyLengths.includes(b64(m.pubkey).length)) return `pubkey must be ${pubkeyLengths.join(" or ")} bytes for ${m.scheme}`;
+  if (!SIGNATURE_LENGTHS[m.scheme]!.includes(b64(m.signature).length)) return `signature must be ${SIGNATURE_LENGTHS[m.scheme]!.join(" or ")} bytes for ${m.scheme}`;
+  const data = b64(m.data);
+  if (data.length !== PAY_SUPPLIER_CALLDATA_BYTES) return `calldata must be ${PAY_SUPPLIER_CALLDATA_BYTES} bytes`;
   const selector = `0x${Buffer.from(data.subarray(0, 4)).toString("hex")}`;
   if (selector !== PAY_SUPPLIER_SELECTOR) return "only vault.paySupplier is relayed";
   return null;
 }
 
+const normalise = (m: Map<string, string>) => new Map([...m].map(([k, s]) => [k.toLowerCase(), s.toLowerCase()]));
+
 export function createRelayer(deps: {
   relayerAddress: string;
-  vaults: () => Promise<Set<string>>;
+  /** vault 0x -> registered spender 0x (keys are lowercased here). */
+  vaults: () => Promise<Map<string, string>>;
   send: (msg: EncodeObject) => Promise<Sent>;
   events: (hash: string) => Promise<RestEvent[]>;
   maxGas?: number;
 }): (req: RelayRequest) => Promise<RelayResult> {
   const run = serial();
   return async (req) => {
-    const error = validateRelay(req, { relayer: deps.relayerAddress, vaults: await deps.vaults(), maxGas: deps.maxGas ?? 1_000_000 });
+    const error = validateRelay(req, { relayer: deps.relayerAddress, vaults: normalise(await deps.vaults()), maxGas: deps.maxGas ?? 1_000_000 });
     if (error) throw new RelayRejected(error);
     const v = req.value;
     const msg: EncodeObject = {
@@ -54,11 +76,17 @@ export function createRelayer(deps: {
         to: v.to, value: v.value, data: b64(v.data), gasLimit: v.gasLimit, nonce: v.nonce,
       },
     };
-    return run(async () => {
-      const sent = await deps.send(msg);
-      if (sent.code !== 0) return { txHash: sent.hash, success: false, reason: `code ${sent.code}: ${sent.rawLog ?? ""}` };
-      const failure = executionFailure(await deps.events(sent.hash));
-      return failure ? { txHash: sent.hash, success: false, reason: failure } : { txHash: sent.hash, success: true };
+    return run(async (): Promise<RelayResult> => {
+      let txHash = "";
+      try {
+        const sent = await deps.send(msg);
+        txHash = sent.hash;
+        if (sent.code !== 0) return { txHash, success: false, reason: `code ${sent.code}: ${sent.rawLog ?? ""}` };
+        const failure = executionFailure(await deps.events(txHash));
+        return failure ? { txHash, success: false, reason: failure } : { txHash, success: true };
+      } catch (e) {
+        return { txHash, success: false, reason: e instanceof Error ? e.message : String(e) };
+      }
     });
   };
 }
