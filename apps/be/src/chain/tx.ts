@@ -6,6 +6,21 @@ export type Net = { chainId: string; rest: string; rpc: string };
 export type RestEvent = { type: string; attributes: { key: string; value: string }[] };
 export type Sent = { hash: string; code: number; rawLog?: string };
 
+/** Nothing was broadcast: CheckTx refused it, or connecting/preparing failed before any hash existed. Safe to retry. */
+export class BroadcastRefused extends Error {}
+/** A hash exists, so the coins may have moved; the outcome is unknown. */
+export class BroadcastUnconfirmed extends Error {
+  constructor(readonly hash: string, message: string) {
+    super(message);
+  }
+}
+/** The tx was included but failed in execution (code != 0 on chain). */
+export class TxFailedOnChain extends Error {
+  constructor(readonly hash: string, message: string) {
+    super(message);
+  }
+}
+
 const REST_TIMEOUT_MS = 15_000;
 const restGet = (url: string) => fetch(url, { signal: AbortSignal.timeout(REST_TIMEOUT_MS) });
 
@@ -42,9 +57,14 @@ export async function broadcastHybrid(
   messages: EncodeObject[],
   opts: { memo?: string; gas?: string; feeUqor?: string } = {},
 ): Promise<Sent> {
-  const { accountNumber, sequence } = await accountNumbers(net.rest, acc.cosmos);
-  const signer = new EthNativeSigner(acc, { signMode: "hybrid", rest: net.rest });
-  const transport = await connectRpc(net.rpc);
+  let accountNumber: bigint, sequence: bigint, signer: EthNativeSigner, transport: StargateClient;
+  try {
+    ({ accountNumber, sequence } = await accountNumbers(net.rest, acc.cosmos));
+    signer = new EthNativeSigner(acc, { signMode: "hybrid", rest: net.rest });
+    transport = await connectRpc(net.rpc);
+  } catch (e) {
+    throw new BroadcastRefused(e instanceof Error ? e.message : String(e), { cause: e });
+  }
   try {
     const res = await signer.signAndBroadcast(transport, {
       chainId: net.chainId,
@@ -68,7 +88,7 @@ export async function txEvents(rest: string, hash: string, tries = 20, delayMs =
     const body = (await res.json()) as { tx_response?: { code: number; raw_log?: string; events: RestEvent[] } };
     const tx = body.tx_response;
     if (!tx) continue; // not indexed yet: treat like not found and retry
-    if (tx.code !== 0) throw new Error(`tx ${hash} failed with code ${tx.code}: ${tx.raw_log ?? ""}`);
+    if (tx.code !== 0) throw new TxFailedOnChain(hash, `tx ${hash} failed with code ${tx.code}: ${tx.raw_log ?? ""}`);
     return tx.events ?? [];
   }
   throw new Error(`tx ${hash} not found (or no tx_response) after ${tries} tries over ${((tries - 1) * delayMs) / 1000} s`);

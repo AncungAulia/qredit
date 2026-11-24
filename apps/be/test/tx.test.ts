@@ -25,7 +25,18 @@ describe("faucet reservation", () => {
     const b = await db.transaction((q) => reserveGrant(q, "qor1a", "ip2", 24, NOW));
     const c = await db.transaction((q) => reserveGrant(q, "qor1b", "ip1", 24, NOW));
     expect(b.ok || c.ok).toBe(false);
-    if (!b.ok) expect(b.retryAt.getTime()).toBeGreaterThan(NOW.getTime());
+    if (!b.ok && b.reason === "cooldown") expect(b.retryAt.getTime()).toBeGreaterThan(NOW.getTime());
+  });
+
+  test("a global rolling 24 h cap counts every grant, frees on cancel and ages out", async () => {
+    const a = await db.transaction((q) => reserveGrant(q, "qor1a", "ip1", 24, NOW, 2));
+    await db.transaction((q) => reserveGrant(q, "qor1b", "ip2", 24, NOW, 2));
+    expect(await db.transaction((q) => reserveGrant(q, "qor1c", "ip3", 24, NOW, 2))).toEqual({ ok: false, reason: "cap" });
+    if (!a.ok) throw new Error("expected ok");
+    await cancelGrant(db, a.id);
+    expect((await db.transaction((q) => reserveGrant(q, "qor1c", "ip3", 24, NOW, 2))).ok).toBe(true);
+    const later = new Date(NOW.getTime() + 24 * 3_600_000 + 1000);
+    expect((await db.transaction((q) => reserveGrant(q, "qor1d", "ip4", 24, later, 2))).ok).toBe(true);
   });
 
   test("concurrent reservations for the same address grant exactly one", async () => {
