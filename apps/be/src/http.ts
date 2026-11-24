@@ -1,9 +1,14 @@
 import { timingSafeEqual } from "node:crypto";
-import { Hono, type Context } from "hono";
+import { isIP } from "node:net";
+import { Hono, type Context, type MiddlewareHandler } from "hono";
+import { getConnInfo } from "hono/bun";
+import { bodyLimit } from "hono/body-limit";
 import { cors } from "hono/cors";
 import { z } from "zod";
+import type { CardVerdict } from "./cards.ts";
 import type { Db } from "./db.ts";
-import { FaucetCooldown } from "./faucet.ts";
+import { FaucetCapReached, FaucetCooldown } from "./faucet.ts";
+import { createRateLimiter } from "./ratelimit.ts";
 import { type RelayRequest, RelayRejected, type RelayResult } from "./relayer.ts";
 import * as store from "./store.ts";
 
@@ -14,8 +19,17 @@ export type AppDeps = {
   relayerAddress: string;
   relay: (r: RelayRequest) => Promise<RelayResult>;
   faucet: (address: string, ip: string) => Promise<{ tx: string }>;
-  verifyCard: (address: string, card: unknown) => Promise<boolean>;
+  verifyCard: (address: string, card: unknown) => Promise<CardVerdict>;
+  /** Reverse proxies in front of the server (0 = ignore x-forwarded-for). */
+  trustedProxyHops: number;
+  /** Requests per minute per client ip; in memory, per instance. */
+  rateLimits: { envelopes: number; cards: number; faucet: number };
+  now?: () => number;
 };
+
+export const MAX_BODY_DEFAULT = 16 * 1024;
+export const MAX_BODY_ENVELOPE = 300 * 1024;
+const RATE_WINDOW_MS = 60_000;
 
 const MAX_ENVELOPE = 262_144;
 const qorAddress = z.string().regex(/^qor1[02-9ac-hj-np-z]{38,58}$/);
@@ -32,10 +46,11 @@ const decisionSchema = z.object({
   reason: z.string().max(500), suppliers: z.array(z.unknown()).max(20), cost: z.string().regex(/^[0-9]+$/),
 });
 const relaySchema = z.object({
-  typeUrl: z.string(),
+  typeUrl: z.string().max(128),
   value: z.object({
-    relayer: z.string(), account: z.string(), scheme: z.string(), pubkey: z.string(), signature: z.string(),
-    to: z.string(), value: z.string(), data: z.string(), gasLimit: z.string(), nonce: z.string(),
+    relayer: z.string().max(128), account: z.string().max(128), scheme: z.string().max(128),
+    pubkey: z.string().max(64), signature: z.string().max(132),
+    to: z.string().max(128), value: z.string().max(128), data: z.string().max(400), gasLimit: z.string().max(128), nonce: z.string().max(128),
   }),
 });
 
@@ -43,14 +58,44 @@ export function createApp(deps: AppDeps): Hono {
   const app = new Hono();
   app.use("*", cors({ origin: (origin) => (deps.corsOrigins.includes(origin) ? origin : null), allowMethods: ["GET", "POST", "PUT"] }));
 
+  // Size limits run before any JSON parsing or auth that needs the body.
+  const tooLarge = (c: Context) => c.json({ error: "request body too large" }, 413);
+  const small = bodyLimit({ maxSize: MAX_BODY_DEFAULT, onError: tooLarge });
+  const large = bodyLimit({ maxSize: MAX_BODY_ENVELOPE, onError: tooLarge });
+  app.use("*", (c, next) => (c.req.method === "POST" && c.req.path === "/v1/envelopes" ? large(c, next) : small(c, next)));
+
+  /** The address the trusted proxy appended to x-forwarded-for; otherwise the socket peer. Never the leftmost entry. */
+  const clientIp = (c: Context): string => {
+    if (deps.trustedProxyHops > 0) {
+      const parts = (c.req.header("x-forwarded-for") ?? "").split(",").map((p) => p.trim());
+      const candidate = parts.length >= deps.trustedProxyHops ? parts[parts.length - deps.trustedProxyHops] : undefined;
+      if (candidate && isIP(candidate)) return candidate;
+    }
+    try {
+      return getConnInfo(c).remote.address ?? "unknown";
+    } catch {
+      return "unknown";
+    }
+  };
+  const limited = (perMinute: number, skip?: (c: Context) => boolean): MiddlewareHandler => {
+    const hit = createRateLimiter({ limit: perMinute, windowMs: RATE_WINDOW_MS, now: deps.now });
+    return async (c, next) => {
+      if (skip?.(c)) return next();
+      const r = hit(clientIp(c));
+      if (r.ok) return next();
+      c.header("retry-after", String(r.retryAfter));
+      return c.json({ error: "too many requests", retryAfter: r.retryAfter }, 429);
+    };
+  };
+
   const token = Buffer.from(deps.engineToken);
   const isEngine = (c: Context) => {
     const given = Buffer.from((c.req.header("authorization") ?? "").replace(/^Bearer /, ""));
     return given.length === token.length && timingSafeEqual(given, token);
   };
-  const bad = (c: Context, error: string, status: 400 | 401 | 404 | 413 | 422 | 429 = 400) => c.json({ error }, status);
+  const bad = (c: Context, error: string, status: 400 | 401 | 404 | 413 | 422 | 429 | 503 = 400) => c.json({ error }, status);
   const body = async <T>(c: Context, schema: z.ZodType<T>): Promise<T | null> => {
-    const parsed = schema.safeParse(await c.req.json().catch(() => undefined));
+    const parsed = schema.safeParse(await c.req.json().catch((e) => { if (e instanceof SyntaxError) return undefined; throw e; }));
     return parsed.success ? parsed.data : null;
   };
 
@@ -70,7 +115,7 @@ export function createApp(deps: AppDeps): Hono {
     return c.body(null, 204);
   });
 
-  app.post("/v1/envelopes", async (c) => {
+  app.post("/v1/envelopes", limited(deps.rateLimits.envelopes, isEngine), async (c) => {
     const e = await body(c, z.object({ kind: z.enum(["request", "report", "sample"]), body: z.string().min(1) }));
     if (!e) return bad(c, "invalid envelope");
     if (new TextEncoder().encode(e.body).length > MAX_ENVELOPE) return bad(c, "envelope too large", 413);
@@ -84,12 +129,17 @@ export function createApp(deps: AppDeps): Hono {
     return e ? c.json(e) : bad(c, "not found", 404);
   });
 
-  app.put("/v1/cards/:address", async (c) => {
+  app.put("/v1/cards/:address", limited(deps.rateLimits.cards), async (c) => {
     const address = qorAddress.safeParse(c.req.param("address"));
     if (!address.success) return bad(c, "invalid address");
     const b = await body(c, z.object({ card: z.unknown() }));
     if (!b || b.card === undefined) return bad(c, "invalid card");
-    if (!(await deps.verifyCard(address.data, b.card))) return bad(c, "the card does not match the keys registered on chain", 422);
+    const verdict = await deps.verifyCard(address.data, b.card);
+    if (!verdict.ok) {
+      return verdict.reason === "unavailable"
+        ? bad(c, "the chain could not be reached to check the card; try again shortly", 503)
+        : bad(c, "the card does not match the keys registered on chain", 422);
+    }
     await store.putCard(deps.db, address.data, b.card);
     return c.body(null, 204);
   });
@@ -136,13 +186,13 @@ export function createApp(deps: AppDeps): Hono {
     }
   });
 
-  app.post("/v1/faucet", async (c) => {
+  app.post("/v1/faucet", limited(deps.rateLimits.faucet), async (c) => {
     const b = await body(c, z.object({ address: qorAddress }));
     if (!b) return bad(c, "invalid qor1 address");
-    const ip = (c.req.header("x-forwarded-for") ?? "").split(",")[0]?.trim() || "unknown";
     try {
-      return c.json(await deps.faucet(b.address, ip));
+      return c.json(await deps.faucet(b.address, clientIp(c)));
     } catch (e) {
+      if (e instanceof FaucetCapReached) return bad(c, e.message, 503);
       if (e instanceof FaucetCooldown) return c.json({ error: e.message, retryAt: e.retryAt.toISOString() }, 429);
       throw e;
     }

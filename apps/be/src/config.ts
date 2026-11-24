@@ -18,6 +18,12 @@ const schema = z.object({
   FAUCET_UQOR: z.coerce.bigint().default(2_000_000n),
   FAUCET_FUSD_UNITS: z.coerce.bigint().default(50_000_000n),
   FAUCET_COOLDOWN_HOURS: z.coerce.number().positive().default(24),
+  FAUCET_DAILY_CAP: z.coerce.number().int().positive().default(200),
+  /** Reverse proxies in front of this process; the client is the x-forwarded-for entry they appended. 0 ignores the header. */
+  TRUSTED_PROXY_HOPS: z.coerce.number().int().min(0).max(10).default(1),
+  RATE_ENVELOPES_PER_MIN: z.coerce.number().int().positive().default(30),
+  RATE_CARDS_PER_MIN: z.coerce.number().int().positive().default(10),
+  RATE_FAUCET_PER_MIN: z.coerce.number().int().positive().default(5),
   WATCH_INTERVAL_MS: z.coerce.number().int().positive().default(4000),
   WINDOW_CHECK_INTERVAL_MS: z.coerce.number().int().positive().default(300_000),
   WINDOW_MIN_BLOCKS: z.coerce.number().int().positive().default(3600),

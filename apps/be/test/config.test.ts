@@ -18,6 +18,9 @@ describe("loadConfig", () => {
     expect(c.FAUCET_FUSD_UNITS).toBe(50_000_000n);
     expect(c.WINDOW_MIN_BLOCKS).toBe(3600);
     expect(c.OPERATOR_KEYS).toBe("[]");
+    expect(c.TRUSTED_PROXY_HOPS).toBe(1);
+    expect(c.FAUCET_DAILY_CAP).toBe(200);
+    expect([c.RATE_ENVELOPES_PER_MIN, c.RATE_CARDS_PER_MIN, c.RATE_FAUCET_PER_MIN]).toEqual([30, 10, 5]);
   });
 
   test("rejects a short engine token", () => {

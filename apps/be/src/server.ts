@@ -10,7 +10,7 @@ import { MIGRATIONS_DIR, runMigrations } from "./migrate.ts";
 import { createRelayer } from "./relayer.ts";
 import { listBusinesses } from "./store.ts";
 import { syncVault, viemLogSource } from "./watcher.ts";
-import { keepWindows, sdkWindowChain } from "./windows.ts";
+import { assertWindowOptions, keepWindows, sdkWindowChain, serialPerAccount } from "./windows.ts";
 
 const cfg = loadConfig();
 const net: Net = { chainId: cfg.QORE_CHAIN_ID, rest: cfg.QORE_REST_URL, rpc: cfg.QORE_RPC_URL };
@@ -34,6 +34,7 @@ const faucet = createFaucet({
   db,
   send: treasurySender(net, treasury, cfg.FAUCET_UQOR, cfg.FAUCET_FUSD_UNITS),
   cooldownHours: cfg.FAUCET_COOLDOWN_HOURS,
+  dailyCap: cfg.FAUCET_DAILY_CAP,
   hashIp: ipHasher(cfg.IP_SALT),
 });
 
@@ -45,6 +46,8 @@ const app = createApp({
   relay,
   faucet,
   verifyCard: chainCardVerifier(net),
+  trustedProxyHops: cfg.TRUSTED_PROXY_HOPS,
+  rateLimits: { envelopes: cfg.RATE_ENVELOPES_PER_MIN, cards: cfg.RATE_CARDS_PER_MIN, faucet: cfg.RATE_FAUCET_PER_MIN },
 });
 
 function loop(name: string, everyMs: number, fn: () => Promise<void>) {
@@ -69,18 +72,19 @@ loop("watcher", cfg.WATCH_INTERVAL_MS, async () => {
   for (const b of await listBusinesses(db)) await syncVault(db, logs, b.vault, b.startBlock);
 });
 
-const windowChain = sdkWindowChain(net);
+const windowOptions = { blocks: 17_280, maxTxs: cfg.WINDOW_MAX_TXS, maxValue: cfg.WINDOW_MAX_UQOR, minBlocks: cfg.WINDOW_MIN_BLOCKS };
+assertWindowOptions(windowOptions); // bad window config stops the boot instead of failing every tick
+const windowChain = serialPerAccount(sdkWindowChain(net));
 loop("windows", cfg.WINDOW_CHECK_INTERVAL_MS, async () => {
   const businesses = await listBusinesses(db);
   const items = operators
     .map((account) => ({ account, targets: businesses.filter((b) => b.operator.toLowerCase() === account.evm.toLowerCase()).map((b) => b.vault) }))
     .filter((i) => i.targets.length > 0);
-  for (const r of await keepWindows(items, windowChain, {
-    blocks: 17_280, maxTxs: cfg.WINDOW_MAX_TXS, maxValue: cfg.WINDOW_MAX_UQOR, minBlocks: cfg.WINDOW_MIN_BLOCKS,
-  })) {
+  for (const r of await keepWindows(items, windowChain, windowOptions)) {
     if (r.action !== "kept") console.log("[windows]", JSON.stringify(r));
   }
 });
 
-Bun.serve({ port: cfg.PORT, fetch: app.fetch });
+// Hono reads the socket peer from env.server (used when there is no trusted proxy header).
+Bun.serve({ port: cfg.PORT, maxRequestBodySize: 512 * 1024, fetch: (req, server) => app.fetch(req, { server }) });
 console.log(`[http] listening on :${cfg.PORT}; relayer ${relayer.cosmos}; treasury ${treasury.cosmos}; operators ${operators.length}`);

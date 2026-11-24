@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import { type Db, memoryDb } from "../src/db.ts";
-import { FaucetCooldown } from "../src/faucet.ts";
+import { FaucetCapReached, FaucetCooldown } from "../src/faucet.ts";
 import { createApp } from "../src/http.ts";
 import { MIGRATIONS_DIR, runMigrations } from "../src/migrate.ts";
 import { RelayRejected } from "../src/relayer.ts";
@@ -21,13 +21,109 @@ beforeEach(async () => {
     db, engineToken: TOKEN, corsOrigins: ["https://app.qredit.fun"], relayerAddress: "qor1relayer",
     relay: async (r) => { if (r.value.value !== "0") throw new RelayRejected("value must be 0"); return { txHash: "H", success: true }; },
     faucet: async (address, ip) => { faucetCalls.push([address, ip]); if (address === ADDR && faucetCalls.length > 1) throw new FaucetCooldown(new Date("2030-01-01T00:00:00Z")); return { tx: "F" }; },
-    verifyCard: async (_a, card) => (card as { ok?: boolean }).ok === true,
+    verifyCard: async (_a, card) => {
+      const c = card as { ok?: boolean; down?: boolean };
+      return c.down ? { ok: false, reason: "unavailable" } : c.ok === true ? { ok: true } : { ok: false, reason: "mismatch" };
+    },
+    trustedProxyHops: 1,
+    rateLimits: { envelopes: 1000, cards: 1000, faucet: 1000 },
   });
 });
 
 const engine = { authorization: `Bearer ${TOKEN}`, "content-type": "application/json" };
 const json = { "content-type": "application/json" };
-const post = (path: string, body: unknown, headers: Record<string, string> = json) => app.request(path, { method: "POST", headers, body: JSON.stringify(body) });
+const post = (path: string, body: unknown, headers: Record<string, string> = json, env?: unknown) =>
+  app.request(path, { method: "POST", headers, body: JSON.stringify(body) }, env);
+const peer = (address: string) => ({ server: { requestIP: () => ({ address, family: "IPv4", port: 1 }) } });
+
+const mkApp = (over: Partial<Parameters<typeof createApp>[0]> = {}) =>
+  createApp({
+    db, engineToken: TOKEN, corsOrigins: [], relayerAddress: "qor1relayer",
+    relay: async () => ({ txHash: "H", success: true }),
+    faucet: async () => ({ tx: "F" }),
+    verifyCard: async () => ({ ok: true }),
+    trustedProxyHops: 1,
+    rateLimits: { envelopes: 1000, cards: 1000, faucet: 1000 },
+    ...over,
+  });
+
+describe("client ip", () => {
+  const ipOf = async (hops: number, headers: Record<string, string>, env?: unknown) => {
+    const seen: string[] = [];
+    const a = mkApp({ trustedProxyHops: hops, faucet: async (_a, ip) => { seen.push(ip); return { tx: "F" }; } });
+    await a.request("/v1/faucet", { method: "POST", headers: { ...json, ...headers }, body: JSON.stringify({ address: ADDR }) }, env);
+    return seen[0];
+  };
+  test("takes the entry the trusted proxy appended and ignores spoofed leftmost ones", async () => {
+    expect(await ipOf(1, { "x-forwarded-for": "6.6.6.6, 7.7.7.7, 203.0.113.9" }, peer("10.0.0.1"))).toBe("203.0.113.9");
+    expect(await ipOf(2, { "x-forwarded-for": "6.6.6.6, 203.0.113.9, 10.1.1.1" }, peer("10.0.0.1"))).toBe("203.0.113.9");
+  });
+  test("a header shorter than the hops falls back to the socket peer", async () => {
+    expect(await ipOf(2, { "x-forwarded-for": "6.6.6.6" }, peer("198.51.100.4"))).toBe("198.51.100.4");
+    expect(await ipOf(1, {}, peer("198.51.100.4"))).toBe("198.51.100.4");
+  });
+  test("with zero hops the header is ignored entirely", async () => {
+    expect(await ipOf(0, { "x-forwarded-for": "6.6.6.6" }, peer("198.51.100.4"))).toBe("198.51.100.4");
+  });
+  test("a non-ip entry falls back to the peer; no peer at all is unknown", async () => {
+    expect(await ipOf(1, { "x-forwarded-for": "not-an-ip" }, peer("198.51.100.4"))).toBe("198.51.100.4");
+    expect(await ipOf(1, {})).toBe("unknown");
+  });
+});
+
+describe("body limits", () => {
+  test("16 KB everywhere but envelopes (300 KB); 413 before parsing and auth", async () => {
+    const big = "x".repeat(20 * 1024);
+    expect((await post("/v1/faucet", { address: big })).status).toBe(413);
+    expect((await post("/v1/decisions", { reason: big }, engine)).status).toBe(413);
+    expect((await post("/v1/envelopes", { kind: "request", body: big })).status).toBe(200);
+    expect((await post("/v1/envelopes", { kind: "request", body: "x".repeat(301 * 1024) })).status).toBe(413);
+    // announced size: refused before the engine-auth check and before any parsing
+    const res = await app.request("/v1/relay", { method: "POST", headers: { ...json, "content-length": "99999" }, body: "{}" });
+    expect(res.status).toBe(413);
+    expect(await res.json()).toEqual({ error: "request body too large" });
+  });
+});
+
+describe("rate limits", () => {
+  const call = (a: ReturnType<typeof createApp>, path: string, method: string, body: unknown, headers: Record<string, string> = json, ip = "1.1.1.1") =>
+    a.request(path, { method, headers, body: JSON.stringify(body) }, peer(ip));
+
+  test("429 with retryAfter, per ip, before validation", async () => {
+    let t = 0;
+    const a = mkApp({ rateLimits: { envelopes: 2, cards: 1, faucet: 1 }, now: () => t });
+    expect((await call(a, "/v1/faucet", "POST", { address: "bad" })).status).toBe(400);
+    const res = await call(a, "/v1/faucet", "POST", { address: "bad" });
+    expect(res.status).toBe(429);
+    expect(await res.json()).toEqual({ error: "too many requests", retryAfter: 60 });
+    expect(res.headers.get("retry-after")).toBe("60");
+    expect((await call(a, "/v1/faucet", "POST", { address: "bad" }, json, "2.2.2.2")).status).toBe(400);
+    t = 61_000;
+    expect((await call(a, "/v1/faucet", "POST", { address: "bad" })).status).toBe(400);
+  });
+
+  test("cards and envelopes are limited; the engine is not", async () => {
+    const a = mkApp({ rateLimits: { envelopes: 2, cards: 1, faucet: 1 }, now: () => 0 });
+    const card = () => call(a, `/v1/cards/${ADDR}`, "PUT", { card: {} });
+    expect((await card()).status).toBe(204);
+    expect((await card()).status).toBe(429);
+    const env = () => call(a, "/v1/envelopes", "POST", { kind: "request", body: "x" });
+    expect((await env()).status).toBe(200);
+    expect((await env()).status).toBe(200);
+    expect((await env()).status).toBe(429);
+    for (let i = 0; i < 5; i++) expect((await call(a, "/v1/envelopes", "POST", { kind: "report", body: "x" }, engine)).status).toBe(200);
+  });
+});
+
+describe("relay field caps", () => {
+  test("oversized value fields are rejected at the schema", async () => {
+    const r = (over: Record<string, string>) => ({ typeUrl: "x", value: { relayer: "r", account: "a", scheme: "ed25519", pubkey: "", signature: "", to: V, value: "0", data: "", gasLimit: "1", nonce: "0", ...over } });
+    expect((await post("/v1/relay", r({}), engine)).status).toBe(200);
+    for (const [f, n] of [["data", 401], ["pubkey", 65], ["signature", 133], ["nonce", 129]] as const) {
+      expect((await post("/v1/relay", r({ [f]: "A".repeat(n) }), engine)).status).toBe(400);
+    }
+  });
+});
 
 describe("public routes", () => {
   test("health and relayer", async () => {
@@ -59,11 +155,24 @@ describe("public routes", () => {
   test("faucet takes the client ip from x-forwarded-for and maps cooldown to 429", async () => {
     const res = await post("/v1/faucet", { address: ADDR }, { ...json, "x-forwarded-for": "9.9.9.9, 10.0.0.1" });
     expect(await res.json()).toEqual({ tx: "F" });
-    expect(faucetCalls[0]).toEqual([ADDR, "9.9.9.9"]);
+    expect(faucetCalls[0]).toEqual([ADDR, "10.0.0.1"]);
     const again = await post("/v1/faucet", { address: ADDR });
     expect(again.status).toBe(429);
     expect(await again.json()).toMatchObject({ retryAt: "2030-01-01T00:00:00.000Z" });
     expect((await post("/v1/faucet", { address: "0xabc" })).status).toBe(400);
+  });
+
+  test("faucet daily cap maps to 503", async () => {
+    const capped = mkApp({ faucet: async () => { throw new FaucetCapReached(); } });
+    const res = await capped.request("/v1/faucet", { method: "POST", headers: json, body: JSON.stringify({ address: ADDR }) });
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({ error: expect.stringContaining("daily limit") });
+  });
+
+  test("card lookups: unavailable chain is 503, mismatch is 422", async () => {
+    const put = (card: unknown) => app.request(`/v1/cards/${ADDR}`, { method: "PUT", headers: json, body: JSON.stringify({ card }) });
+    expect((await put({ down: true })).status).toBe(503);
+    expect((await put({})).status).toBe(422);
   });
 
   test("cors allows the app origin only", async () => {
