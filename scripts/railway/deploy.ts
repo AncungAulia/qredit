@@ -156,6 +156,18 @@ async function cmdLogs(service: string | undefined): Promise<void> {
   for (const l of tail(await logs(dep.id), 80)) console.log(l);
 }
 
+/** Deletes every deploy token this script created (they are named deploy-<timestamp>). */
+async function deleteDeployTokens(ctx: Ctx): Promise<number> {
+  const d = await gql<{ projectTokens: Edges<{ id: string; name: string }> }>(`query($p: String!) { projectTokens(projectId: $p) { edges { node { id name } } } }`, { p: ctx.projectId });
+  const mine = d.projectTokens.edges.map((e) => e.node).filter((t) => t.name.startsWith("deploy-"));
+  for (const t of mine) await gql(`mutation($id: String!) { projectTokenDelete(id: $id) }`, { id: t.id });
+  return mine.length;
+}
+
+async function cmdCleanup(): Promise<void> {
+  console.log(`deleted ${await deleteDeployTokens(await requireCtx())} deploy token(s)`);
+}
+
 async function cmdUp(service: string | undefined): Promise<void> {
   if (!service || !isServiceName(service)) throw new Error(`usage: up <${NAMES.join("|")}>`);
   const ctx = await requireCtx();
@@ -169,6 +181,7 @@ async function cmdUp(service: string | undefined): Promise<void> {
     cwd: ROOT, env: { ...process.env, RAILWAY_TOKEN: token }, stdout: "inherit", stderr: "inherit",
   });
   const code = await child.exited;
+  await deleteDeployTokens(ctx).catch(() => console.error("warning: deploy token cleanup failed; run `cleanup`"));
   if (code !== 0) throw new Error(`railway up exited with ${code}`);
   let dep: Deployment | undefined;
   for (let i = 0; i < 20 && (!dep || dep.id === before); i++) {
@@ -216,8 +229,8 @@ async function cmdStatus(): Promise<void> {
 
 if (import.meta.main) {
   const [cmd, arg] = Bun.argv.slice(2);
-  const commands: Record<string, () => Promise<void>> = { project: cmdProject, vars: cmdVars, up: () => cmdUp(arg), logs: () => cmdLogs(arg), domain: cmdDomain, status: cmdStatus };
+  const commands: Record<string, () => Promise<void>> = { project: cmdProject, vars: cmdVars, up: () => cmdUp(arg), logs: () => cmdLogs(arg), domain: cmdDomain, status: cmdStatus, cleanup: cmdCleanup };
   const run = commands[cmd ?? ""];
-  if (!run) { console.error("usage: deploy.ts <project|vars|up <service>|logs <service>|domain|status>"); process.exit(2); }
+  if (!run) { console.error("usage: deploy.ts <project|vars|up <service>|logs <service>|domain|status|cleanup>"); process.exit(2); }
   await run().catch((e: Error) => { console.error(`error: ${e.message}`); process.exit(1); });
 }
