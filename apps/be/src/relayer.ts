@@ -1,5 +1,5 @@
 import type { EncodeObject } from "@cosmjs/proto-signing";
-import { executionFailure, type RestEvent, type Sent, serial } from "./chain/tx.ts";
+import { executionFailure, type RestEvent, type Sent, serial, TxFailedOnChain } from "./chain/tx.ts";
 import { qorToHex } from "./chain/address.ts";
 import { PAY_SUPPLIER_SELECTOR } from "./chain/vault.ts";
 
@@ -15,10 +15,12 @@ export type RelayRequest = {
     gasLimit: string; nonce: string;
   };
 };
-export type RelayResult = { txHash: string; success: boolean; reason?: string };
+export type RelayFailureCode = "not_broadcast" | "refused" | "unconfirmed" | "execution_failed";
+export type RelayResult = { txHash: string; success: true } | { txHash: string; success: false; code: RelayFailureCode; reason: string };
 
 export class RelayRejected extends Error {}
 
+const BASE64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 const b64 = (s: string) => Uint8Array.from(Buffer.from(s, "base64"));
 
 const FIELDS = ["relayer", "account", "scheme", "pubkey", "signature", "to", "value", "data", "gasLimit", "nonce"] as const;
@@ -35,6 +37,7 @@ export function validateRelay(req: RelayRequest, ctx: RelayContext): string | nu
   if (!v || typeof v !== "object") return "the message value is missing";
   for (const f of FIELDS) if (typeof v[f] !== "string") return `${f} must be a string`;
   const m = req.value;
+  for (const f of ["pubkey", "signature", "data"] as const) if (!BASE64.test(m[f])) return `${f} must be strict base64`;
   if (m.relayer !== ctx.relayer) return "the message must name this relayer";
   const spender = /^0x[0-9a-fA-F]{40}$/.test(m.to) ? ctx.vaults.get(m.to.toLowerCase()) : undefined;
   if (spender === undefined) return "the target is not a Qredit vault";
@@ -53,6 +56,7 @@ export function validateRelay(req: RelayRequest, ctx: RelayContext): string | nu
   return null;
 }
 
+const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 const normalise = (m: Map<string, string>) => new Map([...m].map(([k, s]) => [k.toLowerCase(), s.toLowerCase()]));
 
 export function createRelayer(deps: {
@@ -77,15 +81,19 @@ export function createRelayer(deps: {
       },
     };
     return run(async (): Promise<RelayResult> => {
-      let txHash = "";
+      let sent: Sent;
       try {
-        const sent = await deps.send(msg);
-        txHash = sent.hash;
-        if (sent.code !== 0) return { txHash, success: false, reason: `code ${sent.code}: ${sent.rawLog ?? ""}` };
-        const failure = executionFailure(await deps.events(txHash));
-        return failure ? { txHash, success: false, reason: failure } : { txHash, success: true };
+        sent = await deps.send(msg);
       } catch (e) {
-        return { txHash, success: false, reason: e instanceof Error ? e.message : String(e) };
+        return { txHash: "", success: false, code: "not_broadcast", reason: errorText(e) };
+      }
+      const txHash = sent.hash;
+      if (sent.code !== 0) return { txHash, success: false, code: "refused", reason: `code ${sent.code}: ${sent.rawLog ?? ""}` };
+      try {
+        const failure = executionFailure(await deps.events(txHash));
+        return failure ? { txHash, success: false, code: "execution_failed", reason: failure } : { txHash, success: true };
+      } catch (e) {
+        return { txHash, success: false, code: e instanceof TxFailedOnChain ? "execution_failed" : "unconfirmed", reason: errorText(e) };
       }
     });
   };

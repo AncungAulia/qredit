@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { encodeFunctionData, parseAbi } from "viem";
+import { TxFailedOnChain } from "../src/chain/tx.ts";
 import { hexToQor } from "../src/chain/address.ts";
 import { createRelayer, EXECUTE_EVM_TYPE_URL, type RelayRequest, RelayRejected, validateRelay } from "../src/relayer.ts";
 
@@ -38,6 +39,11 @@ describe("validateRelay", () => {
     expect(validateRelay(req({ account: hexToQor("0x00000000000000000000000000000000000000ee") }), ctx)).toMatch(/spender/);
     expect(validateRelay(req({ account: "qor1notbech32" }), ctx)).toMatch(/spender/);
   });
+  test("rejects non-strict base64 before decoding", () => {
+    for (const bad of ["not base64!", "AAA", "AA=A", " AAAA", "AAAA\n"]) {
+      for (const f of ["pubkey", "signature", "data"] as const) expect(validateRelay(req({ [f]: bad }), ctx)).toMatch(/strict base64/);
+    }
+  });
   test("refuses everything else", () => {
     expect(validateRelay(req({}, "/cosmos.bank.v1beta1.MsgSend"), ctx)).toMatch(/type/);
     expect(validateRelay(req({ relayer: "qor1other" }), ctx)).toMatch(/relayer/);
@@ -75,22 +81,27 @@ describe("createRelayer", () => {
 
   test("a refused execution is reported as failure, not success", async () => {
     const { relay } = deps([{ type: "abstractaccount_execution_failed", attributes: [{ key: "reason", value: "over daily cap" }] }]);
-    expect(await relay(req())).toEqual({ txHash: "ABC", success: false, reason: "over daily cap" });
+    expect(await relay(req())).toEqual({ txHash: "ABC", success: false, code: "execution_failed", reason: "over daily cap" });
   });
 
   test("a tx refused at CheckTx is a failure", async () => {
     const { relay } = deps([], 11);
-    expect(await relay(req())).toEqual({ txHash: "ABC", success: false, reason: "code 11: out of gas" });
+    expect(await relay(req())).toEqual({ txHash: "ABC", success: false, code: "refused", reason: "code 11: out of gas" });
   });
 
   test("a send that throws is a failure result", async () => {
     const relay = createRelayer({ relayerAddress: RELAYER, vaults: async () => new Map([[VAULT, SPENDER]]), send: async () => { throw new Error("rpc down"); }, events: async () => [] });
-    expect(await relay(req())).toEqual({ txHash: "", success: false, reason: "rpc down" });
+    expect(await relay(req())).toEqual({ txHash: "", success: false, code: "not_broadcast", reason: "rpc down" });
   });
 
   test("an events failure keeps the hash", async () => {
     const relay = createRelayer({ relayerAddress: RELAYER, vaults: async () => new Map([[VAULT, SPENDER]]), send: async () => ({ hash: "ABC", code: 0 }), events: async () => { throw new Error("tx not found"); } });
-    expect(await relay(req())).toEqual({ txHash: "ABC", success: false, reason: "tx not found" });
+    expect(await relay(req())).toEqual({ txHash: "ABC", success: false, code: "unconfirmed", reason: "tx not found" });
+  });
+
+  test("an on-chain execution failure is classified", async () => {
+    const relay = createRelayer({ relayerAddress: RELAYER, vaults: async () => new Map([[VAULT, SPENDER]]), send: async () => ({ hash: "ABC", code: 0 }), events: async () => { throw new TxFailedOnChain("ABC", "tx ABC failed with code 5"); } });
+    expect(await relay(req())).toMatchObject({ success: false, code: "execution_failed" });
   });
 
   test("invalid requests are rejected before signing", async () => {
