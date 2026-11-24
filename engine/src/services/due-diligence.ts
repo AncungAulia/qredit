@@ -1,7 +1,7 @@
 import type { IndexerData } from "../suppliers/data/indexer.ts";
 import { bytecodeFacts, bytecodeFindings, type BytecodeF } from "./bytecode.ts";
 import { parseOneAddress } from "./input.ts";
-import { firstMatch, type Rule, type ServiceDef, type SupplierData } from "./types.ts";
+import { firstMatch, labelsOf, type Rule, type ServiceDef, type SupplierData } from "./types.ts";
 
 type DdF = BytecodeF & { listed: boolean; listEntry: string | null; list: string | null };
 
@@ -22,6 +22,7 @@ const RULES: Rule[] = [
 
 export const dueDiligence: ServiceDef = {
   slug: "due-diligence",
+  labels: labelsOf(RULES),
   parseInput: parseOneAddress,
   suppliers: { required: ["dataIndexer"], choice: ["computeBasic", "computeDeep"] },
   facts: (_query, data): DdF => ({ ...bytecodeFacts(data), ...flagFacts(data) }),

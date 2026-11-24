@@ -1,6 +1,6 @@
 import type { IndexerData } from "../suppliers/data/indexer.ts";
 import { parseOneAddress } from "./input.ts";
-import { firstMatch, type Rule, type ServiceDef } from "./types.ts";
+import { firstMatch, labelsOf, type Rule, type ServiceDef } from "./types.ts";
 
 type F = {
   address: { bech32: string; hex: string };
@@ -20,6 +20,7 @@ const RULES: Rule[] = [
 
 export const counterparty: ServiceDef = {
   slug: "counterparty-check",
+  labels: labelsOf(RULES),
   parseInput: parseOneAddress,
   suppliers: { required: ["dataIndexer"], choice: [] },
   facts(_query, data) {

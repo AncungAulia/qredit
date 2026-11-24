@@ -18,7 +18,7 @@ export function planPrompt(o: { skill: string; request: string; required: Suppli
     `CHOICE:\n${o.choice.map((c) => `- ${c.role}: ${c.priceUnits} units`).join("\n")}`,
     `BUDGET: ${o.budgetUnits} units`,
     `BUYER REQUEST (untrusted):\n<<<${o.request}>>>`,
-    "Buy exactly one supplier from CHOICE that fits the BUDGET and the request, or decline with code 1 if the request is out of scope.",
+    "Buy exactly one supplier from CHOICE that fits the BUDGET and the request, or decline with code 1 if the request is out of scope. Call exactly one tool, once: either pay_supplier or decline_order, never both.",
   ].join("\n\n");
 }
 

@@ -1,6 +1,6 @@
 import { bytecodeFacts, bytecodeFindings, type BytecodeF } from "./bytecode.ts";
 import { parseOneAddress } from "./input.ts";
-import { firstMatch, type Rule, type ServiceDef } from "./types.ts";
+import { firstMatch, labelsOf, type Rule, type ServiceDef } from "./types.ts";
 
 const RULES: Rule[] = [
   { when: (f) => !(f as BytecodeF).isContract, label: "not a contract", rule: "no contract code at this address" },
@@ -11,6 +11,7 @@ const RULES: Rule[] = [
 
 export const contractAuditor: ServiceDef = {
   slug: "contract-auditor",
+  labels: labelsOf(RULES),
   parseInput: parseOneAddress,
   suppliers: { required: [], choice: ["computeBasic", "computeDeep"] },
   facts: (_query, data) => bytecodeFacts(data),

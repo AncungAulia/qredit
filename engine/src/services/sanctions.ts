@@ -1,6 +1,6 @@
 import type { ListData } from "../suppliers/data/lists.ts";
 import { parseManyAddresses } from "./input.ts";
-import { firstMatch, type Rule, type ServiceDef } from "./types.ts";
+import { firstMatch, labelsOf, type Rule, type ServiceDef } from "./types.ts";
 
 type F = { list: string; checked: string[]; checkedCount: number; matches: { address: string; entry: string }[]; matchCount: number };
 
@@ -11,6 +11,7 @@ const RULES: Rule[] = [
 
 export const sanctions: ServiceDef = {
   slug: "sanctions-screen",
+  labels: labelsOf(RULES),
   parseInput: parseManyAddresses,
   suppliers: { required: ["listOracle"], choice: [] },
   facts(_query, data) {

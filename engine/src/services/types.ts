@@ -10,6 +10,8 @@ export type Facts = Record<string, unknown>;
 
 export interface ServiceModule {
   slug: string;
+  /** Every verdict label the rule table can produce. */
+  labels: string[];
   /** SKILL.md text, loaded at start. */
   skill: string;
   parseInput(input: string): ParsedInput;
@@ -32,3 +34,5 @@ export function firstMatch(rules: Rule[], f: Facts): Verdict {
   const r = rules.find((x) => x.when(f)) ?? rules[rules.length - 1]!;
   return { label: r.label, rule: r.rule };
 }
+
+export const labelsOf = (rules: Rule[]): string[] => [...new Set(rules.map((r) => r.label))];
