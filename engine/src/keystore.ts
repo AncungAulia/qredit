@@ -12,7 +12,7 @@ export function keystore(dir: string) {
     has: (name: string) => existsSync(file(name)),
     read: (name: string): Record<string, string> => JSON.parse(readFileSync(file(name), "utf8")),
     write: (name: string, data: Record<string, string>) => {
-      mkdirSync(dir, { recursive: true });
+      mkdirSync(dir, { recursive: true, mode: 0o700 });
       writeFileSync(file(name), JSON.stringify(data, null, 2), { flag: "wx", mode: 0o600 });
     },
     list: () => (existsSync(dir) ? readdirSync(dir).filter((f) => f.endsWith(".json")).map((f) => f.slice(0, -5)).sort() : []),

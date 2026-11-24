@@ -20,3 +20,12 @@ describe("keystore", () => {
     expect(() => ks.read("a/b")).toThrow();
   });
 });
+
+import { statSync } from "node:fs";
+describe("keystore dir", () => {
+  test.skipIf(process.platform === "win32")("is created private (0700)", () => {
+    const dir = join(mkdtempSync(join(tmpdir(), "qredit-keys-")), "nested");
+    keystore(dir).write("a", {});
+    expect(statSync(dir).mode & 0o777).toBe(0o700);
+  });
+});
