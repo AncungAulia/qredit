@@ -34,6 +34,12 @@ describe("windows", () => {
     expect(await ensureWindow(acc, [V], {}, { status: async () => win({ live: false }), open })).toBe("0xtx");
     expect(opened).toBe(1);
   });
+  test("ensureWindow opens with each target once, whatever the caller passed", async () => {
+    let sent: string[] = [];
+    const open = async (_a: unknown, targets: string[]) => { sent = targets; return "0xtx"; };
+    await ensureWindow(acc, [FUSD_ADDRESS, V, V.toUpperCase().replace("0X", "0x")], {}, { status: async () => win({ live: false }), open });
+    expect(sent).toEqual([FUSD_ADDRESS.toLowerCase(), V]);
+  });
 });
 
 describe("existing vault lookup", () => {

@@ -92,10 +92,12 @@ export async function ensureWindow(
   deps: WindowDeps = { status: (a) => evmWindowStatus({ rest: net.rest, address: a.cosmos }), open: openWindow },
 ): Promise<string | null> {
   const { minBlocks = 600, minTxs = 5, ...open } = opts;
+  // The chain refuses a window that lists a target twice; callers may pass overlapping lists.
+  const unique = [...new Set(targets.map(targetKey))];
   const status = await deps.status(acc);
-  if (windowCovers(status, targets, { blocks: minBlocks, txs: minTxs }, openedHere.get(acc.cosmos))) return null;
-  const tx = await deps.open(acc, targets, open);
-  openedHere.set(acc.cosmos, new Set(targets.map(targetKey)));
+  if (windowCovers(status, unique, { blocks: minBlocks, txs: minTxs }, openedHere.get(acc.cosmos))) return null;
+  const tx = await deps.open(acc, unique, open);
+  openedHere.set(acc.cosmos, new Set(unique));
   return tx;
 }
 
