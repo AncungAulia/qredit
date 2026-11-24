@@ -6,8 +6,11 @@ export type Net = { chainId: string; rest: string; rpc: string };
 export type RestEvent = { type: string; attributes: { key: string; value: string }[] };
 export type Sent = { hash: string; code: number; rawLog?: string };
 
+const REST_TIMEOUT_MS = 15_000;
+const restGet = (url: string) => fetch(url, { signal: AbortSignal.timeout(REST_TIMEOUT_MS) });
+
 async function accountNumbers(rest: string, address: string): Promise<{ accountNumber: bigint; sequence: bigint }> {
-  const res = await fetch(`${rest}/cosmos/auth/v1beta1/accounts/${address}`);
+  const res = await restGet(`${rest}/cosmos/auth/v1beta1/accounts/${address}`);
   if (res.status === 404) throw new Error(`${address} does not exist on chain yet`);
   if (!res.ok) throw new Error(`account query failed: HTTP ${res.status}`);
   const body = (await res.json()) as { account: Record<string, unknown> };
@@ -15,7 +18,11 @@ async function accountNumbers(rest: string, address: string): Promise<{ accountN
   return { accountNumber: BigInt(base.account_number ?? "0"), sequence: BigInt(base.sequence ?? "0") };
 }
 
-/** Sign hybrid (secp256k1 + ML-DSA-87) and broadcast. Returns after CheckTx; use txEvents for the result. */
+/**
+ * Sign hybrid (secp256k1 + ML-DSA-87) and broadcast. Returns after CheckTx; use txEvents for the result.
+ * The sequence is read from REST, so callers MUST await txEvents (inclusion) before the next send from the
+ * same account; serial() only orders the calls, it does not wait for blocks.
+ */
 export async function broadcastHybrid(
   net: Net,
   acc: UnifiedAccount,
@@ -42,15 +49,16 @@ export async function broadcastHybrid(
 
 export async function txEvents(rest: string, hash: string, tries = 20, delayMs = 1500): Promise<RestEvent[]> {
   for (let i = 0; i < tries; i++) {
-    const res = await fetch(`${rest}/cosmos/tx/v1beta1/txs/${hash}`);
-    if (res.ok) {
-      const body = (await res.json()) as { tx_response: { code: number; raw_log?: string; events: RestEvent[] } };
-      if (body.tx_response.code !== 0) throw new Error(`tx ${hash} failed with code ${body.tx_response.code}: ${body.tx_response.raw_log ?? ""}`);
-      return body.tx_response.events;
-    }
-    await Bun.sleep(delayMs);
+    if (i > 0) await Bun.sleep(delayMs);
+    const res = await restGet(`${rest}/cosmos/tx/v1beta1/txs/${hash}`);
+    if (!res.ok) continue;
+    const body = (await res.json()) as { tx_response?: { code: number; raw_log?: string; events: RestEvent[] } };
+    const tx = body.tx_response;
+    if (!tx) continue; // not indexed yet: treat like not found and retry
+    if (tx.code !== 0) throw new Error(`tx ${hash} failed with code ${tx.code}: ${tx.raw_log ?? ""}`);
+    return tx.events ?? [];
   }
-  throw new Error(`tx ${hash} not found after ${(tries * delayMs) / 1000} s`);
+  throw new Error(`tx ${hash} not found (or no tx_response) after ${tries} tries over ${((tries - 1) * delayMs) / 1000} s`);
 }
 
 /** A refused MsgExecuteEVM still has tx code 0; the failure shows only as this event. */

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { parseKeyList, parseKeySpec } from "../src/chain/keys.ts";
-import { executionFailure, serial } from "../src/chain/tx.ts";
+import { executionFailure, serial, txEvents } from "../src/chain/tx.ts";
 import { PAY_SUPPLIER_SELECTOR, VAULT_EVENTS } from "../src/chain/vault.ts";
 
 describe("key specs", () => {
@@ -13,6 +13,18 @@ describe("key specs", () => {
     expect(() => parseKeySpec('{"privateKey":"0x12"}')).toThrow();
     expect(parseKeyList(JSON.stringify([{ mnemonic: words }])).length).toBe(1);
     expect(() => parseKeyList('{"mnemonic":"x"}')).toThrow();
+  });
+});
+
+describe("key parse errors", () => {
+  test("name the variable and never include the input", () => {
+    const secret = "{not json mnemonic abandon abandon";
+    for (const fn of [() => parseKeySpec(secret, "RELAYER_KEY"), () => parseKeyList(secret, "OPERATOR_KEYS")]) {
+      let msg = "";
+      try { fn(); } catch (e) { msg = (e as Error).message; }
+      expect(msg).toMatch(/^(RELAYER_KEY|OPERATOR_KEYS) is not valid JSON$/);
+      expect(msg).not.toContain("abandon");
+    }
   });
 });
 
@@ -42,5 +54,18 @@ describe("vault abi", () => {
   test("paySupplier selector and the four events", () => {
     expect(PAY_SUPPLIER_SELECTOR).toMatch(/^0x[0-9a-f]{8}$/);
     expect(VAULT_EVENTS.map((e) => e.name)).toEqual(["OrderPlaced", "Delivered", "Declined", "Reclaimed"]);
+  });
+});
+
+describe("txEvents", () => {
+  test("retries a response without tx_response, then fails clearly", async () => {
+    let calls = 0;
+    const server = Bun.serve({ port: 0, fetch: () => { calls++; return Response.json({}); } });
+    try {
+      await expect(txEvents(`http://localhost:${server.port}`, "0xabc", 3, 1)).rejects.toThrow(/not found \(or no tx_response\)/);
+      expect(calls).toBe(3);
+    } finally {
+      server.stop(true);
+    }
   });
 });

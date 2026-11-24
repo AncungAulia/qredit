@@ -11,10 +11,19 @@ function fromValue(v: unknown): KeySpec {
   throw new Error('a key spec must be {"mnemonic":"<12+ words>"} or {"privateKey":"0x<64 hex>","recoveryCode":"QRC1-..."}');
 }
 
-export const parseKeySpec = (raw: string): KeySpec => fromValue(JSON.parse(raw));
+/** JSON.parse that never echoes the input (it may be key material) in its error. */
+function parseJson(raw: string, label: string): unknown {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    throw new Error(`${label} is not valid JSON`);
+  }
+}
 
-export function parseKeyList(raw: string): KeySpec[] {
-  const v = JSON.parse(raw);
+export const parseKeySpec = (raw: string, label = "key spec"): KeySpec => fromValue(parseJson(raw, label));
+
+export function parseKeyList(raw: string, label = "key list"): KeySpec[] {
+  const v = parseJson(raw, label);
   if (!Array.isArray(v)) throw new Error("expected a JSON array of key specs");
   return v.map(fromValue);
 }
