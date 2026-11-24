@@ -4,7 +4,7 @@
 
 **Goal:** Prove the six risky QoreChain assumptions of the Qredit spec on testnet, then build and deploy the `LoanVault` and `VaultFactory` contracts with full Foundry test coverage.
 
-**Architecture:** Phase 0 is a set of small TypeScript scripts (`spikes/`) plus one throwaway probe contract, each printing PASS/FAIL against the live `qorechain-diana` testnet; their results decide go/no-go and are written to `spikes/RESULTS.md`. Phase 1 is a Foundry project (`contracts/`) whose `LoanVault` holds lender capital in fUSD, escrows orders, pays only listed suppliers under caps, splits revenue on delivery, and accepts policy orders only with an ML-DSA-87 signature checked by the `pqcVerify` precompile. Later plans (agent runtime, web app, docs) are written after this plan's spike results.
+**Architecture:** Phase 0 is a set of small TypeScript scripts (`engine/spikes/`) plus one throwaway probe contract, each printing PASS/FAIL against the live `qorechain-diana` testnet; their results decide go/no-go and are written to `engine/spikes/RESULTS.md`. Phase 1 is a Foundry project (`sc/`) whose `LoanVault` holds lender capital in fUSD, escrows orders, pays only listed suppliers under caps, splits revenue on delivery, and accepts policy orders only with an ML-DSA-87 signature checked by the `pqcVerify` precompile. Later plans (agent runtime, web app, docs) are written after this plan's spike results.
 
 **Tech Stack:** Solidity 0.8.28, Foundry, OpenZeppelin Contracts v5.1.0, Bun, TypeScript, `@qorechain/sdk` 0.14.0, `@qorechain/evm` 0.14.0, `@qorechain/qoresign` 0.2.0, `@cosmjs/stargate` 0.39.x, `@noble/curves` 1.9.x, viem 2.x.
 
@@ -19,17 +19,31 @@
 - Every EVM transaction from a normal account needs a registered ML-DSA-87 key and an open EVM window. A window with `allowedTargets` refuses contract creation. Max window: 17280 blocks, 1000 transactions, 16 targets.
 - Pin package versions; do not upgrade mid-build.
 - Everything committed is in English. Licence MIT.
-- Never commit keys, mnemonics, recovery codes or `.env` files. Spike keys live in `spikes/.keys/` (gitignored).
+- Never commit keys, mnemonics, recovery codes or `.env` files. Spike keys live in `engine/spikes/.keys/` (gitignored).
 - Committed files never mention how long the project took or a day-by-day schedule.
 - Commits: small, one logical step, conventional prefix with scope (`feat(contracts): …`), body ending with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
 
 ## File Structure
 
+Root layout (kept clean; every top-level folder has one job):
+
+```
+apps/web/        web app (Plan 3)
+engine/          agent runtime, relayer, mailbox, suppliers, owner CLI (Plan 2); spikes live in engine/spikes/
+sc/              smart contracts (Foundry)
+docs/            spec, plans, threat model
+CLAUDE.md        rules for AI coding agents working in this repo
+README.md, LICENSE, .gitignore
+```
+
+Files in this plan:
+
 ```
 .gitignore                         modify: spike keys, Foundry output
+CLAUDE.md                          create: repo rules for AI agents
 LICENSE                            create: MIT
 README.md                          create: short stub (full README in a later plan)
-spikes/
+engine/spikes/
   package.json, tsconfig.json      Bun project for the spike scripts
   .env.example                     names only
   RESULTS.md                       spike results and go/no-go
@@ -42,7 +56,7 @@ spikes/
   src/s5-fusd.ts                   S5: fUSD facts, balances, swap QOR → fUSD
   src/s6-operator.ts               S6: classical-key-only operator inside a scoped window
   web/index.html                   QoreX probe page (S2a, S3a, S4a)
-contracts/
+sc/
   foundry.toml
   src/interfaces/IQorePQC.sol      precompile interface
   src/LoanVault.sol                the vault
@@ -71,13 +85,13 @@ contracts/
 
 **Files:**
 - Modify: `.gitignore`
-- Create: `LICENSE`, `README.md`, `spikes/package.json`, `spikes/tsconfig.json`, `spikes/.env.example`, `spikes/src/lib.ts`, `spikes/src/accounts.ts`, `spikes/src/window.ts`
+- Create: `CLAUDE.md`, `LICENSE`, `README.md`, `engine/spikes/package.json`, `engine/spikes/tsconfig.json`, `engine/spikes/.env.example`, `engine/spikes/src/lib.ts`, `engine/spikes/src/accounts.ts`, `engine/spikes/src/window.ts`
 
 **Interfaces:**
-- Produces (`spikes/src/lib.ts`):
+- Produces (`engine/spikes/src/lib.ts`):
   - `NET: { chainId: string; rest: string; rpc: string; evm: string }`
   - `qoreTestnet` (viem `Chain`), `publicClient` (viem `PublicClient`)
-  - `loadAccount(name: string): Promise<UnifiedAccount>` — from `spikes/.keys/<name>.json`, either `{ mnemonic }` or `{ privateKey, recoveryCode }`
+  - `loadAccount(name: string): Promise<UnifiedAccount>` — from `engine/spikes/.keys/<name>.json`, either `{ mnemonic }` or `{ privateKey, recoveryCode }`
   - `saveKeyFile(name: string, data: Record<string, string>): void`
   - `broadcast(acc: UnifiedAccount, messages: EncodeObject[], mode?: "hybrid" | "classical", memo?: string): Promise<{ hash: string; code: number; rawLog?: string; msgResponses?: unknown[]; events?: unknown[] }>`
   - `txEvents(hash: string): Promise<unknown[]>` — events of a committed tx over REST
@@ -97,13 +111,13 @@ Append to `.gitignore`:
 ```gitignore
 
 # Spike keys and outputs
-spikes/.keys/
-spikes/out/
+engine/spikes/.keys/
+engine/spikes/out/
 
 # Foundry
-contracts/out/
-contracts/cache/
-contracts/.deployer.key
+sc/out/
+sc/cache/
+sc/.deployer.key
 ```
 
 - [ ] **Step 3: Add `LICENSE` and a README stub**
@@ -144,15 +158,52 @@ Credit for AI agent businesses on QoreChain. Lenders fund an agent's working cap
 Built for Build Before Q-Day: The QoreChain Developer Fest (Post-Quantum AI Agents). Runs on the QoreChain testnet `qorechain-diana`.
 
 - Design: [docs/superpowers/specs/2026-11-24-qredit-design.md](docs/superpowers/specs/2026-11-24-qredit-design.md)
-- Contracts: [contracts/](contracts/)
-- Spikes and their results: [spikes/RESULTS.md](spikes/RESULTS.md)
+- Contracts: [sc/](sc/)
+- Spikes and their results: [engine/spikes/RESULTS.md](engine/spikes/RESULTS.md)
 
 Licence: MIT.
 ```
 
+`CLAUDE.md`:
+
+```markdown
+# CLAUDE.md — Qredit (repo root)
+
+Guidance for AI coding agents working in this repo. When a folder gets its own `CLAUDE.md`, read it before changing that folder, and update it in the same commit when you change how the folder works.
+
+## What this is
+
+Qredit is a credit market for AI agent businesses on the QoreChain testnet, built for Build Before Q-Day: The QoreChain Developer Fest (Post-Quantum AI Agents). The design is `docs/superpowers/specs/2026-11-24-qredit-design.md`; implementation plans are in `docs/superpowers/plans/`.
+
+## Layout
+
+| Folder | What |
+|---|---|
+| `apps/web` | Web app (Next.js) |
+| `engine` | Agent runtime, relayer, mailbox, simulated suppliers, owner CLI; `engine/spikes` holds the testnet spikes |
+| `sc` | Smart contracts (Foundry): `LoanVault`, `VaultFactory` |
+| `docs` | Spec, plans, threat model |
+
+## Network
+
+Testnet only: chain id `qorechain-diana`, EVM chain id 9800. PQC precompiles in lowercase: `pqcVerify` 0x…0a01, `pqcKeyStatus` 0x…0a02. fUSD `0x97143B771D34ddb9130b807b135Ae675A5a963CA`.
+
+## Rules
+
+1. **Use evidence, not assumptions.** "Works", "safe" or "done" must be backed by test output, a transaction hash or a log seen in this session; otherwise write "not proven yet".
+2. **Verify QoreChain facts** against the installed package types (`node_modules/@qorechain/*/dist/*.d.ts`) and docs.qorechain.io before relying on them. Pin package versions; do not upgrade mid-build.
+3. **Secrets never enter git.** Keys, mnemonics, recovery codes and `.env` files stay in gitignored paths (`engine/spikes/.keys/`, `.env`). Each folder keeps a `.env.example` with names only.
+4. **Everything in the repo is in English.** Never mention how long the project took or a day-by-day schedule in any committed file.
+5. **Stop and ask when blocked.** If a test fails twice, an API differs from the plan, or an instruction is ambiguous, stop and report what you saw, what you tried and the options. Do not change scope or design on your own.
+
+## Commits
+
+Small commits, one logical step each, each building and passing its tests. Conventional prefix with a scope (`feat(sc): …`, `test(engine): …`, `docs: …`). The body says why and which tests ran.
+```
+
 - [ ] **Step 4: Create the spike package**
 
-`spikes/package.json`:
+`engine/spikes/package.json`:
 
 ```json
 {
@@ -174,10 +225,10 @@ Licence: MIT.
 
 Then install pinned dependencies (Bun writes exact versions to `bun.lock`):
 
-Run (in `spikes/`): `bun add @qorechain/sdk@0.14.0 @qorechain/evm@0.14.0 @qorechain/qoresign@0.2.0 @cosmjs/stargate@0.39 @cosmjs/proto-signing@0.39 @noble/curves@1.9 viem@2 && bun add -d typescript@5 @types/bun`
+Run (in `engine/spikes/`): `bun add @qorechain/sdk@0.14.0 @qorechain/evm@0.14.0 @qorechain/qoresign@0.2.0 @cosmjs/stargate@0.39 @cosmjs/proto-signing@0.39 @noble/curves@1.9 viem@2 && bun add -d typescript@5 @types/bun`
 Expected: `bun.lock` created; `node_modules/@qorechain/sdk` present.
 
-`spikes/tsconfig.json`:
+`engine/spikes/tsconfig.json`:
 
 ```json
 {
@@ -195,7 +246,7 @@ Expected: `bun.lock` created; `node_modules/@qorechain/sdk` present.
 }
 ```
 
-`spikes/.env.example`:
+`engine/spikes/.env.example`:
 
 ```dotenv
 # Optional: your own node instead of the public testnet endpoints (rate limited per IP).
@@ -204,11 +255,11 @@ QORE_RPC_URL=
 QORE_EVM_URL=
 # Set by you after Task 2 (SenderProbe address on testnet).
 PROBE_ADDRESS=
-# S6 runtime side only: the operator's classical private key, copied from spikes/.keys/operator.json.
+# S6 runtime side only: the operator's classical private key, copied from engine/spikes/.keys/operator.json.
 OPERATOR_PRIVATE_KEY=
 ```
 
-- [ ] **Step 5: Write `spikes/src/lib.ts`**
+- [ ] **Step 5: Write `engine/spikes/src/lib.ts`**
 
 ```ts
 // Shared helpers for the Qredit spikes: network presets, key files, hybrid broadcast, viem clients.
@@ -321,7 +372,7 @@ export function pass(label: string, ok: boolean, detail = ""): boolean {
 }
 ```
 
-- [ ] **Step 6: Write `spikes/src/accounts.ts`**
+- [ ] **Step 6: Write `engine/spikes/src/accounts.ts`**
 
 ```ts
 // Create, show and register spike accounts.
@@ -366,7 +417,7 @@ if (cmd === "new") {
 }
 ```
 
-- [ ] **Step 7: Write `spikes/src/window.ts`**
+- [ ] **Step 7: Write `engine/spikes/src/window.ts`**
 
 ```ts
 // Open or inspect an account's EVM window.
@@ -394,14 +445,14 @@ if (cmd === "status") {
 
 - [ ] **Step 8: Typecheck and smoke-run**
 
-Run (in `spikes/`): `bun run typecheck && bun src/accounts.ts`
+Run (in `engine/spikes/`): `bun run typecheck && bun src/accounts.ts`
 Expected: no type errors; the usage line prints.
 
 If `tsc` reports a missing export name from `@qorechain/sdk`, open `node_modules/@qorechain/sdk/dist/index.d.ts`, find the current name, and fix the import (the API names above were read from 0.14.0).
 
 - [ ] **Step 9: Create and fund the spike accounts**
 
-Run (in `spikes/`):
+Run (in `engine/spikes/`):
 
 ```bash
 bun src/accounts.ts new deployer
@@ -423,7 +474,7 @@ Expected: `registered <hash>` six times; `show` now reports `registered`.
 - [ ] **Step 10: Commit**
 
 ```bash
-git add .gitignore LICENSE README.md spikes/package.json spikes/bun.lock spikes/tsconfig.json spikes/.env.example spikes/src/lib.ts spikes/src/accounts.ts spikes/src/window.ts
+git add .gitignore CLAUDE.md LICENSE README.md engine/spikes/package.json engine/spikes/bun.lock engine/spikes/tsconfig.json engine/spikes/.env.example engine/spikes/src/lib.ts engine/spikes/src/accounts.ts engine/spikes/src/window.ts
 git commit -m "chore(spikes): add the spike toolkit, licence and README stub"
 ```
 
@@ -432,7 +483,7 @@ git commit -m "chore(spikes): add the spike toolkit, licence and README stub"
 ### Task 2: Foundry project and SenderProbe
 
 **Files:**
-- Create: `contracts/foundry.toml`, `contracts/src/spike/SenderProbe.sol`, `contracts/test/SenderProbe.t.sol`, `contracts/script/DeployProbe.s.sol`
+- Create: `sc/foundry.toml`, `sc/src/spike/SenderProbe.sol`, `sc/test/SenderProbe.t.sol`, `sc/script/DeployProbe.s.sol`
 
 **Interfaces:**
 - Produces: `SenderProbe.ping(uint256)` (selector computed by `cast sig "ping(uint256)"`), `SenderProbe.other()`, views `lastSender() returns (address)`, `lastValue() returns (uint256)`.
@@ -442,17 +493,17 @@ git commit -m "chore(spikes): add the spike toolkit, licence and README stub"
 Run (repo root):
 
 ```bash
-mkdir contracts && cd contracts
+mkdir sc && cd sc
 forge init --no-commit --no-git --force .
 rm -f src/Counter.sol test/Counter.t.sol script/Counter.s.sol
-cd .. && git submodule add https://github.com/foundry-rs/forge-std contracts/lib/forge-std
-git submodule add https://github.com/OpenZeppelin/openzeppelin-contracts contracts/lib/openzeppelin-contracts
-cd contracts/lib/openzeppelin-contracts && git checkout v5.1.0 && cd ../../..
+cd .. && git submodule add https://github.com/foundry-rs/forge-std sc/lib/forge-std
+git submodule add https://github.com/OpenZeppelin/openzeppelin-contracts sc/lib/openzeppelin-contracts
+cd sc/lib/openzeppelin-contracts && git checkout v5.1.0 && cd ../../..
 ```
 
-Expected: `contracts/lib/forge-std` and `contracts/lib/openzeppelin-contracts` (at tag v5.1.0) exist; `.gitmodules` created.
+Expected: `sc/lib/forge-std` and `sc/lib/openzeppelin-contracts` (at tag v5.1.0) exist; `.gitmodules` created.
 
-- [ ] **Step 2: Write `contracts/foundry.toml`**
+- [ ] **Step 2: Write `sc/foundry.toml`**
 
 ```toml
 [profile.default]
@@ -481,7 +532,7 @@ depth = 64
 qorechain_testnet = "https://evm-testnet.qore.host"
 ```
 
-- [ ] **Step 3: Write the failing test `contracts/test/SenderProbe.t.sol`**
+- [ ] **Step 3: Write the failing test `sc/test/SenderProbe.t.sol`**
 
 ```solidity
 // SPDX-License-Identifier: MIT
@@ -510,10 +561,10 @@ contract SenderProbeTest is Test {
 
 - [ ] **Step 4: Run it to verify it fails**
 
-Run (in `contracts/`): `forge test --match-contract SenderProbeTest`
+Run (in `sc/`): `forge test --match-contract SenderProbeTest`
 Expected: compilation error, `SenderProbe.sol` not found.
 
-- [ ] **Step 5: Write `contracts/src/spike/SenderProbe.sol`**
+- [ ] **Step 5: Write `sc/src/spike/SenderProbe.sol`**
 
 ```solidity
 // SPDX-License-Identifier: MIT
@@ -545,7 +596,7 @@ contract SenderProbe {
 Run: `forge test --match-contract SenderProbeTest`
 Expected: `2 passed; 0 failed`.
 
-- [ ] **Step 7: Write `contracts/script/DeployProbe.s.sol`**
+- [ ] **Step 7: Write `sc/script/DeployProbe.s.sol`**
 
 ```solidity
 // SPDX-License-Identifier: MIT
@@ -566,21 +617,21 @@ contract DeployProbe is Script {
 
 - [ ] **Step 8: Deploy the probe to testnet**
 
-Run (in `spikes/`): `bun src/window.ts open deployer 600 3 20000000`
+Run (in `engine/spikes/`): `bun src/window.ts open deployer 600 3 20000000`
 Expected: `window opened …` (no targets: deployment needs an unscoped window).
 
-Write the deployer's private key to a gitignored file instead of the shell history (Task 1 Step 2 added `contracts/.deployer.key` to `.gitignore`):
+Write the deployer's private key to a gitignored file instead of the shell history (Task 1 Step 2 added `sc/.deployer.key` to `.gitignore`):
 
-Run (in `spikes/`): `bun -e 'import {loadAccount} from "./src/lib.ts"; console.log((await loadAccount("deployer")).privateKey)' > ../contracts/.deployer.key && git check-ignore ../contracts/.deployer.key`
+Run (in `engine/spikes/`): `bun -e 'import {loadAccount} from "./src/lib.ts"; console.log((await loadAccount("deployer")).privateKey)' > ../../sc/.deployer.key && git check-ignore ../../sc/.deployer.key`
 Expected: the path is printed by `git check-ignore` (ignored).
 
-Run (in `contracts/`): `PRIVATE_KEY=$(cat .deployer.key) forge script script/DeployProbe.s.sol --rpc-url qorechain_testnet --broadcast`
-Expected: `SenderProbe 0x…`. Put that address in `spikes/.env` as `PROBE_ADDRESS=0x…`.
+Run (in `sc/`): `PRIVATE_KEY=$(cat .deployer.key) forge script script/DeployProbe.s.sol --rpc-url qorechain_testnet --broadcast`
+Expected: `SenderProbe 0x…`. Put that address in `engine/spikes/.env` as `PROBE_ADDRESS=0x…`.
 
 - [ ] **Step 9: Commit**
 
 ```bash
-git add .gitignore .gitmodules contracts/foundry.toml contracts/lib contracts/src/spike/SenderProbe.sol contracts/test/SenderProbe.t.sol contracts/script/DeployProbe.s.sol
+git add .gitignore .gitmodules sc/foundry.toml sc/lib sc/src/spike/SenderProbe.sol sc/test/SenderProbe.t.sol sc/script/DeployProbe.s.sol
 git commit -m "feat(contracts): add the Foundry project and the SenderProbe spike contract"
 ```
 
@@ -589,13 +640,13 @@ git commit -m "feat(contracts): add the Foundry project and the SenderProbe spik
 ### Task 3: S6 — operator with only its classical key, inside a scoped window
 
 **Files:**
-- Create: `spikes/src/s6-operator.ts`
+- Create: `engine/spikes/src/s6-operator.ts`
 
 **Interfaces:**
 - Consumes: `loadAccount`, `broadcast`, `walletFor`, `publicClient`, `pass` (Task 1); `PROBE_ADDRESS` (Task 2).
-- Produces: answer to S6 in `spikes/RESULTS.md` (Task 9): runtime with only `OPERATOR_PRIVATE_KEY` can call the allowed target; a call to another target is refused; window length limit.
+- Produces: answer to S6 in `engine/spikes/RESULTS.md` (Task 9): runtime with only `OPERATOR_PRIVATE_KEY` can call the allowed target; a call to another target is refused; window length limit.
 
-- [ ] **Step 1: Write `spikes/src/s6-operator.ts`**
+- [ ] **Step 1: Write `engine/spikes/src/s6-operator.ts`**
 
 ```ts
 // S6: can an operator act with ONLY its classical private key, inside a scoped
@@ -611,7 +662,7 @@ const probeAbi = parseAbi(["function ping(uint256)", "function lastSender() view
 const erc20Abi = parseAbi(["function transfer(address,uint256) returns (bool)"]);
 const PROBE = process.env.PROBE_ADDRESS as `0x${string}`;
 const FUSD = "0x97143B771D34ddb9130b807b135Ae675A5a963CA" as const;
-if (!PROBE) throw new Error("set PROBE_ADDRESS in spikes/.env");
+if (!PROBE) throw new Error("set PROBE_ADDRESS in engine/spikes/.env");
 
 const cmd = process.argv[2];
 
@@ -623,7 +674,7 @@ if (cmd === "open") {
   pass(`open a ${MAX_EVM_WINDOW_BLOCKS}-block window scoped to the probe`, res.code === 0, res.code === 0 ? res.hash : res.rawLog);
 } else if (cmd === "run") {
   const key = process.env.OPERATOR_PRIVATE_KEY as `0x${string}` | undefined;
-  if (!key) throw new Error("set OPERATOR_PRIVATE_KEY (only the classical key) in spikes/.env");
+  if (!key) throw new Error("set OPERATOR_PRIVATE_KEY (only the classical key) in engine/spikes/.env");
   const w = walletFor(key);
   const hash = await w.sendTransaction({ to: PROBE, data: encodeFunctionData({ abi: probeAbi, functionName: "ping", args: [6n] }) });
   const rcpt = await publicClient.waitForTransactionReceipt({ hash });
@@ -643,12 +694,12 @@ if (cmd === "open") {
 
 - [ ] **Step 2: Run the owner side**
 
-Run (in `spikes/`): `bun src/s6-operator.ts open`
+Run (in `engine/spikes/`): `bun src/s6-operator.ts open`
 Expected: `PASS  open a 17280-block window …`. If it fails on the block count, rerun with a smaller value by editing `MAX_EVM_WINDOW_BLOCKS` to `7200n` and note the accepted maximum.
 
 - [ ] **Step 3: Run the runtime side with only the classical key**
 
-Copy the `privateKey` value (not the recovery code) from `spikes/.keys/operator.json` into `spikes/.env` as `OPERATOR_PRIVATE_KEY=0x…`.
+Copy the `privateKey` value (not the recovery code) from `engine/spikes/.keys/operator.json` into `engine/spikes/.env` as `OPERATOR_PRIVATE_KEY=0x…`.
 
 Run: `bun --env-file=.env src/s6-operator.ts run`
 Expected: three `PASS` lines. Record the tx hashes.
@@ -660,7 +711,7 @@ Run: `curl -s https://rpc-testnet.qore.host/block | head -c 400` twice, 60 s apa
 - [ ] **Step 5: Commit**
 
 ```bash
-git add spikes/src/s6-operator.ts
+git add engine/spikes/src/s6-operator.ts
 git commit -m "test(spikes): S6, a classical-key-only operator inside a scoped window"
 ```
 
@@ -669,13 +720,13 @@ git commit -m "test(spikes): S6, a classical-key-only operator inside a scoped w
 ### Task 4: S1 — linked agent key through MsgExecuteEVM
 
 **Files:**
-- Create: `spikes/src/s1-authenticator.ts`
+- Create: `engine/spikes/src/s1-authenticator.ts`
 
 **Interfaces:**
 - Consumes: Task 1 helpers; `PROBE_ADDRESS`.
 - Produces: answer to S1: `msg.sender` seen by the contract; whether `allowed_evm_calls` with a selector refuses another function; the working key scheme and permission.
 
-- [ ] **Step 1: Write `spikes/src/s1-authenticator.ts`**
+- [ ] **Step 1: Write `engine/spikes/src/s1-authenticator.ts`**
 
 ```ts
 // S1: a linked ed25519 agent key acts for the spender account through MsgExecuteEVM.
@@ -696,7 +747,7 @@ import { encodeFunctionData, parseAbi, toFunctionSelector } from "viem";
 import { NET, broadcast, loadAccount, pass, publicClient, saveKeyFile, txEvents } from "./lib.ts";
 
 const PROBE = process.env.PROBE_ADDRESS as `0x${string}`;
-if (!PROBE) throw new Error("set PROBE_ADDRESS in spikes/.env");
+if (!PROBE) throw new Error("set PROBE_ADDRESS in engine/spikes/.env");
 const probeAbi = parseAbi(["function ping(uint256)", "function other()", "function lastSender() view returns (address)", "function lastValue() view returns (uint256)"]);
 
 const keyFile = join(import.meta.dir, "..", ".keys", "agent-ed25519.json");
@@ -756,7 +807,7 @@ if (cmd === "link") {
 
 - [ ] **Step 2: Typecheck**
 
-Run (in `spikes/`): `bun run typecheck`
+Run (in `engine/spikes/`): `bun run typecheck`
 Expected: no errors. If `allowedEvmCalls` is rejected by the `SpendingRuleInput` type, check `SpendingRule` in `node_modules/@qorechain/sdk/dist/index.d.ts` (field `allowedEvmCalls: string[]` in 0.14.0) and match its spelling.
 
 - [ ] **Step 3: Link and run**
@@ -767,7 +818,7 @@ Expected: five `PASS` lines. If `link` is refused because of the permission, ret
 - [ ] **Step 4: Commit**
 
 ```bash
-git add spikes/src/s1-authenticator.ts
+git add engine/spikes/src/s1-authenticator.ts
 git commit -m "test(spikes): S1, a linked agent key calling a contract through MsgExecuteEVM"
 ```
 
@@ -776,13 +827,13 @@ git commit -m "test(spikes): S1, a linked agent key calling a contract through M
 ### Task 5: S3 — ML-DSA message signature verified by pqcVerify
 
 **Files:**
-- Create: `spikes/src/s3-message-sig.ts`, `spikes/web/index.html`
+- Create: `engine/spikes/src/s3-message-sig.ts`, `engine/spikes/web/index.html`
 
 **Interfaces:**
 - Consumes: Task 1 helpers.
 - Produces: confirmation that `pqcVerify(pubkey, mlDsaSig, "qorechain-msg-v1|qorechain-diana|" + text)` returns true for (a) a script signature and (b) a QoreX `signArbitrary` signature; the JSON shape QoreX returns. `LoanVault.signedBytes` (Task 14) depends on this format.
 
-- [ ] **Step 1: Write `spikes/src/s3-message-sig.ts`**
+- [ ] **Step 1: Write `engine/spikes/src/s3-message-sig.ts`**
 
 ```ts
 // S3: is an ML-DSA-87 message signature (QoreSign format) accepted by pqcVerify?
@@ -831,7 +882,7 @@ if (cmd === "script") {
 }
 ```
 
-Run (in `spikes/`): `bun add @scure/base@1`
+Run (in `engine/spikes/`): `bun add @scure/base@1`
 Expected: installed (it is already a dependency of the SDK; this pins it for direct use).
 
 - [ ] **Step 2: Run the script path**
@@ -839,7 +890,7 @@ Expected: installed (it is already a dependency of the SDK; this pins it for dir
 Run: `bun src/s3-message-sig.ts script "qredit-order-v1:0x1234"`
 Expected: four `PASS` lines.
 
-- [ ] **Step 3: Write `spikes/web/index.html` (QoreX probe for S2a, S3a, S4a)**
+- [ ] **Step 3: Write `engine/spikes/web/index.html` (QoreX probe for S2a, S3a, S4a)**
 
 ```html
 <!doctype html>
@@ -857,7 +908,7 @@ Expected: four `PASS` lines.
 </head>
 <body>
   <h1>QoreX probe</h1>
-  <p>Install QoreX, switch it to Testnet, then use the buttons. Copy the output into <code>spikes/out/</code>.</p>
+  <p>Install QoreX, switch it to Testnet, then use the buttons. Copy the output into <code>engine/spikes/out/</code>.</p>
   <button id="caps">1. Capabilities and methods (S2a, S4a)</button>
   <label>Text to sign (S3a)</label>
   <input id="text" value="qredit-order-v1:0x1234" />
@@ -903,16 +954,16 @@ Expected: four `PASS` lines.
 
 - [ ] **Step 4: Run the QoreX path (manual)**
 
-Run (repo root): `python -m http.server 5173 -d spikes/web`
-Open http://localhost:5173 in Chrome with the QoreX extension on Testnet (the QoreX account must have its ML-DSA-87 key registered: QoreX does this on first testnet use; fund it from the faucet). Click **1**, then **2**, approve in QoreX. Save the JSON object printed by **2** (`{ signer, data, sig }`) to `spikes/out/qorex-sig.json`.
+Run (repo root): `python -m http.server 5173 -d engine/spikes/web`
+Open http://localhost:5173 in Chrome with the QoreX extension on Testnet (the QoreX account must have its ML-DSA-87 key registered: QoreX does this on first testnet use; fund it from the faucet). Click **1**, then **2**, approve in QoreX. Save the JSON object printed by **2** (`{ signer, data, sig }`) to `engine/spikes/out/qorex-sig.json`.
 
-Run (in `spikes/`): `bun src/s3-message-sig.ts qorex out/qorex-sig.json`
+Run (in `engine/spikes/`): `bun src/s3-message-sig.ts qorex out/qorex-sig.json`
 Expected: four `PASS` lines. If the `sig` object has another shape, record it in `RESULTS.md`, adapt the `qorex` branch to read the ML-DSA bytes, and rerun.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add spikes/src/s3-message-sig.ts spikes/web/index.html spikes/package.json spikes/bun.lock
+git add engine/spikes/src/s3-message-sig.ts engine/spikes/web/index.html engine/spikes/package.json engine/spikes/bun.lock
 git commit -m "test(spikes): S3, ML-DSA-87 message signatures checked by pqcVerify"
 ```
 
@@ -921,14 +972,14 @@ git commit -m "test(spikes): S3, ML-DSA-87 message signatures checked by pqcVeri
 ### Task 6: S2 — registering a buyer's ML-KEM key
 
 **Files:**
-- Modify: `spikes/RESULTS.md` is written in Task 9; this task only runs checks.
+- Modify: `engine/spikes/RESULTS.md` is written in Task 9; this task only runs checks.
 
 **Interfaces:**
 - Produces: answer to S2: (a) whether QoreX exposes a method that can sign an arbitrary Cosmos message (`MsgRegisterKEMKey`); (b) that the script path (official example) registers a KEM key.
 
 - [ ] **Step 1: S2a — read the QoreX method list**
 
-From the output of button **1** in Task 5 Step 4, note every method under `nativeMethods` and every entry in `capabilities`. S2a passes if there is a method that signs and broadcasts (or signs a `SignDoc` for) an arbitrary message, such as `signDirect`, `signAmino` or `sendTx`. Write the list to `spikes/out/qorex-caps.json`.
+From the output of button **1** in Task 5 Step 4, note every method under `nativeMethods` and every entry in `capabilities`. S2a passes if there is a method that signs and broadcasts (or signs a `SignDoc` for) an arbitrary message, such as `signDirect`, `signAmino` or `sendTx`. Write the list to `engine/spikes/out/qorex-caps.json`.
 
 - [ ] **Step 2: S2b — run the official QoreSeal example for a script buyer**
 
@@ -953,13 +1004,13 @@ Expected: two transactions (ML-DSA-87 key, then ML-KEM-1024 key) and `card valid
 ### Task 7: S4 and S5 — fUSD facts and the buyer's EVM path
 
 **Files:**
-- Create: `spikes/src/s5-fusd.ts`, `spikes/src/s4-buyer.ts`
+- Create: `engine/spikes/src/s5-fusd.ts`, `engine/spikes/src/s4-buyer.ts`
 
 **Interfaces:**
 - Consumes: Task 1 helpers; `PROBE_ADDRESS`.
 - Produces: fUSD `decimals`, faucet amounts, whether a native AMM swap gives fUSD; whether a buyer can `approve` and `transfer` fUSD through a window scoped to two targets, and the QOR cost.
 
-- [ ] **Step 1: Write `spikes/src/s5-fusd.ts`**
+- [ ] **Step 1: Write `engine/spikes/src/s5-fusd.ts`**
 
 ```ts
 // S5: fUSD facts and balances; optional swap of test QOR into fUSD through the native AMM (pool 2).
@@ -1002,10 +1053,10 @@ if (cmd === "info") {
 
 Claim fUSD for `buyer` and `owner` from the fest faucet (it gives fUSD, fETH and fBTC with the QOR claim). Then:
 
-Run (in `spikes/`): `bun src/s5-fusd.ts info buyer owner deployer && bun src/s5-fusd.ts swap deployer 100000`
+Run (in `engine/spikes/`): `bun src/s5-fusd.ts info buyer owner deployer && bun src/s5-fusd.ts swap deployer 100000`
 Expected: decimals printed; two `PASS` lines for the swap. Record decimals, the fUSD amount one faucet claim gives, and the swap rate.
 
-- [ ] **Step 3: Write `spikes/src/s4-buyer.ts`**
+- [ ] **Step 3: Write `engine/spikes/src/s4-buyer.ts`**
 
 ```ts
 // S4: can a buyer approve and move fUSD through a window scoped to [fUSD, probe]?
@@ -1050,7 +1101,7 @@ Manual S4a: in QoreX (Testnet), try to send 0.001 fUSD to any address through th
 - [ ] **Step 5: Commit**
 
 ```bash
-git add spikes/src/s5-fusd.ts spikes/src/s4-buyer.ts
+git add engine/spikes/src/s5-fusd.ts engine/spikes/src/s4-buyer.ts
 git commit -m "test(spikes): S4 and S5, fUSD facts and the buyer's EVM path"
 ```
 
@@ -1061,13 +1112,13 @@ git commit -m "test(spikes): S4 and S5, fUSD facts and the buyer's EVM path"
 Steps 1–2 can be written now; Step 3 runs after the factory is deployed (Task 17 Step 6). It closes S3 against the real vault code. Task 9 records S3 from Task 5 first and is updated after this task runs.
 
 **Files:**
-- Create: `contracts/script/CreateSmokeVault.s.sol`, `spikes/src/s3-apply-order.ts`
+- Create: `sc/script/CreateSmokeVault.s.sol`, `engine/spikes/src/s3-apply-order.ts`
 
 **Interfaces:**
 - Consumes: `VaultFactory.create(LoanVault.Init)` (Task 17) and `LoanVault.orderText`, `LoanVault.applyOrder`, `LoanVault.policyNonce`, `LoanVault.paused` (Task 11).
 - Produces: a vault on testnet whose `applyOrder` accepted a real ML-DSA-87 signature from a script and from QoreX.
 
-- [ ] **Step 1: Write `contracts/script/CreateSmokeVault.s.sol`**
+- [ ] **Step 1: Write `sc/script/CreateSmokeVault.s.sol`**
 
 ```solidity
 // SPDX-License-Identifier: MIT
@@ -1119,7 +1170,7 @@ contract CreateSmokeVault is Script {
 }
 ```
 
-- [ ] **Step 2: Write `spikes/src/s3-apply-order.ts`**
+- [ ] **Step 2: Write `engine/spikes/src/s3-apply-order.ts`**
 
 ```ts
 // S3 against the real vault: sign a PAUSE order and submit it with applyOrder.
@@ -1180,14 +1231,14 @@ if (cmd === "text") {
 
 - [ ] **Step 3: Run it (after Task 17 Step 6 deployed the factory)**
 
-Run (in `contracts/`, deployer window open with no targets):
+Run (in `sc/`, deployer window open with no targets):
 
 ```bash
 PRIVATE_KEY=$(cat .deployer.key) FACTORY=<factory> OWNER_PQ=<owner 0x> SPENDER=<spender 0x> OPERATOR=<operator 0x> \
   forge script script/CreateSmokeVault.s.sol --rpc-url qorechain_testnet --broadcast
 ```
 
-Then (in `spikes/`): `bun src/s3-apply-order.ts script <SmokeVault>`
+Then (in `engine/spikes/`): `bun src/s3-apply-order.ts script <SmokeVault>`
 Expected: three `PASS` lines.
 
 For the QoreX path, create a second smoke vault with `OWNER_PQ` = the QoreX account's 0x address, run `bun src/s3-apply-order.ts text <vault2>`, paste the text into `web/index.html` button **2**, save the result to `out/qorex-order.json`, then `bun src/s3-apply-order.ts qorex <vault2> out/qorex-order.json <expiry>`.
@@ -1196,7 +1247,7 @@ Expected: three `PASS` lines.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add contracts/script/CreateSmokeVault.s.sol spikes/src/s3-apply-order.ts
+git add sc/script/CreateSmokeVault.s.sol engine/spikes/src/s3-apply-order.ts
 git commit -m "test(spikes): S3 on chain, applyOrder with real ML-DSA-87 signatures"
 ```
 
@@ -1205,10 +1256,10 @@ git commit -m "test(spikes): S3 on chain, applyOrder with real ML-DSA-87 signatu
 ### Task 9: Spike results and go/no-go
 
 **Files:**
-- Create: `spikes/RESULTS.md`
+- Create: `engine/spikes/RESULTS.md`
 - Modify (only if a fallback is taken): `docs/superpowers/specs/2026-11-24-qredit-design.md`
 
-- [ ] **Step 1: Write `spikes/RESULTS.md`** with the real values observed (no placeholders left):
+- [ ] **Step 1: Write `engine/spikes/RESULTS.md`** with the real values observed (no placeholders left):
 
 ```markdown
 # Spike results
@@ -1234,7 +1285,7 @@ For each FAIL, edit the spec's section 11 "Spikes" row and the section it affect
 - [ ] **Step 3: Commit**
 
 ```bash
-git add spikes/RESULTS.md docs/superpowers/specs/2026-11-24-qredit-design.md
+git add engine/spikes/RESULTS.md docs/superpowers/specs/2026-11-24-qredit-design.md
 git commit -m "docs(spikes): record the spike results and the go/no-go"
 ```
 
@@ -1245,7 +1296,7 @@ git commit -m "docs(spikes): record the spike results and the go/no-go"
 ### Task 10: Precompile interface, mocks and shared test base
 
 **Files:**
-- Create: `contracts/src/interfaces/IQorePQC.sol`, `contracts/test/mocks/MockPqc.sol`, `contracts/test/mocks/MockToken.sol`, `contracts/test/Base.t.sol`
+- Create: `sc/src/interfaces/IQorePQC.sol`, `sc/test/mocks/MockPqc.sol`, `sc/test/mocks/MockToken.sol`, `sc/test/Base.t.sol`
 
 **Interfaces:**
 - Produces:
@@ -1257,7 +1308,7 @@ git commit -m "docs(spikes): record the spike results and the go/no-go"
 
 The `Base` file compiles only once `LoanVault` exists (Task 11), so this task's code is written now and verified in Task 11 Step 4.
 
-- [ ] **Step 1: Write `contracts/src/interfaces/IQorePQC.sol`**
+- [ ] **Step 1: Write `sc/src/interfaces/IQorePQC.sol`**
 
 ```solidity
 // SPDX-License-Identifier: MIT
@@ -1280,7 +1331,7 @@ interface IQorePQC {
 }
 ```
 
-- [ ] **Step 2: Write `contracts/test/mocks/MockPqc.sol`**
+- [ ] **Step 2: Write `sc/test/mocks/MockPqc.sol`**
 
 ```solidity
 // SPDX-License-Identifier: MIT
@@ -1310,7 +1361,7 @@ contract MockPqcKeys {
 }
 ```
 
-- [ ] **Step 3: Write `contracts/test/mocks/MockToken.sol`**
+- [ ] **Step 3: Write `sc/test/mocks/MockToken.sol`**
 
 ```solidity
 // SPDX-License-Identifier: MIT
@@ -1327,7 +1378,7 @@ contract MockToken is ERC20 {
 }
 ```
 
-- [ ] **Step 4: Write `contracts/test/Base.t.sol`**
+- [ ] **Step 4: Write `sc/test/Base.t.sol`**
 
 ```solidity
 // SPDX-License-Identifier: MIT
@@ -1470,7 +1521,7 @@ abstract contract Base is Test {
 ### Task 11: LoanVault — construction, raising, refund, state
 
 **Files:**
-- Create: `contracts/src/LoanVault.sol`, `contracts/test/LoanVault.Raising.t.sol`
+- Create: `sc/src/LoanVault.sol`, `sc/test/LoanVault.Raising.t.sol`
 
 **Interfaces:**
 - Consumes: Task 10 files.
@@ -1483,7 +1534,7 @@ abstract contract Base is Test {
   - Public getters: `token, spender, operator, ownerPq, ownerPayout, lenderBps, ownerBps, orderTtl, cosmosChainId, loan, suppliers(address), servicePrice(uint256), serviceCount, dailyCap, spentToday, dayIndex, paused, activatedAt, raised, repaid, deposits(address), accPerShare, lenderClaimed(address), escrowTotal, lenderPool, ownerPending, opexBalance, raisedHeld, orderCount, orders(uint256), policyNonce`
   - Events: `Deposited(address indexed lender, uint256 amount)`, `Activated(uint256 at)`, `Refunded(address indexed lender, uint256 amount)`
 
-- [ ] **Step 1: Write the failing tests `contracts/test/LoanVault.Raising.t.sol`**
+- [ ] **Step 1: Write the failing tests `sc/test/LoanVault.Raising.t.sol`**
 
 ```solidity
 // SPDX-License-Identifier: MIT
@@ -1588,10 +1639,10 @@ contract LoanVaultRaisingTest is Base {
 
 - [ ] **Step 2: Run to verify failure**
 
-Run (in `contracts/`): `forge test --match-contract LoanVaultRaisingTest`
+Run (in `sc/`): `forge test --match-contract LoanVaultRaisingTest`
 Expected: compilation error, `LoanVault.sol` not found.
 
-- [ ] **Step 3: Write `contracts/src/LoanVault.sol` (complete contract; later tasks add tests only)**
+- [ ] **Step 3: Write `sc/src/LoanVault.sol` (complete contract; later tasks add tests only)**
 
 ```solidity
 // SPDX-License-Identifier: MIT
@@ -2043,7 +2094,7 @@ Expected: `11 passed; 0 failed`. Also check the size: `forge build --sizes | gre
 - [ ] **Step 5: Commit**
 
 ```bash
-git add contracts/src/interfaces/IQorePQC.sol contracts/src/LoanVault.sol contracts/test/mocks contracts/test/Base.t.sol contracts/test/LoanVault.Raising.t.sol
+git add sc/src/interfaces/IQorePQC.sol sc/src/LoanVault.sol sc/test/mocks sc/test/Base.t.sol sc/test/LoanVault.Raising.t.sol
 git commit -m "feat(contracts): add LoanVault with raising, refunds and computed loan state"
 ```
 
@@ -2052,7 +2103,7 @@ git commit -m "feat(contracts): add LoanVault with raising, refunds and computed
 ### Task 12: LoanVault — orders, escrow and the revenue split
 
 **Files:**
-- Create: `contracts/test/LoanVault.Orders.t.sol`
+- Create: `sc/test/LoanVault.Orders.t.sol`
 
 **Interfaces:**
 - Consumes: `buy`, `deliver`, `decline`, `reclaim`, `orders`, events `OrderPlaced`, `Delivered`, `Declined`, `Reclaimed` (Task 11).
@@ -2196,7 +2247,7 @@ Expected: `13 passed; 0 failed`. A failure here means `LoanVault.sol` from Task 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add contracts/test/LoanVault.Orders.t.sol
+git add sc/test/LoanVault.Orders.t.sol
 git commit -m "test(contracts): cover orders, escrow, decline, reclaim and the split"
 ```
 
@@ -2205,7 +2256,7 @@ git commit -m "test(contracts): cover orders, escrow, decline, reclaim and the s
 ### Task 13: LoanVault — supplier payments and caps
 
 **Files:**
-- Create: `contracts/test/LoanVault.Suppliers.t.sol`
+- Create: `sc/test/LoanVault.Suppliers.t.sol`
 
 - [ ] **Step 1: Write the tests**
 
@@ -2315,7 +2366,7 @@ Expected: `9 passed; 0 failed`.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add contracts/test/LoanVault.Suppliers.t.sol
+git add sc/test/LoanVault.Suppliers.t.sol
 git commit -m "test(contracts): cover supplier payments, caps and the daily reset"
 ```
 
@@ -2324,7 +2375,7 @@ git commit -m "test(contracts): cover supplier payments, caps and the daily rese
 ### Task 14: LoanVault — claims, Trapped and Repaid
 
 **Files:**
-- Create: `contracts/test/LoanVault.Claims.t.sol`
+- Create: `sc/test/LoanVault.Claims.t.sol`
 
 - [ ] **Step 1: Write the tests**
 
@@ -2451,7 +2502,7 @@ Expected: `11 passed; 0 failed`.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add contracts/test/LoanVault.Claims.t.sol
+git add sc/test/LoanVault.Claims.t.sol
 git commit -m "test(contracts): cover lender and owner claims, Trapped and Repaid"
 ```
 
@@ -2460,7 +2511,7 @@ git commit -m "test(contracts): cover lender and owner claims, Trapped and Repai
 ### Task 15: LoanVault — signed policy orders
 
 **Files:**
-- Create: `contracts/test/LoanVault.Policy.t.sol`
+- Create: `sc/test/LoanVault.Policy.t.sol`
 
 - [ ] **Step 1: Write the tests**
 
@@ -2625,7 +2676,7 @@ Expected: `14 passed; 0 failed`.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add contracts/test/LoanVault.Policy.t.sol
+git add sc/test/LoanVault.Policy.t.sol
 git commit -m "test(contracts): cover ML-DSA-signed policy orders and the widening lock"
 ```
 
@@ -2634,7 +2685,7 @@ git commit -m "test(contracts): cover ML-DSA-signed policy orders and the wideni
 ### Task 16: Invariant test — the books always equal the balance
 
 **Files:**
-- Create: `contracts/test/LoanVault.Invariant.t.sol`
+- Create: `sc/test/LoanVault.Invariant.t.sol`
 
 - [ ] **Step 1: Write the handler and invariants**
 
@@ -2741,7 +2792,7 @@ Expected: `3 passed; 0 failed` (128 runs × depth 64 each).
 - [ ] **Step 3: Commit**
 
 ```bash
-git add contracts/test/LoanVault.Invariant.t.sol
+git add sc/test/LoanVault.Invariant.t.sol
 git commit -m "test(contracts): add invariants for the vault's books and repayments"
 ```
 
@@ -2750,12 +2801,12 @@ git commit -m "test(contracts): add invariants for the vault's books and repayme
 ### Task 17: VaultFactory, deployment and the on-chain smoke test
 
 **Files:**
-- Create: `contracts/src/VaultFactory.sol`, `contracts/test/VaultFactory.t.sol`, `contracts/script/DeployFactory.s.sol`
+- Create: `sc/src/VaultFactory.sol`, `sc/test/VaultFactory.t.sol`, `sc/script/DeployFactory.s.sol`
 
 **Interfaces:**
 - Produces: `VaultFactory.create(LoanVault.Init calldata) returns (LoanVault)`, `count() view returns (uint256)`, `vaultAt(uint256) view returns (LoanVault)`, `all() view returns (LoanVault[] memory)`, event `VaultCreated(address indexed vault, address indexed ownerPq, address spender, address operator, uint256 index)`. Used by Task 8 and by the agent and web-app plans.
 
-- [ ] **Step 1: Write the failing test `contracts/test/VaultFactory.t.sol`**
+- [ ] **Step 1: Write the failing test `sc/test/VaultFactory.t.sol`**
 
 ```solidity
 // SPDX-License-Identifier: MIT
@@ -2800,7 +2851,7 @@ contract VaultFactoryTest is Base {
 Run: `forge test --match-contract VaultFactoryTest`
 Expected: compilation error, `VaultFactory.sol` not found.
 
-- [ ] **Step 3: Write `contracts/src/VaultFactory.sol`**
+- [ ] **Step 3: Write `sc/src/VaultFactory.sol`**
 
 ```solidity
 // SPDX-License-Identifier: MIT
@@ -2842,7 +2893,7 @@ Expected: every suite passes (SenderProbe 2, Raising 11, Orders 13, Suppliers 9,
 
 If `VaultFactory` is over the limit (it embeds the vault's creation code), lower `optimizer_runs` to 50 in `foundry.toml` and rebuild. If it is still over, change the factory to a registry: vaults are deployed directly by a script, and `VaultFactory.register(LoanVault v)` (callable by anyone, emitting the same `VaultCreated` event with `v.ownerPq()`, `v.spender()`, `v.operator()`) lists them; update the test to deploy with `new LoanVault(_init())` and call `register`.
 
-- [ ] **Step 5: Write `contracts/script/DeployFactory.s.sol`**
+- [ ] **Step 5: Write `sc/script/DeployFactory.s.sol`**
 
 ```solidity
 // SPDX-License-Identifier: MIT
@@ -2863,15 +2914,15 @@ contract DeployFactory is Script {
 
 - [ ] **Step 6: Deploy to testnet**
 
-Run (in `spikes/`): `bun src/window.ts open deployer 1200 4 40000000`
-Run (in `contracts/`): `PRIVATE_KEY=$(cat .deployer.key) forge script script/DeployFactory.s.sol --rpc-url qorechain_testnet --broadcast`
+Run (in `engine/spikes/`): `bun src/window.ts open deployer 1200 4 40000000`
+Run (in `sc/`): `PRIVATE_KEY=$(cat .deployer.key) forge script script/DeployFactory.s.sol --rpc-url qorechain_testnet --broadcast`
 Expected: `VaultFactory 0x…`. Record the address and the deploy tx.
 
 - [ ] **Step 7: Run the on-chain smoke test (Task 8 Steps 3)**
 
 Follow Task 8 Step 3 with this factory. Expected: the script and QoreX signatures are accepted by `applyOrder`, tampered ones refused.
 
-- [ ] **Step 8: Add a `contracts/README.md`**
+- [ ] **Step 8: Add a `sc/README.md`**
 
 ```markdown
 # Qredit contracts
@@ -2884,7 +2935,7 @@ Follow Task 8 Step 3 with this factory. Expected: the script and QoreX signature
 
     forge test
 
-Local tests replace the QoreChain PQC precompiles with stand-ins (`test/mocks/MockPqc.sol`); the real ones are exercised on testnet by `spikes/src/s3-apply-order.ts`.
+Local tests replace the QoreChain PQC precompiles with stand-ins (`test/mocks/MockPqc.sol`); the real ones are exercised on testnet by `engine/spikes/src/s3-apply-order.ts`.
 
 ## Deployed on qorechain-diana
 
@@ -2900,7 +2951,7 @@ Fill the table with the real addresses and hashes before committing.
 - [ ] **Step 9: Commit**
 
 ```bash
-git add contracts/src/VaultFactory.sol contracts/test/VaultFactory.t.sol contracts/script/DeployFactory.s.sol contracts/README.md
+git add sc/src/VaultFactory.sol sc/test/VaultFactory.t.sol sc/script/DeployFactory.s.sol sc/README.md
 git commit -m "feat(contracts): add VaultFactory and deploy it to testnet"
 ```
 
@@ -2908,6 +2959,6 @@ git commit -m "feat(contracts): add VaultFactory and deploy it to testnet"
 
 ## After this plan
 
-- Update `spikes/RESULTS.md` (Task 9) if Task 8's on-chain smoke changed any S3 conclusion.
+- Update `engine/spikes/RESULTS.md` (Task 9) if Task 8's on-chain smoke changed any S3 conclusion.
 - Claim the Ship Weeks badge "First contract with a PQC check" from My space with the factory-created vault's deployment (it calls both precompiles).
 - Write **Plan 2 (agent runtime, relayer, mailbox, suppliers, owner CLI)** using the real APIs and results recorded here, then **Plan 3 (web app)** and **Plan 4 (docs, proof, verify CLI, video)**.
