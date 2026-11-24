@@ -1,0 +1,28 @@
+{
+  "name": "@qredit/be",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --env-file=.env src/server.ts",
+    "start": "bun src/server.ts",
+    "migrate": "bun --env-file=.env src/migrate.ts",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@cosmjs/proto-signing": "0.39",
+    "@cosmjs/stargate": "0.39",
+    "@qorechain/evm": "0.14.0",
+    "@qorechain/qoreseal": "0.1.0",
+    "@qorechain/sdk": "0.14.0",
+    "hono": "4.6",
+    "postgres": "3.4.5",
+    "viem": "2",
+    "zod": "3.24"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.2",
+    "@types/bun": "^1.4.5",
+    "typescript": "5"
+  }
+}
