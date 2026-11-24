@@ -1,0 +1,71 @@
+import { StargateClient } from "@cosmjs/stargate";
+import type { EncodeObject } from "@cosmjs/proto-signing";
+import { EthNativeSigner, type UnifiedAccount } from "@qorechain/sdk";
+
+export type Net = { chainId: string; rest: string; rpc: string };
+export type RestEvent = { type: string; attributes: { key: string; value: string }[] };
+export type Sent = { hash: string; code: number; rawLog?: string };
+
+async function accountNumbers(rest: string, address: string): Promise<{ accountNumber: bigint; sequence: bigint }> {
+  const res = await fetch(`${rest}/cosmos/auth/v1beta1/accounts/${address}`);
+  if (res.status === 404) throw new Error(`${address} does not exist on chain yet`);
+  if (!res.ok) throw new Error(`account query failed: HTTP ${res.status}`);
+  const body = (await res.json()) as { account: Record<string, unknown> };
+  const base = (body.account.base_account ?? body.account) as Record<string, string>;
+  return { accountNumber: BigInt(base.account_number ?? "0"), sequence: BigInt(base.sequence ?? "0") };
+}
+
+/** Sign hybrid (secp256k1 + ML-DSA-87) and broadcast. Returns after CheckTx; use txEvents for the result. */
+export async function broadcastHybrid(
+  net: Net,
+  acc: UnifiedAccount,
+  messages: EncodeObject[],
+  opts: { memo?: string; gas?: string; feeUqor?: string } = {},
+): Promise<Sent> {
+  const { accountNumber, sequence } = await accountNumbers(net.rest, acc.cosmos);
+  const signer = new EthNativeSigner(acc, { signMode: "hybrid", rest: net.rest });
+  const transport = await StargateClient.connect(net.rpc);
+  try {
+    const res = await signer.signAndBroadcast(transport, {
+      chainId: net.chainId,
+      accountNumber,
+      sequence,
+      memo: opts.memo ?? "",
+      messages,
+      fee: { amount: [{ denom: "uqor", amount: opts.feeUqor ?? "150000" }], gas: opts.gas ?? "1000000" },
+    });
+    return { hash: res.transactionHash, code: res.code, rawLog: res.rawLog };
+  } finally {
+    transport.disconnect();
+  }
+}
+
+export async function txEvents(rest: string, hash: string, tries = 20, delayMs = 1500): Promise<RestEvent[]> {
+  for (let i = 0; i < tries; i++) {
+    const res = await fetch(`${rest}/cosmos/tx/v1beta1/txs/${hash}`);
+    if (res.ok) {
+      const body = (await res.json()) as { tx_response: { code: number; raw_log?: string; events: RestEvent[] } };
+      if (body.tx_response.code !== 0) throw new Error(`tx ${hash} failed with code ${body.tx_response.code}: ${body.tx_response.raw_log ?? ""}`);
+      return body.tx_response.events;
+    }
+    await Bun.sleep(delayMs);
+  }
+  throw new Error(`tx ${hash} not found after ${(tries * delayMs) / 1000} s`);
+}
+
+/** A refused MsgExecuteEVM still has tx code 0; the failure shows only as this event. */
+export function executionFailure(events: RestEvent[]): string | null {
+  const ev = events.find((e) => e.type === "abstractaccount_execution_failed");
+  if (!ev) return null;
+  return ev.attributes.find((a) => a.key === "reason" || a.key === "error")?.value || "execution failed";
+}
+
+/** Run async tasks one at a time (one signing account = one sequence). */
+export function serial(): <T>(fn: () => Promise<T>) => Promise<T> {
+  let tail: Promise<unknown> = Promise.resolve();
+  return <T>(fn: () => Promise<T>) => {
+    const run = tail.then(fn, fn);
+    tail = run.then(() => undefined, () => undefined);
+    return run;
+  };
+}
