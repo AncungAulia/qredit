@@ -128,7 +128,13 @@ export function judgeBooks(books: readonly bigint[], balance: bigint): CheckResu
     : r("books", "failed", "The books do not add up to the vault's balance.");
 }
 
-export const judgeWidening = (state: VaultStateName): CheckResult =>
-  state === "Repaid"
-    ? r("widening", "na", "The loan is repaid, so the owner may widen the rules again.")
-    : r("widening", "proven", "The loan is not repaid, so the vault refuses every widening order.");
+/**
+ * The vault state alone proves nothing: the refusal is code in the vault, so it holds only when the factory check
+ * proved that the vault runs the published build.
+ */
+export function judgeWidening(state: VaultStateName, factory: CheckResult): CheckResult {
+  if (state === "Repaid") return r("widening", "na", "The loan is repaid, so the owner may widen the rules again.");
+  if (factory.status !== "proven")
+    return r("widening", "unknown", "The vault's code is not proven, so its widening rule is not proven either.");
+  return r("widening", "proven", "The loan is not repaid, so the vault refuses every widening order.");
+}

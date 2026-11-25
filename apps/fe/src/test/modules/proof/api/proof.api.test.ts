@@ -99,6 +99,13 @@ test("a failing vault read isolates the checks that need it and never rejects", 
   });
 });
 
+test("widening is not proven when the factory check does not prove the code", async () => {
+  const wrong = { ...reads, codeHash: async () => "0xdeadbeef" };
+  expect(byId(await runChecks(business, wrong))).toMatchObject({ factory: "failed", widening: "unknown" });
+  const none = { ...reads, vaults: async () => [] as string[] };
+  expect(byId(await runChecks(business, none))).toMatchObject({ factory: "failed", widening: "unknown" });
+});
+
 test("an empty rule on the account fails the spender check", async () => {
   fetchSpendingRules.mockResolvedValue({
     rules: [{ enabled: true, allowedEvmCalls: [] }],

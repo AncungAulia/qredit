@@ -157,13 +157,22 @@ describe("checks", () => {
     expect(judgeBooks([1n, 2n, 3n, 4n, 5n], 15n).status).toBe("proven");
     expect(judgeBooks([1n, 2n, 3n, 4n, 5n], 16n).status).toBe("failed");
   });
+  const factoryOf = (status: "proven" | "failed" | "unknown") => ({ id: "factory" as const, status, detail: "" });
   test("widening: proven while a loan runs, not applicable once repaid", () => {
-    expect(judgeWidening("Active").status).toBe("proven");
-    expect(judgeWidening("Trapped").status).toBe("proven");
-    expect(judgeWidening("Repaid")).toMatchObject({
+    expect(judgeWidening("Active", factoryOf("proven")).status).toBe("proven");
+    expect(judgeWidening("Trapped", factoryOf("proven")).status).toBe("proven");
+    expect(judgeWidening("Repaid", factoryOf("proven"))).toMatchObject({
       status: "na",
       detail: "The loan is repaid, so the owner may widen the rules again.",
     });
+  });
+  test("widening: unknown unless the factory check proved the code", () => {
+    for (const status of ["failed", "unknown"] as const)
+      expect(judgeWidening("Active", factoryOf(status))).toMatchObject({
+        status: "unknown",
+        detail: "The vault's code is not proven, so its widening rule is not proven either.",
+      });
+    expect(judgeWidening("Repaid", factoryOf("failed")).status).toBe("na");
   });
   test("counts: not applicable is neither proven nor part of the total", () => {
     const r = (status: "proven" | "failed" | "unknown" | "na") => ({ id: "books" as const, status, detail: "" });

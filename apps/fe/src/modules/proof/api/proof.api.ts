@@ -69,11 +69,12 @@ export function runChecks(
 ): Promise<CheckResult[]> {
   const vault = b.vault;
   const rest = restUrl();
+  const factory = guard("factory", async () => {
+    const [vaults, codeHash] = await Promise.all([reads.vaults(), reads.codeHash()]);
+    return judgeFactory(vaults.includes(vault), codeHash, FACTORY_RUNTIME_CODEHASH);
+  });
   return Promise.all([
-    guard("factory", async () => {
-      const [vaults, codeHash] = await Promise.all([reads.vaults(), reads.codeHash()]);
-      return judgeFactory(vaults.includes(vault), codeHash, FACTORY_RUNTIME_CODEHASH);
-    }),
+    factory,
     guard("ownerKey", async () => {
       const ownerPq = await readVault<Hex>(vault, "ownerPq");
       return judgeOwnerKey(await fetchPqcStatus({ rest, address: hexToQor(ownerPq) }));
@@ -102,7 +103,7 @@ export function runChecks(
       return judgeBooks(books, balance);
     }),
     guard("widening", async () =>
-      judgeWidening(vaultStateName(Number(await readVault<number>(vault, "state")))),
+      judgeWidening(vaultStateName(Number(await readVault<number>(vault, "state"))), await factory),
     ),
   ]);
 }
