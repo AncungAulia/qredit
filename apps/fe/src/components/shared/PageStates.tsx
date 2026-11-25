@@ -1,131 +1,126 @@
-// src/components/shared/PageStates.tsx: loading, error and empty states.
-// Every state fills the space its content would take, with its message centered:
-// layout="page" (default) fills the rest of the screen below the header; layout="section"
-// fills its card or panel. Filling works through flex-1, so each parent up to <body> must be a
-// flex column (ui-rules.md §5, "State size"). Never a fixed height such as 60dvh or 100vh.
-import type { ComponentType, ReactNode } from "react";
-import { AlertCircle, Inbox, RotateCw } from "lucide-react";
+// src/components/shared/PageStates.tsx: error, empty and loading states from the design (State/*).
+// Every state fills the space its content would take, message centered: layout="page" (default) fills
+// the rest of the screen below the header, layout="section" fills its card (at least 12rem). Filling works
+// through flex-1, so each parent up to <body> must be a flex column. Never a fixed height.
+import type { ReactNode } from "react";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ApiError } from "@/lib/apiClient";
 import { cn } from "@/lib/utils";
 
 type Layout = "page" | "section";
+
+export type EmptyArt =
+  "error" | "waiting" | "search" | "lending" | "wallet" | "reports" | "owner" | "notfound";
 
 const fill: Record<Layout, string> = {
   page: "flex w-full flex-1 flex-col",
   section: "flex h-full min-h-48 w-full flex-1 flex-col",
 };
-const frame = "items-center justify-center gap-3 p-6 text-center";
 
-/**
- * Skeleton rows for a loading list or table, in an area as big as the loaded content will be,
- * so nothing jumps when it arrives. Spinners are for actions, inside their button.
- */
-export function LoadingState({
-  label = "Loading data…",
-  rows = 5,
-  layout = "page",
-  className,
-}: {
-  label?: string;
-  rows?: number;
-  layout?: Layout;
-  className?: string;
-}) {
-  return (
-    <div role="status" aria-busy="true" className={cn(fill[layout], "gap-3 py-2", className)}>
-      <span className="sr-only">{label}</span>
-      {Array.from({ length: rows }, (_, i) => (
-        <Skeleton key={i} className="h-10 w-full" />
-      ))}
-    </div>
-  );
-}
-
-type StateProps = {
-  icon: ComponentType<{ className?: string }>;
-  iconClassName?: string;
+type EmptyStateProps = {
+  art: EmptyArt;
   title: string;
-  description?: string;
+  message?: string;
+  /** Only an action the header does not already offer. */
   action?: ReactNode;
   layout?: Layout;
   className?: string;
   role?: "alert";
 };
 
-function StateFrame({
-  icon: Icon,
-  iconClassName,
+export function EmptyState({
+  art,
   title,
-  description,
+  message,
   action,
   layout = "page",
   className,
   role,
-}: StateProps) {
+}: EmptyStateProps) {
   return (
-    <div role={role} className={cn(fill[layout], frame, className)}>
-      <Icon className={cn("size-8 text-muted-foreground", iconClassName)} aria-hidden />
-      <div className="max-w-prose space-y-1">
-        <p className="font-medium">{title}</p>
-        {description && <p className="text-sm text-muted-foreground">{description}</p>}
-      </div>
+    <div
+      role={role}
+      className={cn(
+        fill[layout],
+        "items-center justify-center gap-3 rounded-3xl bg-surface p-8 text-center",
+        className,
+      )}
+    >
+      <span className="relative size-32 shrink-0 overflow-hidden rounded-3xl">
+        <Image
+          src={`/empty/${art}-light.png`}
+          alt=""
+          width={256}
+          height={256}
+          className="size-full object-cover dark:hidden"
+        />
+        <Image
+          src={`/empty/${art}-dark.png`}
+          alt=""
+          width={256}
+          height={256}
+          className="hidden size-full object-cover dark:block"
+        />
+      </span>
+      <p className="text-base font-medium text-text-primary">{title}</p>
+      {message && <p className="max-w-prose text-sm text-text-secondary">{message}</p>}
       {action}
     </div>
   );
 }
 
 type ErrorStateProps = {
-  /** What failed, e.g. "Businesses failed to load". */
-  title?: string;
-  error: unknown;
   onRetry?: () => void;
+  title?: string;
+  message?: string;
   layout?: Layout;
   className?: string;
 };
 
-/** Shows the message for an ApiError; any other error shows the generic server message. */
+/** A failed load. Retry refetches; never a toast. */
 export function ErrorState({
-  title = "The data failed to load",
-  error,
   onRetry,
+  title = "This page could not be loaded.",
+  message = "Please try again shortly.",
   layout,
   className,
 }: ErrorStateProps) {
-  // Only ApiError messages are written for people; any other error stays off the screen.
-  const apiError = error instanceof ApiError ? error : new ApiError("server");
-  const retry = onRetry && (
-    <Button variant="outline" size="sm" onClick={onRetry}>
-      <RotateCw className="size-4" aria-hidden />
-      Try again
-    </Button>
-  );
-
   return (
-    <StateFrame
+    <EmptyState
       role="alert"
-      icon={AlertCircle}
-      iconClassName="text-destructive"
+      art="error"
       title={title}
-      description={apiError.message}
-      action={retry}
+      message={message}
       layout={layout}
       className={className}
+      action={
+        onRetry && (
+          <Button variant="secondary" size="sm" onClick={onRetry}>
+            Try again
+          </Button>
+        )
+      }
     />
   );
 }
 
-type EmptyStateProps = {
-  title: string;
-  description?: string;
-  /** Only an action the header does not already offer (e.g. clearing a filter). */
-  action?: ReactNode;
-  icon?: ComponentType<{ className?: string }>;
-  layout?: Layout;
+/** Skeleton rows for a loading list. Pass the row height of the list being replaced so nothing jumps. */
+export function ListSkeleton({
+  rows,
+  rowClassName = "h-16",
+  className,
+}: {
+  rows: number;
+  rowClassName?: string;
   className?: string;
-};
-
-export function EmptyState({ icon = Inbox, ...props }: EmptyStateProps) {
-  return <StateFrame icon={icon} {...props} />;
+}) {
+  return (
+    <div role="status" aria-busy="true" className={cn("flex w-full flex-col gap-3", className)}>
+      <span className="sr-only">Loading</span>
+      {Array.from({ length: rows }, (_, i) => (
+        <Skeleton key={i} className={cn("w-full rounded-3xl", rowClassName)} />
+      ))}
+    </div>
+  );
 }

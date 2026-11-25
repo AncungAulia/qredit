@@ -36,3 +36,5 @@ Follows the `motion-rules` skill. Tokens in `globals.css`: `--ease-out` cubic-be
 - `@qredit/qore` ships raw TypeScript, so `next.config.ts` lists it in `transpilePackages`.
 - `components/ui/button.tsx` is customised (press feedback, coarse-pointer sizing, no `pointer-events-none` on disabled). After any `shadcn add`, check `git diff src/components/ui` and restore it.
 - `src/lib/utils.ts` is hand-written (clsx and tailwind-merge) because `shadcn init` generated a re-export from an unrelated `cn` package.
+- `public/agents`, `public/empty` and `public/art` hold the images copied from `design/` (agent marks, state art, KPI feature art); each has a light and a dark file that the component switches with `dark:`. `src/config/wordmark.ts` holds the outlined wordmark paths exported from the design.
+- `AppShell` wraps every page: top bar from tablet up, phone header, and the phone tab bar on top-level routes only. The page area is a flex column so `EmptyState` and `ErrorState` fill it.
