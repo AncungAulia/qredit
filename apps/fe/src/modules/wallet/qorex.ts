@@ -4,10 +4,14 @@ import "@qorechain/qorex-types"; // brings the global Window.qorex type
 import { qorToHex } from "@qredit/qore";
 import { env } from "@/lib/env";
 
-export type QorexState = "notInstalled" | "wrongNetwork" | "ready";
+/** "unavailable" is set by the session store after QoreX rejected a connection (the cause is not told apart). */
+export type QorexState = "notInstalled" | "unavailable" | "ready";
+
+export const QOREX_UNAVAILABLE_SENTENCE =
+  "QoreX could not connect to the QoreChain testnet. Switch QoreX to Testnet (tap the version text seven times in its settings) and try again.";
 
 export type QorexClient = {
-  /** Whether QoreX is present and not known to be on another network. */
+  /** Whether QoreX is present in this page. */
   detect(): QorexState;
   connect(): Promise<{ address: string; evm: `0x${string}` }>;
   /** The post-quantum signature bytes of `text`, as the vault's applyOrder takes them. */
@@ -41,15 +45,16 @@ type NativeLive = {
   signArbitrary(chainId: string, signer: string, data: string): Promise<{ pq?: { signature?: string } }>;
 };
 
-const WRONG_NETWORK = /unsupported chain|unrecogni[sz]ed chain|chain.*not (found|supported)|wrong network/i;
-
 function fromBase64(value: string): Uint8Array {
-  const bin = atob(value);
-  return Uint8Array.from(bin, (c) => c.charCodeAt(0));
+  try {
+    const bin = atob(value);
+    return Uint8Array.from(bin, (c) => c.charCodeAt(0));
+  } catch {
+    throw new QorexNoPqSignature();
+  }
 }
 
 export function createQorexClient(win: Window = window): QorexClient {
-  let wrongNetwork = false;
   const native = () => win.qorex?.native as unknown as NativeLive | undefined;
   const need = () => {
     const n = native();
@@ -58,28 +63,23 @@ export function createQorexClient(win: Window = window): QorexClient {
   };
   return {
     detect() {
-      if (!native()) return "notInstalled";
-      return wrongNetwork ? "wrongNetwork" : "ready";
+      return native() ? "ready" : "notInstalled";
     },
     async connect() {
       const n = need();
-      try {
-        await n.enable(env.chainId);
-        const { bech32Address } = await n.getKey(env.chainId);
-        const evm = qorToHex(bech32Address);
-        if (!evm) throw new Error("QoreX returned an address that is not valid.");
-        wrongNetwork = false;
-        return { address: bech32Address, evm: evm as `0x${string}` };
-      } catch (e) {
-        if (e instanceof Error && WRONG_NETWORK.test(e.message)) wrongNetwork = true;
-        throw e;
-      }
+      await n.enable(env.chainId);
+      const { bech32Address } = await n.getKey(env.chainId);
+      const evm = qorToHex(bech32Address);
+      if (!evm) throw new Error("QoreX returned an address that is not valid.");
+      return { address: bech32Address, evm: evm as `0x${string}` };
     },
     async signArbitrary(address, text) {
       const sig = await need().signArbitrary(env.chainId, address, text);
       const b64 = sig?.pq?.signature;
       if (!b64) throw new QorexNoPqSignature();
-      return fromBase64(b64);
+      const bytes = fromBase64(b64);
+      if (bytes.length === 0) throw new QorexNoPqSignature();
+      return bytes;
     },
     capabilities() {
       return [...(native()?.capabilities ?? [])];

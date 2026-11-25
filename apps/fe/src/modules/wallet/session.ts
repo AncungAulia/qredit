@@ -11,7 +11,7 @@ import {
   readStored,
   writeStored,
 } from "@/modules/wallet/keystore";
-import { createQorexClient, type QorexClient } from "@/modules/wallet/qorex";
+import { createQorexClient, type QorexClient, type QorexState } from "@/modules/wallet/qorex";
 
 export type TestSession = {
   kind: "test";
@@ -27,8 +27,18 @@ export type WalletSession =
   | TestSession
   | { kind: "qorex"; address: string; evm: `0x${string}`; testWallet: TestSession | null };
 
+/** Thrown by create when the wallet was locked, forgotten or replaced while it was still working. */
+export class Cancelled extends Error {
+  constructor() {
+    super("The operation was cancelled.");
+    this.name = "Cancelled";
+  }
+}
+
 export type WalletStore = {
   session: WalletSession;
+  /** Whether QoreX is installed, rejected the last connection, or is ready. Read by hydrate, set by connectQorex. */
+  qorexState: QorexState;
   /** Reads the browser storage: a stored wallet means locked, none means none. Called from an effect. */
   hydrate(): void;
   unlock(password: string): Promise<void>;
@@ -58,11 +68,15 @@ async function deriveSession(phrase: string): Promise<TestSession> {
 export const createWalletStore = (deps: WalletDeps = {}): StoreApi<WalletStore> => {
   // Bumped by every operation; an async unlock or create applies its result only while it is still the latest.
   let token = 0;
+  // Bumped by forget and disconnect so a slow QoreX connection does not come back after them.
+  let qorexEpoch = 0;
   let qorexClient: QorexClient | undefined;
   const qorex = () => (qorexClient ??= deps.qorex ?? createQorexClient());
   return createStore<WalletStore>()((set, get) => ({
     session: { kind: "none" },
+    qorexState: "notInstalled",
     hydrate() {
+      set({ qorexState: qorex().detect() });
       if (get().session.kind !== "none") return;
       const stored = readStored(deps.storage);
       if (stored) set({ session: { kind: "locked", address: stored.address } });
@@ -82,7 +96,7 @@ export const createWalletStore = (deps: WalletDeps = {}): StoreApi<WalletStore> 
       const mine = ++token;
       const session = await deriveSession(clean);
       const record = await encryptPhrase(clean, password, session.address);
-      if (mine !== token) return;
+      if (mine !== token) throw new Cancelled();
       writeStored(record, deps.storage);
       set({ session: withTestWallet(get().session, session) });
     },
@@ -94,20 +108,27 @@ export const createWalletStore = (deps: WalletDeps = {}): StoreApi<WalletStore> 
     },
     forget() {
       token++;
+      qorexEpoch++;
       forgetStored(deps.storage);
       const { session } = get();
       set({ session: session.kind === "qorex" ? { ...session, testWallet: null } : { kind: "none" } });
     },
     async connectQorex() {
-      const mine = ++token;
-      const { address, evm } = await qorex().connect();
-      if (mine !== token) return;
+      const epoch = qorexEpoch;
+      let connected: { address: string; evm: `0x${string}` };
+      try {
+        connected = await qorex().connect();
+      } catch (e) {
+        if (epoch === qorexEpoch && qorex().detect() === "ready") set({ qorexState: "unavailable" });
+        throw e;
+      }
+      if (epoch !== qorexEpoch) return;
       const current = get().session;
       const testWallet = current.kind === "test" ? current : current.kind === "qorex" ? current.testWallet : null;
-      set({ session: { kind: "qorex", address, evm, testWallet } });
+      set({ qorexState: "ready", session: { kind: "qorex", ...connected, testWallet } });
     },
     disconnectQorex() {
-      token++;
+      qorexEpoch++;
       const { session } = get();
       if (session.kind !== "qorex") return;
       if (session.testWallet) return set({ session: session.testWallet });

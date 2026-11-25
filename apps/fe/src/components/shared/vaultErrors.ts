@@ -1,5 +1,5 @@
 // Turns a failed chain call into one formal sentence. Raw revert data never reaches the screen.
-import { decodeErrorResult } from "viem";
+import { decodeErrorResult, parseAbi } from "viem";
 import { LOAN_VAULT_ABI } from "@qredit/qore";
 
 export const GENERIC_REFUSAL = "The transaction was refused.";
@@ -35,20 +35,54 @@ export const VAULT_ERROR_SENTENCES: Record<string, string> = {
   BadConfig: "The configuration of the vault is not valid.",
 };
 
-const BALANCE = /(insufficient|exceeds) balance|balance too low/i;
-const ALLOWANCE = /allowance/i;
+/** Standard OpenZeppelin v5 ERC-20 errors; the testnet fUSD reverts with these (captured live, see the fixtures). */
+export const ERC20_ERRORS_ABI = parseAbi([
+  "error ERC20InsufficientBalance(address sender, uint256 balance, uint256 needed)",
+  "error ERC20InsufficientAllowance(address spender, uint256 allowance, uint256 needed)",
+  "error ERC20InvalidSender(address sender)",
+  "error ERC20InvalidReceiver(address receiver)",
+  "error ERC20InvalidApprover(address approver)",
+  "error ERC20InvalidSpender(address spender)",
+]);
 
-/** Raw hex revert data found anywhere on the error chain (viem nests it under `cause` and `data`). */
+export const ERC20_ERROR_SENTENCES: Record<string, string> = {
+  ERC20InsufficientBalance: "The fUSD balance is too low for this transaction.",
+  ERC20InsufficientAllowance: "The fUSD allowance for the vault is too low for this transaction.",
+  ERC20InvalidSender: "The sender address is not valid for an fUSD transfer.",
+  ERC20InvalidReceiver: "The receiver address is not valid for an fUSD transfer.",
+  ERC20InvalidApprover: "The approver address is not valid for an fUSD approval.",
+  ERC20InvalidSpender: "The spender address is not valid for an fUSD approval.",
+};
+
+const BALANCE_SENTENCE = "The fUSD balance is too low for this transaction.";
+const ALLOWANCE_SENTENCE = "The fUSD allowance for the vault is too low for this transaction.";
+
+/** Known revert strings (older ERC-20 implementations); any other text is never shown. */
+const REVERT_STRINGS: Record<string, string> = {
+  "ERC20: transfer amount exceeds balance": BALANCE_SENTENCE,
+  "ERC20: insufficient allowance": ALLOWANCE_SENTENCE,
+  "ERC20: transfer amount exceeds allowance": ALLOWANCE_SENTENCE,
+};
+
+const DECODE_ABI = [
+  ...LOAN_VAULT_ABI.filter((i) => i.type === "error"),
+  ...ERC20_ERRORS_ABI,
+  { type: "error", name: "Error", inputs: [{ name: "message", type: "string" }] },
+] as const;
+
+const HEX_DATA = /^0x[0-9a-fA-F]{8,}$/;
+
+/** Raw hex revert data found anywhere on the error chain (viem nests it under `cause`; live nodes put it on `data`). */
 function findRevertData(error: unknown): `0x${string}` | null {
   const seen = new Set<unknown>();
   let node: unknown = error;
   while (node && typeof node === "object" && !seen.has(node)) {
     seen.add(node);
     const data = (node as { data?: unknown }).data;
-    if (typeof data === "string" && /^0x[0-9a-fA-F]{8,}$/.test(data)) return data as `0x${string}`;
+    if (typeof data === "string" && HEX_DATA.test(data)) return data as `0x${string}`;
     if (data && typeof data === "object") {
       const nested = (data as { data?: unknown }).data;
-      if (typeof nested === "string" && /^0x[0-9a-fA-F]{8,}$/.test(nested)) return nested as `0x${string}`;
+      if (typeof nested === "string" && HEX_DATA.test(nested)) return nested as `0x${string}`;
     }
     node = (node as { cause?: unknown }).cause;
   }
@@ -59,15 +93,16 @@ export function revertSentence(error: unknown): string {
   const data = findRevertData(error);
   if (data) {
     try {
-      const { errorName } = decodeErrorResult({ abi: LOAN_VAULT_ABI, data });
-      const sentence = VAULT_ERROR_SENTENCES[errorName];
-      if (sentence) return sentence;
+      const decoded = decodeErrorResult({ abi: DECODE_ABI, data });
+      if (decoded.errorName === "Error") return REVERT_STRINGS[String(decoded.args?.[0])] ?? GENERIC_REFUSAL;
+      return VAULT_ERROR_SENTENCES[decoded.errorName] ?? ERC20_ERROR_SENTENCES[decoded.errorName] ?? GENERIC_REFUSAL;
     } catch {
-      // Not a vault error: fall through to the message checks.
+      // Not a known error: fall through to the message checks.
     }
   }
+  // Last resort for nodes that send no revert data.
   const text = error instanceof Error ? `${error.message} ${(error as { shortMessage?: string }).shortMessage ?? ""}` : "";
-  if (BALANCE.test(text)) return "The balance is too low for this transaction.";
-  if (ALLOWANCE.test(text)) return "The allowance for fUSD is too low for this transaction.";
+  if (/(insufficient|exceeds) balance|balance too low/i.test(text)) return BALANCE_SENTENCE;
+  if (/allowance/i.test(text)) return ALLOWANCE_SENTENCE;
   return GENERIC_REFUSAL;
 }

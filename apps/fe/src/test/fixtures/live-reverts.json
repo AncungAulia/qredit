@@ -1,0 +1,95 @@
+{
+  "vaultDeposit": {
+    "request": {
+      "account": "0x000000000000000000000000000000000000dEaD",
+      "to": "0x37bbb37dd96a973a22ca64bc809a8bc4d54b03d4",
+      "data": "0xb6b55f250000000000000000000000000000000000000000000000000000000000000001"
+    },
+    "chain": [
+      {
+        "name": "CallExecutionError",
+        "message": "Execution reverted for an unknown reason.\n\nRaw Call Arguments:\n  from:  0x000000000000000000000000000000000000dEaD\n  to:    0x37bbb37dd96a973a22ca64bc809a8bc4d54b03d4\n  data:  0xb6b55f250000000000000000000000000000000000000000000000000000000000000001\n\nDetails: execution reverted\nVersion: viem@2.58.6",
+        "shortMessage": "Execution reverted for an unknown reason."
+      },
+      {
+        "name": "ExecutionRevertedError",
+        "message": "Execution reverted for an unknown reason.\n\nDetails: execution reverted\nVersion: viem@2.58.6",
+        "shortMessage": "Execution reverted for an unknown reason."
+      },
+      {
+        "name": "RpcRequestError",
+        "message": "RPC Request failed.\n\nURL: https://evm-testnet.qore.host\nRequest body: {\"method\":\"eth_call\",\"params\":[{\"data\":\"0xb6b55f250000000000000000000000000000000000000000000000000000000000000001\",\"from\":\"0x000000000000000000000000000000000000dEaD\",\"to\":\"0x37bbb37dd96a973a22ca64bc809a8bc4d54b03d4\"},\"latest\"]}\n",
+        "shortMessage": "RPC Request failed.",
+        "code": 3,
+        "data": "0xde4168ba"
+      },
+      {
+        "message": "execution reverted",
+        "code": 3,
+        "data": "0xde4168ba"
+      }
+    ]
+  },
+  "fusdTransfer": {
+    "request": {
+      "account": "0x1111111111111111111111111111111111111111",
+      "to": "0x97143B771D34ddb9130b807b135Ae675A5a963CA",
+      "data": "0xa9059cbb00000000000000000000000022222222222222222222222222222222222222220000000000000000000000000000000000000000000000000000000000000001"
+    },
+    "chain": [
+      {
+        "name": "CallExecutionError",
+        "message": "Execution reverted for an unknown reason.\n\nRaw Call Arguments:\n  from:  0x1111111111111111111111111111111111111111\n  to:    0x97143B771D34ddb9130b807b135Ae675A5a963CA\n  data:  0xa9059cbb000000000000000000000000222222222222222222222222222222222222222200000000000000000000000000000000000000000000000000",
+        "shortMessage": "Execution reverted for an unknown reason."
+      },
+      {
+        "name": "ExecutionRevertedError",
+        "message": "Execution reverted for an unknown reason.\n\nDetails: execution reverted\nVersion: viem@2.58.6",
+        "shortMessage": "Execution reverted for an unknown reason."
+      },
+      {
+        "name": "RpcRequestError",
+        "message": "RPC Request failed.\n\nURL: https://evm-testnet.qore.host\nRequest body: {\"method\":\"eth_call\",\"params\":[{\"data\":\"0xa9059cbb00000000000000000000000022222222222222222222222222222222222222220000000000000000000000000000000000000000000000000000000000000001\",\"from\":\"0x1111111111111111111111111111111111111111",
+        "shortMessage": "RPC Request failed.",
+        "code": 3,
+        "data": "0xe450d38c000000000000000000000000111111111111111111111111111111111111111100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001"
+      },
+      {
+        "message": "execution reverted",
+        "code": 3,
+        "data": "0xe450d38c000000000000000000000000111111111111111111111111111111111111111100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001"
+      }
+    ]
+  },
+  "fusdTransferFrom": {
+    "request": {
+      "account": "0x1111111111111111111111111111111111111111",
+      "to": "0x97143B771D34ddb9130b807b135Ae675A5a963CA",
+      "data": "0x23b872dd000000000000000000000000000000000000000000000000000000000000dead00000000000000000000000022222222222222222222222222222222222222220000000000000000000000000000000000000000000000000000000000000001"
+    },
+    "chain": [
+      {
+        "name": "CallExecutionError",
+        "message": "Execution reverted for an unknown reason.\n\nRaw Call Arguments:\n  from:  0x1111111111111111111111111111111111111111\n  to:    0x97143B771D34ddb9130b807b135Ae675A5a963CA\n  data:  0x23b872dd000000000000000000000000000000000000000000000000000000000000dead00000000000000000000000022222222222222222222222222",
+        "shortMessage": "Execution reverted for an unknown reason."
+      },
+      {
+        "name": "ExecutionRevertedError",
+        "message": "Execution reverted for an unknown reason.\n\nDetails: execution reverted\nVersion: viem@2.58.6",
+        "shortMessage": "Execution reverted for an unknown reason."
+      },
+      {
+        "name": "RpcRequestError",
+        "message": "RPC Request failed.\n\nURL: https://evm-testnet.qore.host\nRequest body: {\"method\":\"eth_call\",\"params\":[{\"data\":\"0x23b872dd000000000000000000000000000000000000000000000000000000000000dead00000000000000000000000022222222222222222222222222222222222222220000000000000000000000000000000000000000000000000000",
+        "shortMessage": "RPC Request failed.",
+        "code": 3,
+        "data": "0xfb8f41b2000000000000000000000000111111111111111111111111111111111111111100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001"
+      },
+      {
+        "message": "execution reverted",
+        "code": 3,
+        "data": "0xfb8f41b2000000000000000000000000111111111111111111111111111111111111111100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001"
+      }
+    ]
+  }
+}

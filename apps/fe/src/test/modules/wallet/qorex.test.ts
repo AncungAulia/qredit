@@ -46,11 +46,9 @@ test("connect returns the bech32 address and its hex form, enabling the configur
   expect(out.evm).toBe(qorToHex(BECH));
 });
 
-test("connect on the wrong network flips detect to wrongNetwork and rethrows", async () => {
-  const native = okNative({ enable: vi.fn().mockRejectedValue(new Error("QoreX: unsupported chain qorechain-diana")) });
-  const client = createQorexClient(fakeWindow(native));
-  await expect(client.connect()).rejects.toThrow(/unsupported chain/);
-  expect(client.detect()).toBe("wrongNetwork");
+test("connect rethrows whatever QoreX rejects with", async () => {
+  const native = okNative({ enable: vi.fn().mockRejectedValue(new Error("anything")) });
+  await expect(createQorexClient(fakeWindow(native)).connect()).rejects.toThrow("anything");
 });
 
 test("connect without QoreX throws", async () => {
@@ -74,4 +72,9 @@ test("signArbitrary throws QorexNoPqSignature when pq is missing", async () => {
 test("capabilities lists what the build declares, empty when absent", () => {
   expect(createQorexClient(fakeWindow(okNative())).capabilities()).toContain("signArbitrary");
   expect(createQorexClient(fakeWindow(null)).capabilities()).toEqual([]);
+});
+
+test("a malformed base64 signature throws QorexNoPqSignature", async () => {
+  const native = okNative({ signArbitrary: vi.fn().mockResolvedValue({ pq: { signature: "not base64 !!" } }) });
+  await expect(createQorexClient(fakeWindow(native)).signArbitrary(BECH, "x")).rejects.toBeInstanceOf(QorexNoPqSignature);
 });

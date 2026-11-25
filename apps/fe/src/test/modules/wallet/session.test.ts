@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { hexToQor } from "@qredit/qore";
-import { createWalletStore } from "@/modules/wallet/session";
+import { Cancelled, createWalletStore } from "@/modules/wallet/session";
 import { readStored, StorageUnavailable, WrongPassword } from "@/modules/wallet/keystore";
 import type { QorexClient } from "@/modules/wallet/qorex";
 
@@ -92,12 +92,12 @@ test("a forget during a slow unlock is not undone", async () => {
   expect(readStored(storage)).toBeNull();
 }, 30_000);
 
-test("a forget during a slow create leaves nothing behind", async () => {
+test("a forget during a slow create leaves nothing behind and rejects with Cancelled", async () => {
   const storage = memoryStorage();
   const store = createWalletStore({ storage });
   const pending = store.getState().create(PHRASE, "correct horse");
   store.getState().forget();
-  await pending;
+  await expect(pending).rejects.toBeInstanceOf(Cancelled);
   expect(store.getState().session).toEqual({ kind: "none" });
   expect(readStored(storage)).toBeNull();
 }, 30_000);
@@ -177,4 +177,28 @@ test("a forget during a slow QoreX connect is not undone", async () => {
   release();
   await pending;
   expect(store.getState().session).toEqual({ kind: "none" });
+});
+
+test("a failed QoreX connect marks QoreX unavailable and does not cancel a pending unlock", async () => {
+  const store = createWalletStore({ storage: memoryStorage(), qorex: fakeQorex({ connect: async () => { throw new Error("nope"); } }) });
+  await store.getState().create(PHRASE, "correct horse");
+  store.getState().lock();
+  const pending = store.getState().unlock("correct horse");
+  await expect(store.getState().connectQorex()).rejects.toThrow("nope");
+  expect(store.getState().qorexState).toBe("unavailable");
+  await pending;
+  expect(store.getState().session.kind).toBe("test");
+}, 30_000);
+
+test("hydrate reads the QoreX state into the store and a successful connect makes it ready", async () => {
+  const store = createWalletStore({
+    storage: memoryStorage(),
+    qorex: fakeQorex({ detect: () => "notInstalled" }),
+  });
+  store.getState().hydrate();
+  expect(store.getState().qorexState).toBe("notInstalled");
+  const ready = createWalletStore({ storage: memoryStorage(), qorex: fakeQorex() });
+  ready.getState().hydrate();
+  await expect(ready.getState().connectQorex()).resolves.toBeUndefined();
+  expect(ready.getState().qorexState).toBe("ready");
 });
