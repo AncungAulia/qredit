@@ -129,3 +129,13 @@ test("decisions parse suppliers and cost sent as text", async () => {
   expect(d[0].suppliers).toEqual([{ role: "dataIndexer", amount: 50000n }]);
   expect(d[0].cost).toBe(50000n);
 });
+
+test("a vault not created by a direct create call is an error, never a guess", async () => {
+  mockChain(TODAY);
+  chain.getTransaction.mockResolvedValue({
+    input: encodeFunctionData({ abi: VAULT_FACTORY_ABI, functionName: "vaultAt", args: [0n] }),
+  });
+  await expect(readCreationSuppliers({ vault: VAULT, startBlock: 100 } as never)).rejects.toThrow(
+    "The vault was not created by a direct factory call.",
+  );
+});

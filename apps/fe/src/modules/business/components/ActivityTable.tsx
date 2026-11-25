@@ -4,6 +4,7 @@ import { EmptyState, ErrorState } from "@/components/shared/PageStates";
 import { StaleNotice } from "@/components/shared/StaleNotice";
 import { TxLink } from "@/components/shared/TxLink";
 import { Skeleton } from "@/components/ui/skeleton";
+import { serviceName } from "@/lib/serviceName";
 import { formatFusd } from "@/lib/format";
 import type { Business, Order } from "@/lib/schemas";
 
@@ -89,9 +90,7 @@ export function ActivityTable({ business, orders, isError, onRetry }: Props) {
           <OrderRow
             key={o.placedTx}
             order={o}
-            serviceName={
-              business.services.find((s) => s.id === o.serviceId)?.name ?? `Service ${o.serviceId}`
-            }
+            serviceName={serviceName(business, o.serviceId)}
           />
         ))}
       </div>

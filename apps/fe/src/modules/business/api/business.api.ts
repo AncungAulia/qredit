@@ -37,8 +37,9 @@ export async function readCreationSuppliers(b: VaultRef): Promise<Hex[]> {
   if (!log?.transactionHash) throw new Error("The vault creation could not be found on chain.");
   const tx = await publicClient.getTransaction({ hash: log.transactionHash });
   const call = decodeFunctionData({ abi: VAULT_FACTORY_ABI, data: tx.input });
-  const init = (call.args as readonly [{ suppliers: readonly Hex[] }])[0];
-  return init.suppliers.map((s) => s.toLowerCase() as Hex);
+  if (call.functionName !== "create")
+    throw new Error("The vault was not created by a direct factory call.");
+  return call.args[0].suppliers.map((s) => s.toLowerCase() as Hex);
 }
 
 /**

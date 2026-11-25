@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { api, parseResponse } from "@/lib/apiClient";
 import { publicClient, readVault } from "@/lib/chain";
+import { serviceName } from "@/lib/serviceName";
 import { vaultStateName } from "@/lib/vaultState";
 import { businessSchema, orderSchema, type Business, type Order } from "@/lib/schemas";
 import type { VaultSnapshot } from "@/modules/market/schemas/vault.schema";
@@ -125,9 +126,7 @@ export function pickLatestOrders(entries: MarketEntry[], limit: number): LatestO
       e.orders.map((order) => ({
         order,
         business: e.business,
-        serviceName:
-          e.business.services.find((s) => s.id === order.serviceId)?.name ??
-          `Service ${order.serviceId}`,
+        serviceName: serviceName(e.business, order.serviceId),
       })),
     )
     .sort((a, b) => b.order.placedBlock - a.order.placedBlock)
