@@ -1,28 +1,26 @@
 import { Skeleton } from "@/components/ui/skeleton";
-import { LatestOrdersSkeleton } from "./LatestOrders";
+import { LatestOrdersSkeletonBody } from "./LatestOrders";
 import { KPI_GRID } from "./MarketKpis";
-
-const block = "bg-surface-muted";
 
 /** State/Loading from the design: the shape of a business card, so nothing jumps when data arrives. */
 function CardSkeleton() {
   return (
-    <div className="flex h-[330px] flex-col gap-4 rounded-3xl bg-surface p-6 md:h-[300px]">
+    <div className="flex h-[410px] flex-col gap-4 rounded-3xl bg-surface p-6 md:h-[300px]">
       <div className="flex items-center gap-3">
-        <Skeleton className={`size-11 rounded-xl ${block}`} />
+        <Skeleton className="size-11 rounded-xl" />
         <div className="flex flex-1 flex-col gap-2">
-          <Skeleton className={`h-4 w-2/3 ${block}`} />
-          <Skeleton className={`h-3.5 w-full ${block}`} />
+          <Skeleton className="h-4 w-2/3" />
+          <Skeleton className="h-3.5 w-full" />
         </div>
       </div>
-      <Skeleton className={`h-2 w-full ${block}`} />
-      <Skeleton className={`h-10 w-full rounded-[10px] ${block}`} />
-      <Skeleton className={`mt-auto h-9 w-20 rounded-full ${block}`} />
+      <Skeleton className="h-2 w-full" />
+      <Skeleton className="h-10 w-full rounded-[10px]" />
+      <Skeleton className="mt-auto h-9 w-20 rounded-full" />
     </div>
   );
 }
 
-/** The KPI row, the business grid and the latest orders while the first load is under way. */
+/** The KPI row, the business grid and the latest orders while the first load is under way. One status region for all of it. */
 export function MarketSkeleton() {
   return (
     <div role="status" aria-busy="true" className="flex flex-col gap-6 md:gap-8 xl:gap-10">
@@ -40,7 +38,7 @@ export function MarketSkeleton() {
           <CardSkeleton key={i} />
         ))}
       </div>
-      <LatestOrdersSkeleton />
+      <LatestOrdersSkeletonBody />
     </div>
   );
 }

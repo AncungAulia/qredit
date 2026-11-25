@@ -1,12 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 import {
+  getBlockTimes,
   getBusiness,
-  getLatestOrders,
   getMarket,
   getOrders,
+  isLoaded,
   pickLatestOrders,
   readVaultSnapshot,
-  type MarketEntry,
+  type LatestOrder,
+  type MarketRow,
 } from "@/modules/market/api/market.api";
 import { marketKeys } from "@/modules/market/api/market.keys";
 
@@ -33,12 +35,29 @@ export const useOrdersQuery = (vault: `0x${string}`) =>
     refetchInterval: REFRESH_MS,
   });
 
-/** The newest orders of the loaded market, each with the time of its block. Keyed by transaction so it refetches only when the newest orders change. */
-export function useLatestOrdersQuery(entries: MarketEntry[] | undefined) {
-  const refs = entries ? pickLatestOrders(entries, LATEST_ORDERS) : [];
-  return useQuery({
-    queryKey: marketKeys.latestOrders(refs.map((r) => r.order.placedTx)),
-    queryFn: () => getLatestOrders(refs),
-    enabled: refs.length > 0,
+/**
+ * The newest orders of the loaded market. Only the block times are cached (a block never changes);
+ * the orders themselves come from the market query on every render, so a status change shows at once.
+ */
+export function useLatestOrdersQuery(rows: MarketRow[] | undefined) {
+  const refs = rows ? pickLatestOrders(rows.filter(isLoaded), LATEST_ORDERS) : [];
+  const blocks = refs.map((r) => r.order.placedBlock);
+  const times = useQuery({
+    queryKey: marketKeys.blockTimes(blocks),
+    queryFn: () => getBlockTimes(blocks),
+    enabled: blocks.length > 0,
+    staleTime: Infinity,
   });
+  const timeData = times.data;
+  const orders: LatestOrder[] | undefined = timeData
+    ? refs.map((r) => ({ ...r, placedAt: timeData[r.order.placedBlock] }))
+    : undefined;
+  return {
+    orders,
+    /** The loaded businesses have no orders at all. */
+    isEmpty: rows !== undefined && refs.length === 0,
+    isPending: times.isPending,
+    isError: times.isError,
+    refetch: () => times.refetch(),
+  };
 }

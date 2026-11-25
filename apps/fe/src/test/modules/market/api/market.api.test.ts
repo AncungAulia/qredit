@@ -16,19 +16,21 @@ vi.mock("@/lib/apiClient", async (importOriginal) => ({
 
 import { ApiError } from "@/lib/apiClient";
 import {
+  getBlockTimes,
   getBusiness,
-  getLatestOrders,
+  getMarket,
+  isFailed,
   pickLatestOrders,
   readVaultSnapshot,
   toMarketEntry,
 } from "@/modules/market/api/market.api";
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => vi.resetAllMocks());
 
-const business = (slug: string) =>
+const business = (slug: string, vault = "0x1") =>
   ({
     slug,
-    vault: "0x1",
+    vault,
     name: slug,
     tagline: "",
     services: [{ id: 0, name: "Grade", priceUnits: 250000n }],
@@ -37,18 +39,30 @@ const business = (slug: string) =>
     startBlock: 1,
   }) as never;
 
+const wire = (slug: string, vault: string) => ({
+  slug,
+  vault,
+  name: slug,
+  tagline: "t",
+  services: [{ id: 0, name: "Grade", priceUnits: "250000" }],
+  operator: "0x2",
+  spender: "0x3",
+  startBlock: 1,
+});
+
+const VAULT_VALUES: Record<string, unknown> = {
+  state: 1,
+  raised: 50_000_000n,
+  repaid: 11_000_000n,
+  paused: false,
+  lenderBps: 7000,
+  loan: [50_000_000n, 55_000_000n, 1795500000n, 3600n, 600n, 5_000_000n],
+};
+
 test("reads and names the vault state", async () => {
-  readContract.mockImplementation(({ functionName }: { functionName: string }) => {
-    const values: Record<string, unknown> = {
-      state: 1,
-      raised: 50_000_000n,
-      repaid: 11_000_000n,
-      paused: false,
-      lenderBps: 7000,
-      loan: [50_000_000n, 55_000_000n, 1795500000n, 3600n, 600n, 5_000_000n],
-    };
-    return Promise.resolve(values[functionName]);
-  });
+  readContract.mockImplementation(({ functionName }: { functionName: string }) =>
+    Promise.resolve(VAULT_VALUES[functionName]),
+  );
   const s = await readVaultSnapshot("0x37bbb37dd96a973a22ca64bc809a8bc4d54b03d4");
   expect(s.state).toBe("Active");
   expect(s.target).toBe(50_000_000n);
@@ -80,6 +94,33 @@ test("a business response of the wrong shape is invalid, a missing one is notFou
   await expect(getBusiness("x")).rejects.toMatchObject({ kind: "notFound" });
 });
 
+test("one unreadable vault becomes a failed row and the others still load", async () => {
+  get.mockImplementation((url: string) =>
+    Promise.resolve({
+      data: url === "/v1/businesses" ? [wire("a", "0xaa"), wire("b", "0xbb")] : [],
+    }),
+  );
+  readContract.mockImplementation(
+    ({ address, functionName }: { address: string; functionName: string }) =>
+      address === "0xbb"
+        ? Promise.reject(new Error("rpc down"))
+        : Promise.resolve(VAULT_VALUES[functionName]),
+  );
+  const rows = await getMarket();
+  expect(rows).toHaveLength(2);
+  expect(isFailed(rows[0])).toBe(false);
+  expect(isFailed(rows[1])).toBe(true);
+  expect(rows[1].business.slug).toBe("b");
+});
+
+test("when no vault can be read the whole market fails", async () => {
+  get.mockImplementation((url: string) =>
+    Promise.resolve({ data: url === "/v1/businesses" ? [wire("a", "0xaa")] : [] }),
+  );
+  readContract.mockRejectedValue(new Error("rpc down"));
+  await expect(getMarket()).rejects.toThrow("rpc down");
+});
+
 test("picks the newest orders across businesses", () => {
   const entries = [
     {
@@ -97,15 +138,10 @@ test("picks the newest orders across businesses", () => {
   expect(picked[0].serviceName).toBe("Grade");
 });
 
-test("gives each latest order the time of its block", async () => {
+test("gives each block its time", async () => {
   getBlock.mockResolvedValue({ timestamp: 1_800_000_000n });
-  const refs = pickLatestOrders(
-    [
-      { business: business("a"), orders: [{ placedBlock: 30, orderId: "2", serviceId: 0 }] },
-    ] as never,
-    4,
-  );
-  const [row] = await getLatestOrders(refs);
+  const times = await getBlockTimes([30, 20]);
   expect(getBlock).toHaveBeenCalledWith({ blockNumber: 30n });
-  expect(row.placedAt).toEqual(new Date(1_800_000_000 * 1000));
+  expect(times[30]).toEqual(new Date(1_800_000_000 * 1000));
+  expect(Object.keys(times)).toEqual(["20", "30"]);
 });

@@ -1,5 +1,5 @@
 import type { VaultStateName } from "@/components/shared/StateBadge";
-import type { MarketEntry } from "@/modules/market/api/market.api";
+import { isFailed, type MarketRow } from "@/modules/market/api/market.api";
 
 export type MarketFilterKey = "all" | "raising" | "active" | "repaid";
 
@@ -19,7 +19,6 @@ export const MARKET_FILTERS: {
 export const parseMarketFilter = (value: string | null): (typeof MARKET_FILTERS)[number] =>
   MARKET_FILTERS.find((f) => f.key === value) ?? MARKET_FILTERS[0];
 
-export const applyMarketFilter = (
-  entries: MarketEntry[],
-  filter: (typeof MARKET_FILTERS)[number],
-) => (filter.states ? entries.filter((e) => filter.states!.includes(e.vault.state)) : entries);
+/** A business that could not be read has no known state, so it shows under All only. */
+export const applyMarketFilter = (rows: MarketRow[], filter: (typeof MARKET_FILTERS)[number]) =>
+  filter.states ? rows.filter((r) => !isFailed(r) && filter.states!.includes(r.vault.state)) : rows;

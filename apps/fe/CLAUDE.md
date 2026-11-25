@@ -33,6 +33,8 @@ Follows the `motion-rules` skill. Tokens in `globals.css`: `--ease-out` cubic-be
 | Proof check finishing                      | Sometimes        | Status badge crossfade, 200 ms         |
 | Business state changing (Raising → Active) | Rare             | Badge crossfade, no spring             |
 
+Skeletons shimmer (slow linear sweep, `animate-shimmer` in `globals.css`), never pulse; always use the `Skeleton` component. Reduced motion shows them static.
+
 ## Notes
 
 - `@qredit/qore` ships raw TypeScript, so `next.config.ts` lists it in `transpilePackages`.

@@ -3,5 +3,5 @@ export const marketKeys = {
   business: (slug: string) => ["market", "business", slug] as const,
   vault: (vault: string) => ["market", "vault", vault] as const,
   orders: (vault: string) => ["market", "orders", vault] as const,
-  latestOrders: (txs: string[]) => ["market", "latestOrders", ...txs] as const,
+  blockTimes: (blocks: number[]) => ["market", "blockTimes", ...blocks] as const,
 };

@@ -59,6 +59,13 @@ export type MarketEntry = {
   orders: Order[];
 };
 
+/** A business whose vault or orders could not be read. It stays in the list so the others still show. */
+export type FailedEntry = { business: Business; failed: true };
+export type MarketRow = MarketEntry | FailedEntry;
+
+export const isFailed = (row: MarketRow): row is FailedEntry => "failed" in row;
+export const isLoaded = (row: MarketRow): row is MarketEntry => !isFailed(row);
+
 export function toMarketEntry(
   business: Business,
   vault: VaultSnapshot,
@@ -72,15 +79,29 @@ export function toMarketEntry(
   };
 }
 
-/** Every business with its vault read from the chain and its orders. Any failed read fails the whole market. */
-export async function getMarket(): Promise<MarketEntry[]> {
+/**
+ * Every business with its vault read from the chain and its orders. One business that cannot be read
+ * becomes a failed row; when none can be read, the load itself fails.
+ */
+export async function getMarket(): Promise<MarketRow[]> {
   const businesses = await getBusinesses();
-  return Promise.all(
-    businesses.map(async (b) => {
-      const [vault, orders] = await Promise.all([readVaultSnapshot(b.vault), getOrders(b.vault)]);
-      return toMarketEntry(b, vault, orders);
+  let firstError: unknown;
+  const rows = await Promise.all(
+    businesses.map(async (b): Promise<MarketRow> => {
+      const [vault, orders] = await Promise.allSettled([
+        readVaultSnapshot(b.vault),
+        getOrders(b.vault),
+      ]);
+      if (vault.status === "fulfilled" && orders.status === "fulfilled") {
+        return toMarketEntry(b, vault.value, orders.value);
+      }
+      firstError ??=
+        vault.status === "rejected" ? vault.reason : (orders as PromiseRejectedResult).reason;
+      return { business: b, failed: true };
     }),
   );
+  if (rows.length > 0 && rows.every(isFailed)) throw firstError;
+  return rows;
 }
 
 export type LatestOrderRef = { order: Order; business: Business; serviceName: string };
@@ -102,12 +123,13 @@ export function pickLatestOrders(entries: MarketEntry[], limit: number): LatestO
     .slice(0, limit);
 }
 
-/** Adds the time each order was placed, read from the timestamp of its block. */
-export function getLatestOrders(refs: LatestOrderRef[]): Promise<LatestOrder[]> {
-  return Promise.all(
-    refs.map(async (ref) => {
-      const block = await publicClient.getBlock({ blockNumber: BigInt(ref.order.placedBlock) });
-      return { ...ref, placedAt: new Date(Number(block.timestamp) * 1000) };
+/** The time of each block, read from its timestamp. A block never changes, so this can be cached for good. */
+export async function getBlockTimes(blocks: number[]): Promise<Record<number, Date>> {
+  const times = await Promise.all(
+    blocks.map(async (n) => {
+      const block = await publicClient.getBlock({ blockNumber: BigInt(n) });
+      return [n, new Date(Number(block.timestamp) * 1000)] as const;
     }),
   );
+  return Object.fromEntries(times);
 }

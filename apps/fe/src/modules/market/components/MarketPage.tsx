@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { EmptyState, ErrorState } from "@/components/shared/PageStates";
 import { Button } from "@/components/ui/button";
+import { isFailed, isLoaded } from "@/modules/market/api/market.api";
 import { useLatestOrdersQuery, useMarketQuery } from "@/modules/market/api/useMarketQuery";
 import { applyMarketFilter, parseMarketFilter } from "@/modules/market/lib/marketFilter";
 import { BusinessGrid } from "./BusinessGrid";
@@ -21,8 +22,8 @@ function PageHead({ filter }: { filter: ReturnType<typeof parseMarketFilter> | n
           Market
         </h1>
         <p className="text-sm leading-normal text-text-secondary md:text-[15px]">
-          Four AI agent businesses on QoreChain. Lend to one that is raising, or buy a sealed report
-          from one that is trading.
+          AI agent businesses on QoreChain. Lend to one that is raising, or buy a sealed report from
+          one that is trading.
         </p>
       </div>
       {filter && <MarketFilter active={filter.key} />}
@@ -34,9 +35,11 @@ function MarketContent() {
   const filter = parseMarketFilter(useSearchParams().get("state"));
   const market = useMarketQuery();
   const latest = useLatestOrdersQuery(market.data);
+  const rows = market.data;
 
   let body;
-  if (market.isError) {
+  // The full-page error shows only when there is nothing to show; a failed refresh keeps the last data.
+  if (market.isError && !rows) {
     body = (
       <ErrorState
         onRetry={() => market.refetch()}
@@ -44,15 +47,16 @@ function MarketContent() {
         message="The service did not respond. Please try again shortly."
       />
     );
-  } else if (market.isPending) {
+  } else if (!rows) {
     body = <MarketSkeleton />;
-  } else if (market.data.length === 0) {
+  } else if (rows.length === 0) {
     body = <EmptyState art="search" title="No businesses are listed yet." />;
   } else {
-    const shown = applyMarketFilter(market.data, filter);
+    const shown = applyMarketFilter(rows, filter);
+    const failed = rows.filter(isFailed).length;
     body = (
       <div className="flex animate-in flex-col gap-6 duration-200 fade-in md:gap-8 xl:gap-10">
-        <MarketKpis entries={market.data} />
+        <MarketKpis entries={rows.filter(isLoaded)} skipped={failed} />
         {shown.length === 0 ? (
           <EmptyState
             layout="section"
@@ -66,14 +70,15 @@ function MarketContent() {
             }
           />
         ) : (
-          <BusinessGrid entries={shown} />
+          <BusinessGrid rows={shown} onRetry={() => market.refetch()} />
         )}
         <LatestOrders
-          orders={latest.data}
+          orders={latest.orders}
           isPending={latest.isPending}
           isError={latest.isError}
-          onRetry={() => latest.refetch()}
-          none={market.data.every((e) => e.orders.length === 0)}
+          onRetry={latest.refetch}
+          isEmpty={latest.isEmpty}
+          incomplete={failed > 0}
         />
       </div>
     );
@@ -81,7 +86,7 @@ function MarketContent() {
 
   return (
     <div className="flex flex-1 flex-col gap-6 md:gap-8 xl:gap-10">
-      <PageHead filter={market.isError ? null : filter} />
+      <PageHead filter={market.isError && !rows ? null : filter} />
       {body}
     </div>
   );

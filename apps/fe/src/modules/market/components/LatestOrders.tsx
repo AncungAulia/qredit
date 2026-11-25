@@ -2,78 +2,75 @@ import { EmptyState, ErrorState } from "@/components/shared/PageStates";
 import { TxLink } from "@/components/shared/TxLink";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatFusd, formatRelative } from "@/lib/format";
-import { cn } from "@/lib/utils";
 import type { LatestOrder } from "@/modules/market/api/market.api";
 import { OrderStatusBadge } from "./OrderStatusBadge";
 
 // Column widths of the Table/Orders rows in the design; narrower on tablet so the order column keeps room.
-const COL = {
-  business: "w-[150px] xl:w-[190px]",
-  status: "w-[120px] xl:w-[140px]",
-  price: "w-[100px] xl:w-[110px]",
-  tx: "w-[130px] xl:w-[150px]",
-};
+const COLUMNS =
+  "md:grid-cols-[1fr_150px_120px_100px_130px] xl:grid-cols-[1fr_190px_140px_110px_150px]";
+const CARD = "flex flex-col gap-0.5 rounded-3xl bg-surface px-6 py-2 md:p-3";
 
-function TableRow({ o }: { o: LatestOrder }) {
+/**
+ * One order, one structure. On a phone it stacks as in Row/Order/Stacked (title and price, business and
+ * time, transaction and status); from tablet up the same elements sit in the table columns.
+ */
+function OrderRow({ o }: { o: LatestOrder }) {
+  const place = "md:row-span-2 md:row-start-1";
   return (
-    <div className="hidden items-center gap-4 rounded-xl px-4 py-3.5 transition-colors duration-[120ms] hover:bg-surface-hover md:flex">
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="text-[15px] font-medium text-text-primary">{o.serviceName}</span>
-        <span className="text-[13px] text-text-tertiary">{formatRelative(o.placedAt)}</span>
-      </div>
-      <span className={cn(COL.business, "text-sm text-text-secondary")}>{o.business.name}</span>
-      <span className={COL.status}>
-        <OrderStatusBadge status={o.order.status} />
+    <div
+      className={`grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-1.5 py-3 transition-colors duration-[120ms] md:gap-y-0.5 md:rounded-xl md:px-4 md:py-3.5 md:hover:bg-surface-hover ${COLUMNS}`}
+    >
+      <span className="min-w-0 text-[15px] font-medium text-text-primary md:col-start-1 md:row-start-1">
+        {o.serviceName}
       </span>
       <span
-        className={cn(
-          COL.price,
-          "text-right text-[15px] font-medium text-text-primary tabular-nums",
-        )}
+        className={`text-[15px] font-medium text-text-primary tabular-nums md:col-start-4 md:text-right ${place}`}
       >
         {formatFusd(o.order.price)}
       </span>
-      <span className={cn(COL.tx, "flex justify-end")}>
+      <span className="col-span-2 text-[13px] text-text-tertiary md:contents">
+        <span
+          className={`md:col-start-2 md:self-center md:text-sm md:text-text-secondary ${place}`}
+        >
+          {o.business.name}
+        </span>
+        <span className="md:hidden">, </span>
+        <span className="md:col-start-1 md:row-start-2">{formatRelative(o.placedAt)}</span>
+      </span>
+      <span className={`justify-self-start md:col-start-5 md:justify-self-end ${place}`}>
         <TxLink hash={o.order.placedTx} compact />
+      </span>
+      <span className={`justify-self-end md:col-start-3 md:justify-self-start ${place}`}>
+        <OrderStatusBadge status={o.order.status} />
       </span>
     </div>
   );
 }
 
-// Row/Order/Stacked: title and price, business and time, then the transaction and the status.
-function StackedRow({ o }: { o: LatestOrder }) {
+function SkeletonRows() {
   return (
-    <div className="flex flex-col gap-1.5 py-3 md:hidden">
-      <div className="flex items-center gap-3">
-        <span className="min-w-0 flex-1 text-[15px] font-medium text-text-primary">
-          {o.serviceName}
-        </span>
-        <span className="text-[15px] font-medium text-text-primary tabular-nums">
-          {formatFusd(o.order.price)}
-        </span>
-      </div>
-      <span className="text-[13px] text-text-tertiary">
-        {o.business.name}, {formatRelative(o.placedAt)}
-      </span>
-      <div className="flex items-center justify-between gap-1.5">
-        <TxLink hash={o.order.placedTx} compact />
-        <OrderStatusBadge status={o.order.status} />
-      </div>
+    <>
+      {Array.from({ length: 4 }, (_, i) => (
+        <Skeleton key={i} className="h-11 w-full rounded-xl" />
+      ))}
+    </>
+  );
+}
+
+/** Rows without a status region, for use inside a page skeleton that already announces loading. */
+export function LatestOrdersSkeletonBody() {
+  return (
+    <div className={`${CARD} gap-1`}>
+      <SkeletonRows />
     </div>
   );
 }
 
 export function LatestOrdersSkeleton() {
   return (
-    <div
-      role="status"
-      aria-busy="true"
-      className="flex flex-col gap-1 rounded-3xl bg-surface px-6 py-2"
-    >
+    <div role="status" aria-busy="true">
       <span className="sr-only">Loading</span>
-      {Array.from({ length: 4 }, (_, i) => (
-        <Skeleton key={i} className="h-11 w-full rounded-xl bg-surface-muted" />
-      ))}
+      <LatestOrdersSkeletonBody />
     </div>
   );
 }
@@ -83,15 +80,27 @@ type Props = {
   isPending: boolean;
   isError: boolean;
   onRetry: () => void;
-  /** True when no business has any order. */
-  none: boolean;
+  /** The loaded businesses have no orders. */
+  isEmpty: boolean;
+  /** Some businesses could not be loaded, so their orders are unknown. */
+  incomplete: boolean;
 };
 
 /** The newest orders across all businesses (Latest orders in the design). */
-export function LatestOrders({ orders, isPending, isError, onRetry, none }: Props) {
+export function LatestOrders({ orders, isPending, isError, onRetry, isEmpty, incomplete }: Props) {
   let body;
-  if (none) {
-    body = <EmptyState layout="section" art="reports" title="No orders have been placed yet." />;
+  if (isEmpty) {
+    body = (
+      <EmptyState
+        layout="section"
+        art="reports"
+        title={
+          incomplete
+            ? "No orders are available from the businesses that loaded."
+            : "No orders have been placed yet."
+        }
+      />
+    );
   } else if (isError) {
     body = (
       <ErrorState
@@ -104,19 +113,18 @@ export function LatestOrders({ orders, isPending, isError, onRetry, none }: Prop
     body = <LatestOrdersSkeleton />;
   } else {
     body = (
-      <div className="flex animate-in flex-col gap-0.5 rounded-3xl bg-surface px-6 py-2 duration-200 fade-in md:p-3">
-        <div className="hidden gap-4 px-4 pt-1 pb-2 text-xs font-medium text-text-tertiary md:flex">
-          <span className="flex-1">Order</span>
-          <span className={COL.business}>Business</span>
-          <span className={COL.status}>Status</span>
-          <span className={cn(COL.price, "text-right")}>Price</span>
-          <span className={cn(COL.tx, "text-right")}>Transaction</span>
+      <div className={`${CARD} animate-in duration-200 fade-in`}>
+        <div
+          className={`hidden gap-x-4 px-4 pt-1 pb-2 text-xs font-medium text-text-tertiary md:grid ${COLUMNS}`}
+        >
+          <span>Order</span>
+          <span>Business</span>
+          <span>Status</span>
+          <span className="text-right">Price</span>
+          <span className="text-right">Transaction</span>
         </div>
         {orders.map((o) => (
-          <div key={o.order.placedTx}>
-            <TableRow o={o} />
-            <StackedRow o={o} />
-          </div>
+          <OrderRow key={o.order.placedTx} o={o} />
         ))}
       </div>
     );
