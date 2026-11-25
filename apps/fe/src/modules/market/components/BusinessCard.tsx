@@ -27,6 +27,11 @@ function priceText(services: MarketEntry["business"]["services"]): string {
   return `${services.length > 1 ? "From " : ""}${formatFusd(lowest)}`;
 }
 
+function deliveredText({ ordersDelivered: n, deliveredCapped }: MarketEntry): string {
+  if (n === 0) return "None yet";
+  return `${deliveredCapped ? "At least " : ""}${n} delivered`;
+}
+
 /** One business on the Market (BusinessCard in the design). The whole card opens the business page. */
 export function BusinessCard({ entry }: { entry: MarketEntry }) {
   const { business: b, vault: v } = entry;
@@ -58,7 +63,7 @@ export function BusinessCard({ entry }: { entry: MarketEntry }) {
         <Fact label="Lender share" value={`${formatBps(v.lenderBps)} of sales`} />
         <Fact
           label="Orders"
-          value={entry.ordersDelivered > 0 ? `${entry.ordersDelivered} delivered` : "None yet"}
+          value={deliveredText(entry)}
         />
       </div>
     </Link>

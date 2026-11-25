@@ -1,7 +1,7 @@
 export { KPI_GRID } from "@/modules/market/components/MarketKpis";
 export { BusinessCard } from "@/modules/market/components/BusinessCard";
 export { MarketPage } from "@/modules/market/components/MarketPage";
-export { getBusiness, ORDERS_LIMIT, readVaultSnapshot } from "@/modules/market/api/market.api";
+export { countDelivered, getBusiness, ORDERS_LIMIT, readVaultSnapshot } from "@/modules/market/api/market.api";
 export { marketKeys } from "@/modules/market/api/market.keys";
 export {
   useBusinessQuery,

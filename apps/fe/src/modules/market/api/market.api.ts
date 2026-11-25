@@ -21,6 +21,14 @@ export async function getBusiness(slug: string): Promise<Business> {
 /** The most orders the backend returns for one vault (newest first). A list this long may be missing older orders. */
 export const ORDERS_LIMIT = 100;
 
+/** Orders delivered in a list. `capped` is true when the list is as long as the backend allows, so older orders may be missing. */
+export function countDelivered(orders: Order[]): { count: number; capped: boolean } {
+  return {
+    count: orders.filter((o) => o.status === "delivered").length,
+    capped: orders.length >= ORDERS_LIMIT,
+  };
+}
+
 export async function getOrders(vault: Hex): Promise<Order[]> {
   const { data } = await api.get("/v1/orders", { params: { vault } });
   return parseResponse(z.array(orderSchema), data);
@@ -59,6 +67,8 @@ export type MarketEntry = {
   business: Business;
   vault: VaultSnapshot;
   ordersDelivered: number;
+  /** True when the order list hit the backend limit, so the delivered count is a lower bound. */
+  deliveredCapped: boolean;
   orders: Order[];
 };
 
@@ -74,11 +84,13 @@ export function toMarketEntry(
   vault: VaultSnapshot,
   orders: Order[],
 ): MarketEntry {
+  const delivered = countDelivered(orders);
   return {
     business,
     vault,
     orders,
-    ordersDelivered: orders.filter((o) => o.status === "delivered").length,
+    ordersDelivered: delivered.count,
+    deliveredCapped: delivered.capped,
   };
 }
 

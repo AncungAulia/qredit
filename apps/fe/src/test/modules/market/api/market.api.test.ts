@@ -16,6 +16,7 @@ vi.mock("@/lib/apiClient", async (importOriginal) => ({
 
 import { ApiError } from "@/lib/apiClient";
 import {
+  countDelivered,
   getBlockTimes,
   getBusiness,
   getMarket,
@@ -144,4 +145,12 @@ test("gives each block its time", async () => {
   expect(getBlock).toHaveBeenCalledWith({ blockNumber: 30n });
   expect(times[30]).toEqual(new Date(1_800_000_000 * 1000));
   expect(Object.keys(times)).toEqual(["20", "30"]);
+});
+
+test("countDelivered counts delivered orders and flags a list at the backend limit", () => {
+  const list = (n: number, status = "delivered") => Array.from({ length: n }, () => ({ status })) as never;
+  expect(countDelivered(list(99))).toEqual({ count: 99, capped: false });
+  expect(countDelivered(list(100))).toEqual({ count: 100, capped: true });
+  expect(countDelivered(list(100, "open"))).toEqual({ count: 0, capped: true });
+  expect(toMarketEntry(business("a"), { state: "Active" } as never, list(100)).deliveredCapped).toBe(true);
 });

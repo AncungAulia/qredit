@@ -8,7 +8,7 @@ import { ApiError } from "@/lib/apiClient";
 import type { Business } from "@/lib/schemas";
 import { cn, focusRing } from "@/lib/utils";
 import { useDecisionsQuery, useRulesQuery } from "@/modules/business/api/useBusinessPage";
-import { ORDERS_LIMIT, useBusinessQuery, useOrdersQuery, useVaultQuery } from "@/modules/market";
+import { countDelivered, useBusinessQuery, useOrdersQuery, useVaultQuery } from "@/modules/market";
 import { ProvenCard } from "@/modules/proof";
 import { ActivityTable } from "@/modules/business/components/ActivityTable";
 import { BusinessHeader } from "@/modules/business/components/BusinessHeader";
@@ -51,8 +51,9 @@ function BusinessBody({ business }: { business: Business }) {
 
   const snapshot = vault.data;
   const vaultFailed = vault.isError && !snapshot;
-  const delivered = orders.data
-    ? orders.data.filter((o) => o.status === "delivered").length
+  const counted = orders.data ? countDelivered(orders.data) : null;
+  const delivered = counted
+    ? counted.count
     : orders.isError
       ? "unavailable"
       : "loading";
@@ -72,7 +73,7 @@ function BusinessBody({ business }: { business: Business }) {
           <BusinessKpis
             vault={snapshot}
             delivered={delivered}
-            ordersCapped={(orders.data?.length ?? 0) >= ORDERS_LIMIT}
+            ordersCapped={counted?.capped ?? false}
           />
         </div>
       ) : (

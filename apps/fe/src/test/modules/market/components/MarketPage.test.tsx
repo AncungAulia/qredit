@@ -68,6 +68,7 @@ const entry = (
     lenderBps: 7000,
   },
   ordersDelivered: orders.filter((o) => o.status === "delivered").length,
+  deliveredCapped: orders.length >= 100,
   orders,
 });
 
@@ -217,6 +218,21 @@ test("latest orders show their own error with retry when the block times fail", 
   wrap(<MarketPage />);
   expect(await screen.findByText("The latest orders could not be loaded.")).toBeInTheDocument();
   expect(screen.getByRole("link", { name: /Alpha/ })).toBeInTheDocument();
+});
+
+test("a business with a full order list says at least, and the KPI names the limit", async () => {
+  const full = Array.from({ length: 100 }, (_, i) => order(`0x${i}`, i, "delivered"));
+  getMarket.mockResolvedValue([entry("a", "Alpha", "Active", 50_000_000n, 1n, full)]);
+  wrap(<MarketPage />);
+  expect(await screen.findByText("At least 100 delivered")).toBeInTheDocument();
+  expect(screen.getByText("in the latest 100 orders per business")).toBeInTheDocument();
+});
+
+test("a short order list states the plain count", async () => {
+  getMarket.mockResolvedValue([entry("a", "Alpha", "Active", 50_000_000n, 1n, [order("0x1", 1, "delivered")])]);
+  wrap(<MarketPage />);
+  expect(await screen.findByText("1 delivered")).toBeInTheDocument();
+  expect(screen.queryByText(/latest 100 orders/)).not.toBeInTheDocument();
 });
 
 test("the loading state is one status region", () => {

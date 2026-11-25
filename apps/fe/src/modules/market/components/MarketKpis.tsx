@@ -1,6 +1,7 @@
 import { KpiTile } from "@/components/shared/KpiTile";
 import { formatCount, formatFusd } from "@/lib/format";
 import type { MarketEntry } from "@/modules/market/api/market.api";
+import { ORDERS_LIMIT } from "@/modules/market/api/market.api";
 import { marketTotals } from "@/modules/market/lib/marketTotals";
 
 // Phone: the first and last tile span the row. Tablet: two by two. Desktop: one row of four.
@@ -28,7 +29,12 @@ export function MarketKpis({ entries, skipped }: { entries: MarketEntry[]; skipp
           value={formatFusd(t.repaid, { unit: false })}
           unit="fUSD"
         />
-        <KpiTile variant="soft" label="Reports delivered" value={formatCount(t.delivered)} />
+        <KpiTile
+          variant="soft"
+          label="Reports delivered"
+          value={formatCount(t.delivered)}
+          unit={t.deliveredCapped ? `in the latest ${ORDERS_LIMIT} orders per business` : undefined}
+        />
         <KpiTile
           variant="soft"
           label="Raising now"
