@@ -1,13 +1,11 @@
-// src/lib/env.ts: the only place that reads process.env.
-// Missing or malformed values stop the app at startup instead of falling back to a guess.
-import { z } from "zod";
+const required = (name: string, value: string | undefined) => {
+  if (!value) throw new Error(`Missing environment variable ${name}. Copy .env.example to .env.local.`);
+  return value.replace(/\/$/, "");
+};
 
-const envSchema = z.object({
-  // Optional until Task 3 defines the real variables; the build must not require them.
-  NEXT_PUBLIC_API_URL: z.url().optional(),
-});
-
-// Each variable is referenced literally so Next.js can inline NEXT_PUBLIC_* values in the client bundle.
-export const env = envSchema.parse({
-  NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
-});
+export const env = {
+  apiUrl: required("NEXT_PUBLIC_API_URL", process.env.NEXT_PUBLIC_API_URL),
+  evmUrl: required("NEXT_PUBLIC_QORE_EVM_URL", process.env.NEXT_PUBLIC_QORE_EVM_URL),
+  chainId: required("NEXT_PUBLIC_QORE_CHAIN_ID", process.env.NEXT_PUBLIC_QORE_CHAIN_ID),
+  explorerUrl: (process.env.NEXT_PUBLIC_EXPLORER_URL ?? "").replace(/\/$/, ""),
+} as const;

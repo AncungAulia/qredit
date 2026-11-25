@@ -4,7 +4,7 @@
 // fills its card or panel. Filling works through flex-1, so each parent up to <body> must be a
 // flex column (ui-rules.md §5, "State size"). Never a fixed height such as 60dvh or 100vh.
 import type { ComponentType, ReactNode } from "react";
-import { AlertCircle, Inbox, Lock, RotateCw, WifiOff } from "lucide-react";
+import { AlertCircle, Inbox, RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError } from "@/lib/apiClient";
@@ -94,40 +94,13 @@ export function ErrorState({
   className,
 }: ErrorStateProps) {
   // Only ApiError messages are written for people; anything else stays off the screen.
-  const apiError = error instanceof ApiError ? error : new ApiError("unknown", null, error);
+  const apiError = error instanceof ApiError ? error : new ApiError("server");
   const retry = onRetry && (
     <Button variant="outline" size="sm" onClick={onRetry}>
       <RotateCw className="size-4" aria-hidden />
       Try again
     </Button>
   );
-
-  if (apiError.kind === "offline") {
-    return (
-      <StateFrame
-        role="alert"
-        icon={WifiOff}
-        title="You are offline"
-        description={apiError.message}
-        action={retry}
-        layout={layout}
-        className={className}
-      />
-    );
-  }
-
-  if (apiError.kind === "unauthorized" || apiError.kind === "forbidden") {
-    return (
-      <StateFrame
-        role="alert"
-        icon={Lock}
-        title="No access"
-        description={apiError.message}
-        layout={layout}
-        className={className}
-      />
-    );
-  }
 
   return (
     <StateFrame

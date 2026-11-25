@@ -7,9 +7,9 @@ function makeQueryClient() {
     defaultOptions: {
       queries: {
         staleTime: 60_000,
-        // Retry once on network or 5xx errors; a 4xx will not fix itself.
+        // Retry once on network or server errors; a 4xx will not fix itself.
         retry: (failureCount, error) => {
-          if (error instanceof ApiError && error.status !== null && error.status < 500)
+          if (error instanceof ApiError && error.kind !== "network" && error.kind !== "server")
             return false;
           return failureCount < 1;
         },

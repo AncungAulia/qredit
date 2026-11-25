@@ -1,83 +1,53 @@
-// src/lib/format.ts: every number, amount, quantity and date shown to people goes through here.
-// Missing values render as "-" so they are visibly missing, never as 0 or a guess.
-export const LOCALE = "en-US"; // from the UI profile
-// Fixed time zone so server and browser render the same date (no hydration mismatch).
-export const TIME_ZONE = "UTC"; // from the UI profile
-const MISSING = "-"; // hyphen: UI rules forbid the em dash
+const DECIMALS = 6n;
+const SCALE = 10n ** DECIMALS;
+const LOCALE = "en-US";
+const TIME_ZONE = "UTC";
 
-type Maybe<T> = T | null | undefined;
+const groups = (n: bigint) => n.toLocaleString(LOCALE);
 
-export function formatNumber(value: Maybe<number>, maxFractionDigits = 2): string {
-  if (value == null || Number.isNaN(value)) return MISSING;
-  return new Intl.NumberFormat(LOCALE, { maximumFractionDigits: maxFractionDigits }).format(value);
-}
-
-export function formatCurrency(value: Maybe<number>, currency = "USD"): string {
-  if (value == null || Number.isNaN(value)) return MISSING;
-  return new Intl.NumberFormat(LOCALE, {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 2,
-  }).format(value);
-}
-
-/** 0.125 → "12.5%" */
-export function formatPercent(ratio: Maybe<number>, maxFractionDigits = 1): string {
-  if (ratio == null || Number.isNaN(ratio)) return MISSING;
-  return new Intl.NumberFormat(LOCALE, {
-    style: "percent",
-    maximumFractionDigits: maxFractionDigits,
-  }).format(ratio);
-}
-
-// Small units that read better scaled up: 1500 g → 1.5 kg, 100000 ml → 100 L.
-const SCALE_UP: Record<string, { factor: number; unit: string }> = {
-  g: { factor: 1000, unit: "kg" },
-  ml: { factor: 1000, unit: "L" },
-  mg: { factor: 1000, unit: "g" },
-  cm: { factor: 100, unit: "m" },
-  m: { factor: 1000, unit: "km" },
-};
-
-/** Quantity with its unit, rescaled when large. An unknown unit is kept as given. */
-export function formatQuantity(value: Maybe<number>, unit: Maybe<string>): string {
-  if (value == null || Number.isNaN(value)) return MISSING;
-  const key = unit?.trim();
-  if (!key) return formatNumber(value);
-  const scale = SCALE_UP[key.toLowerCase()];
-  if (scale && Math.abs(value) >= scale.factor) {
-    return `${formatNumber(value / scale.factor)} ${scale.unit}`;
+/** fUSD units (6 decimals) as text: two decimals, more only when the amount needs them. */
+export function formatFusd(units: bigint | string, opts: { unit?: boolean } = {}): string {
+  const v = typeof units === "bigint" ? units : BigInt(units);
+  const neg = v < 0n;
+  const abs = neg ? -v : v;
+  const whole = abs / SCALE;
+  const frac = abs % SCALE;
+  let text: string;
+  if (frac !== 0n && frac % 10_000n !== 0n && whole === 0n) {
+    text = `0.${frac.toString().padStart(6, "0").replace(/0+$/, "")}`;
+  } else {
+    const cents = (abs * 100n + SCALE / 2n) / SCALE;
+    text = `${groups(cents / 100n)}.${(cents % 100n).toString().padStart(2, "0")}`;
   }
-  return `${formatNumber(value)} ${key}`;
+  return `${neg ? "-" : ""}${text}${opts.unit === false ? "" : " fUSD"}`;
 }
 
-function toDate(value: Maybe<string | number | Date>): Date | null {
-  if (value == null || value === "") return null;
-  return value instanceof Date ? value : new Date(value);
+/** User text to fUSD units; null when it is not a number or has more than 6 decimals. */
+export function parseFusd(text: string): bigint | null {
+  const t = text.replace(/,/g, "").trim();
+  const m = /^(\d+)(?:\.(\d{1,6}))?$/.exec(t);
+  if (!m) return null;
+  return BigInt(m[1]) * SCALE + BigInt((m[2] ?? "").padEnd(6, "0") || "0");
 }
 
-export function formatDate(
-  value: Maybe<string | number | Date>,
-  style: "short" | "long" = "short",
-): string {
-  const date = toDate(value);
-  if (!date) return MISSING;
-  if (Number.isNaN(date.getTime())) return "Invalid date";
-  return new Intl.DateTimeFormat(
-    LOCALE,
-    style === "long"
-      ? { dateStyle: "full", timeZone: TIME_ZONE }
-      : { dateStyle: "medium", timeZone: TIME_ZONE },
-  ).format(date);
+export const formatBps = (bps: number) => `${(bps / 100).toLocaleString(LOCALE, { maximumFractionDigits: 2 })}%`;
+
+const dateFmt = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: TIME_ZONE });
+const timeFmt = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: TIME_ZONE });
+
+export const formatDate = (d: Date | number) => dateFmt.format(d);
+export const formatDateTime = (d: Date | number) => `${dateFmt.format(d)}, ${timeFmt.format(d)} UTC`;
+
+export function formatRelative(d: Date | number, now: Date | number = Date.now()): string {
+  const s = Math.floor((+now - +d) / 1000);
+  if (s < 60) return "just now";
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m} ${m === 1 ? "minute" : "minutes"} ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h} ${h === 1 ? "hour" : "hours"} ago`;
+  if (h < 48) return "yesterday";
+  return formatDate(d);
 }
 
-export function formatDateTime(value: Maybe<string | number | Date>): string {
-  const date = toDate(value);
-  if (!date) return MISSING;
-  if (Number.isNaN(date.getTime())) return "Invalid date";
-  return new Intl.DateTimeFormat(LOCALE, {
-    dateStyle: "medium",
-    timeStyle: "short",
-    timeZone: TIME_ZONE,
-  }).format(date);
-}
+export const shortAddress = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
+export const shortHash = (h: string) => `${h.slice(0, 6)}…${h.slice(-4)}`;

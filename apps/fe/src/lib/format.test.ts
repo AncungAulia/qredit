@@ -1,0 +1,40 @@
+import { describe, expect, test } from "vitest";
+import { formatBps, formatDateTime, formatFusd, formatRelative, parseFusd, shortAddress, shortHash } from "./format";
+
+describe("fUSD", () => {
+  test("formats 6-decimal units with two decimals", () => {
+    expect(formatFusd(250000n)).toBe("0.25 fUSD");
+    expect(formatFusd("3000000")).toBe("3.00 fUSD");
+    expect(formatFusd(1234567890n, { unit: false })).toBe("1,234.57");
+  });
+  test("keeps precision below one cent", () => {
+    expect(formatFusd(5000n)).toBe("0.005 fUSD");
+    expect(formatFusd(1n)).toBe("0.000001 fUSD");
+    expect(formatFusd(0n)).toBe("0.00 fUSD");
+  });
+  test("parses user text into units", () => {
+    expect(parseFusd("0.25")).toBe(250000n);
+    expect(parseFusd("1,000.5")).toBe(1000500000n);
+    expect(parseFusd("0.0000001")).toBeNull();
+    expect(parseFusd("abc")).toBeNull();
+    expect(parseFusd("")).toBeNull();
+  });
+});
+
+describe("other formats", () => {
+  test("basis points", () => expect(formatBps(7000)).toBe("70%"));
+  test("date and time in UTC", () => expect(formatDateTime(Date.UTC(2026, 10, 24, 18, 49))).toBe("24 Nov 2026, 18:49 UTC"));
+  test("relative time", () => {
+    const now = Date.UTC(2026, 10, 25, 12, 0);
+    expect(formatRelative(now - 30_000, now)).toBe("just now");
+    expect(formatRelative(now - 2 * 60_000, now)).toBe("2 minutes ago");
+    expect(formatRelative(now - 60 * 60_000, now)).toBe("1 hour ago");
+    expect(formatRelative(now - 26 * 60 * 60_000, now)).toBe("yesterday");
+    expect(formatRelative(now - 3 * 24 * 60 * 60_000, now)).toBe("22 Nov 2026");
+  });
+  test("short forms", () => {
+    expect(shortAddress("0x487f449c21a48eaf9d2eb3804f511dfb7715eea9")).toBe("0x487f…eea9");
+    expect(shortAddress("qor1abcdefghijklmnopqrstuvwxyz0123456789ab")).toBe("qor1ab…89ab");
+    expect(shortHash("0x2b65030eba743f8980aef7bde0b48dc4056b81a5d080a5b76ee03c34792ed85f")).toBe("0x2b65…d85f");
+  });
+});
