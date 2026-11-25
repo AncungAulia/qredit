@@ -17,9 +17,9 @@ import { cn, focusRing } from "@/lib/utils";
 export type ChainPhase = "idle" | "wallet" | "chain" | "done" | "refused";
 
 /** The work of one action; resolves with the transaction hash, or null when no transaction was needed. Call `sent` once the transaction is on its way. */
-export type ChainRun = (control: { sent(): void }) => Promise<string | null>;
+export type ChainRun = (control: { sent(): void; progress(label: string): void }) => Promise<string | null>;
 
-type ActionState = { phase: ChainPhase; hash?: string; reason?: string; maySpend?: boolean };
+type ActionState = { phase: ChainPhase; hash?: string; reason?: string; maySpend?: boolean; progress?: string };
 
 /** Where to look after a failure that may have moved funds, and the sentence that says so. */
 export type NextStep = { text: string; label: string; href: string };
@@ -61,7 +61,10 @@ export function useChainAction(run: ChainRun) {
     setSlow(false);
     setState({ phase: "wallet" });
     try {
-      const hash = await run({ sent: () => setState((s) => (s.phase === "wallet" ? { phase: "chain" } : s)) });
+      const hash = await run({
+        sent: () => setState((s) => (s.phase === "wallet" ? { phase: "chain", progress: s.progress } : s)),
+        progress: (label) => setState((s) => (s.phase === "wallet" || s.phase === "chain" ? { ...s, progress: label } : s)),
+      });
       setState({ phase: "done", hash: hash ?? undefined });
       return { hash };
     } catch (e) {
@@ -75,8 +78,12 @@ export function useChainAction(run: ChainRun) {
 
 type StatusProps = {
   phase: Exclude<ChainPhase, "idle">;
-  /** Shown while on chain, for example "Lending 500 fUSD". */
+  /** Shown while the action runs, for example "Lending 500 fUSD"; the current step takes its place when there is one. */
   pendingLabel?: string;
+  /** The step the action reports while it runs, for example "Opening the payment window". */
+  progress?: string;
+  /** True only while an external wallet (QoreX) shows a prompt; the test wallet signs by itself, so there is nothing to confirm. */
+  walletPrompt?: boolean;
   hash?: string;
   reason?: string;
   slow?: boolean;
@@ -93,6 +100,8 @@ type StatusProps = {
 export function ChainActionStatus({
   phase,
   pendingLabel,
+  progress,
+  walletPrompt,
   hash,
   reason,
   slow,
@@ -102,7 +111,10 @@ export function ChainActionStatus({
   nextStep,
 }: StatusProps) {
   if (phase === "wallet" || phase === "chain") {
-    const label = phase === "wallet" ? "Confirm in your wallet" : (pendingLabel ?? "Waiting for the chain");
+    const label =
+      phase === "wallet" && walletPrompt
+        ? "Confirm in your wallet"
+        : (progress ?? pendingLabel ?? (phase === "wallet" ? "Preparing the transaction" : "Waiting for the chain"));
     return (
       <div className="flex flex-col gap-2">
         <div
@@ -218,7 +230,7 @@ export function ChainAction({
       status={phase === "refused" ? <ChainActionStatus phase="refused" reason={action.reason} hash={action.hash} maySpend={action.maySpend} nextStep={nextStep} /> : undefined}
       actions={
         busy ? (
-          <ChainActionStatus phase={phase} pendingLabel={pendingLabel} slow={action.slow} asButton />
+          <ChainActionStatus phase={phase} pendingLabel={pendingLabel} progress={action.progress} slow={action.slow} asButton />
         ) : phase === "refused" ? (
           <div className="flex gap-2.5 max-md:flex-col-reverse md:justify-end">
             <Button variant="ghost" size="lg" className="h-11 px-4 max-md:w-full" onClick={() => onOpenChange(false)}>

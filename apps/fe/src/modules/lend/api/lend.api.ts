@@ -45,16 +45,19 @@ export async function readPositions(evm: Hex, businesses: Business[]): Promise<P
   );
 }
 
+/** The steps of a loan, in order. "window" and "approving" are reported only when they really happen. */
+export type LendProgress = "window" | "approving" | "depositing";
+
 /**
  * Lends `amount` to a raising vault: checks the vault and the wallet, opens the scoped window for fUSD and the vault,
- * approves when the allowance is short, then deposits. `onSent` is called once the checks passed and the sends start.
+ * approves when the allowance is short, then deposits. `onProgress` names each step as it starts.
  * An amount above the room left is refused, never lent in part.
  */
 export async function lend(
   session: WalletSession,
   vault: Hex,
   amount: bigint,
-  onSent?: () => void,
+  onProgress?: (step: LendProgress) => void,
 ): Promise<{ approveTx?: Hex; depositTx: Hex }> {
   requireSigner(session);
   const [state, raised, loan] = await Promise.all([readVault(vault, "state"), readVault(vault, "raised"), readVault(vault, "loan")]);
@@ -66,6 +69,7 @@ export async function lend(
   if (amount > room) throw new TxReverted(null, VAULT_ERROR_SENTENCES.OverTarget);
 
   return act(session, [FUSD_ADDRESS, vault], async (locked) => {
+    // act has reported the window (when one was opened) before it runs these steps.
     // The wallet's balance and allowance are read under the lock, after the window: nothing else can change them meanwhile.
     const [balance, allowance] = await Promise.all([readFusdBalance(locked.address), readFusdAllowance(locked.address, vault)]);
     if (balance < amount) throw new TxReverted(null, ERC20_ERROR_SENTENCES.ERC20InsufficientBalance);
@@ -77,14 +81,15 @@ export async function lend(
     }
     if (plan.action !== "deposit" || plan.amount !== amount) throw new TxFailed(null, LEND_NOT_PREPARED_SENTENCE);
     const approves = plan.approve;
-    onSent?.();
     let approveTx: Hex | undefined;
     if (approves) {
+      onProgress?.("approving");
       approveTx = await locked.send(FUSD_ADDRESS, encodeFunctionData({ abi: ERC20_ABI, functionName: "approve", args: [vault, amount] }));
     }
+    onProgress?.("depositing");
     const depositTx = await locked.send(vault, encodeFunctionData({ abi: LOAN_VAULT_ABI, functionName: "deposit", args: [amount] }));
     return approveTx ? { approveTx, depositTx } : { depositTx };
-  });
+  }, (step) => onProgress?.(step));
 }
 
 const callVault = (session: WalletSession, vault: Hex, functionName: "claimLender" | "refund"): Promise<Hex> =>

@@ -96,13 +96,13 @@ test("readFusdBalance reads the fUSD balance of the address", async () => {
 test("lend opens the window for fUSD and the vault, approves when the allowance is short, then deposits", async () => {
   vaultReads();
   fusdReads(fusd(1000), 0n);
-  const onSent = vi.fn();
-  const result = await lend(session, V1, fusd(500), onSent);
+  const onProgress = vi.fn();
+  const result = await lend(session, V1, fusd(500), onProgress);
   expect(ensureWindowFor).toHaveBeenCalledWith(session, [FUSD_ADDRESS, V1]);
   expect(send).toHaveBeenNthCalledWith(1, FUSD_ADDRESS, encodeFunctionData({ abi: ERC20_ABI, functionName: "approve", args: [V1, fusd(500)] }));
   expect(send).toHaveBeenNthCalledWith(2, V1, encodeFunctionData({ abi: LOAN_VAULT_ABI, functionName: "deposit", args: [fusd(500)] }));
   expect(result).toEqual({ approveTx: "0xaaa", depositTx: "0xbbb" });
-  expect(onSent).toHaveBeenCalledTimes(1);
+  expect(onProgress).toHaveBeenCalledWith("depositing");
   expect(ensureWindowFor.mock.invocationCallOrder[0]).toBeLessThan(send.mock.invocationCallOrder[0]);
 });
 
@@ -192,3 +192,37 @@ test("a failed claim releases the lock for the next action", async () => {
   const results = await Promise.allSettled([claim(session, V1), refund(session, V1)]);
   expect(results.map((r) => r.status)).toEqual(["rejected", "fulfilled"]);
 });
+
+test("lend reports its steps in order: window, approving, depositing", async () => {
+  vaultReads();
+  fusdReads(fusd(1000), 0n);
+  ensureWindowFor.mockResolvedValue("0xwin");
+  const steps: string[] = [];
+  await lend(session, V1, fusd(500), (s) => steps.push(s));
+  expect(steps).toEqual(["window", "approving", "depositing"]);
+});
+
+test("lend leaves out the window step when the window was reused and the approve step when the allowance is enough", async () => {
+  vaultReads();
+  fusdReads(fusd(1000), fusd(500));
+  ensureWindowFor.mockResolvedValue(null);
+  send.mockReset();
+  send.mockResolvedValueOnce("0xbbb");
+  const steps: string[] = [];
+  await lend(session, V1, fusd(500), (s) => steps.push(s));
+  expect(steps).toEqual(["depositing"]);
+});
+
+test("lend reports the same steps on a retry as on the first try", async () => {
+  vaultReads();
+  fusdReads(fusd(1000), fusd(500));
+  ensureWindowFor.mockResolvedValue(null);
+  send.mockReset();
+  send.mockRejectedValueOnce(new TxReverted(null, "No.")).mockResolvedValueOnce("0xbbb");
+  const first: string[] = [];
+  await expect(lend(session, V1, fusd(500), (s) => first.push(s))).rejects.toBeInstanceOf(TxReverted);
+  const second: string[] = [];
+  await lend(session, V1, fusd(500), (s) => second.push(s));
+  expect(second).toEqual(first);
+});
+

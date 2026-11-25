@@ -18,11 +18,64 @@ beforeEach(() => {
 });
 
 test("status: waiting for the wallet and waiting for the chain", () => {
-  const { rerender } = render(<ChainActionStatus phase="wallet" pendingLabel="Lending 500 fUSD" />);
+  const { rerender } = render(<ChainActionStatus phase="wallet" pendingLabel="Lending 500 fUSD" walletPrompt />);
   expect(screen.getByText("Confirm in your wallet")).toBeInTheDocument();
   rerender(<ChainActionStatus phase="chain" pendingLabel="Lending 500 fUSD" />);
   expect(screen.getByText("Lending 500 fUSD")).toBeInTheDocument();
   expect(screen.queryByText(/taking longer/i)).not.toBeInTheDocument();
+});
+
+test("status: the wallet phase shows the current step and never claims a wallet prompt", () => {
+  const { rerender } = render(<ChainActionStatus phase="wallet" pendingLabel="Claiming 5 fUSD" progress="Opening the payment window" />);
+  expect(screen.getByText("Opening the payment window")).toBeInTheDocument();
+  rerender(<ChainActionStatus phase="wallet" pendingLabel="Claiming 5 fUSD" />);
+  expect(screen.getByText("Claiming 5 fUSD")).toBeInTheDocument();
+  rerender(<ChainActionStatus phase="wallet" />);
+  expect(screen.queryByText("Confirm in your wallet")).not.toBeInTheDocument();
+  rerender(<ChainActionStatus phase="chain" progress="Allowing the vault to take fUSD" pendingLabel="Lending 5 fUSD" />);
+  expect(screen.getByText("Allowing the vault to take fUSD")).toBeInTheDocument();
+});
+
+test("useChainAction shows the reported steps, the same ones on a retry, and clears them on reset", async () => {
+  const user = userEvent.setup();
+  const gate: { release?: () => void } = {};
+  let attempt = 0;
+  const run = vi.fn(async (ctl: { sent(): void; progress(label: string): void }) => {
+    attempt += 1;
+    ctl.progress("Opening the payment window");
+    await new Promise<void>((r) => (gate.release = r));
+    ctl.progress("Lending 5 fUSD");
+    ctl.sent();
+    if (attempt === 1) throw new TxReverted(null, "The raise is already full.");
+    return HASH;
+  });
+  render(
+    <ChainAction
+      nextStep={NEXT}
+      open
+      onOpenChange={vi.fn()}
+      title="Lend?"
+      body="Body"
+      confirmLabel="Lend"
+      pendingLabel="Lending"
+      successTitle="Lent"
+      run={run}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: "Lend" }));
+  expect(await screen.findByText("Opening the payment window")).toBeInTheDocument();
+  gate.release!();
+  await screen.findByText("The raise is already full.");
+  await user.click(screen.getByRole("button", { name: "Try again" }));
+  expect(await screen.findByText("Opening the payment window")).toBeInTheDocument();
+  expect(screen.queryByText("Lending 5 fUSD")).not.toBeInTheDocument();
+  expect(screen.queryByText("Confirm in your wallet")).not.toBeInTheDocument();
+  gate.release!();
+});
+
+test("status: a QoreX prompt still says to confirm in the wallet", () => {
+  render(<ChainActionStatus phase="wallet" progress="Opening the payment window" walletPrompt />);
+  expect(screen.getByText("Confirm in your wallet")).toBeInTheDocument();
 });
 
 test("status: a slow chain says the money is safe", () => {
@@ -69,7 +122,8 @@ test("confirm, wallet, chain, done: the dialog closes and a toast carries the tr
   );
   expect(screen.getByText("Lend 500 fUSD to Counterparty Check?")).toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Lend 500 fUSD" }));
-  expect(await screen.findByText("Confirm in your wallet")).toBeInTheDocument();
+  expect(await screen.findByText("Lending 500 fUSD")).toBeInTheDocument();
+  expect(screen.queryByText("Confirm in your wallet")).not.toBeInTheDocument();
   // The dialog never closes while the chain is still deciding.
   await user.keyboard("{Escape}");
   expect(onOpenChange).not.toHaveBeenCalledWith(false);

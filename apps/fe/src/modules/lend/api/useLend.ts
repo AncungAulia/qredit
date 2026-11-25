@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Business } from "@/lib/schemas";
-import { claim, lend, readFusdBalance, readPositions, refund } from "@/modules/lend/api/lend.api";
+import { claim, lend, readFusdBalance, readPositions, refund, type LendProgress } from "@/modules/lend/api/lend.api";
 import { lendKeys } from "@/modules/lend/api/lend.keys";
 import { marketKeys } from "@/modules/market";
 import { walletKeys } from "@/modules/wallet/api/useWalletStatus";
@@ -46,7 +46,7 @@ export function useLendActions() {
       return result;
     };
     return {
-      lend: async (vault: Hex, amount: bigint, onSent?: () => void) => done(await lend(session, vault, amount, onSent)),
+      lend: async (vault: Hex, amount: bigint, onProgress?: (step: LendProgress) => void) => done(await lend(session, vault, amount, onProgress)),
       claim: async (vault: Hex) => done(await claim(session, vault)),
       refund: async (vault: Hex) => done(await refund(session, vault)),
     };

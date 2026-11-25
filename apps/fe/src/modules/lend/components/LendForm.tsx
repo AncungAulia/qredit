@@ -15,7 +15,7 @@ import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatBps, formatDate, formatFusd, fusdToInput } from "@/lib/format";
 import type { Business } from "@/lib/schemas";
-import { RAISE_FULL_SENTENCE } from "@/modules/lend/api/lend.api";
+import { RAISE_FULL_SENTENCE, type LendProgress } from "@/modules/lend/api/lend.api";
 import { useFusdBalanceQuery, useLendActions } from "@/modules/lend/api/useLend";
 import { amountUnits, lendSchema, type LendValues } from "@/modules/lend/schemas/lend.schema";
 import type { VaultSnapshot } from "@/modules/market";
@@ -57,8 +57,16 @@ export function LendForm({ business, vault, evm, onClose, onBusyChange }: Props)
   const valid = balance !== null && schema.safeParse({ amount }).success && units !== null;
 
   const run = useCallback(
-    async (control: { sent(): void }) => {
-      const result = await actions.lend(business.vault, units as bigint, control.sent);
+    async (control: { sent(): void; progress(label: string): void }) => {
+      const labels: Record<LendProgress, string> = {
+        window: "Opening the payment window",
+        approving: "Allowing the vault to take fUSD",
+        depositing: `Lending ${formatFusd(units as bigint)}`,
+      };
+      const result = await actions.lend(business.vault, units as bigint, (step) => {
+        control.progress(labels[step]);
+        if (step !== "window") control.sent();
+      });
       return result.depositTx;
     },
     [actions, business.vault, units],
@@ -174,7 +182,7 @@ export function LendForm({ business, vault, evm, onClose, onBusyChange }: Props)
         ))}
 
       {busy ? (
-        <ChainActionStatus phase={action.phase as "wallet" | "chain"} pendingLabel={`Lending ${units !== null ? formatFusd(units) : ""}`.trim()} slow={action.slow} asButton />
+        <ChainActionStatus phase={action.phase as "wallet" | "chain"} pendingLabel={`Lending ${units !== null ? formatFusd(units) : ""}`.trim()} progress={action.progress} slow={action.slow} asButton />
       ) : (
         <div className="flex flex-col gap-2.5">
           {full || action.maySpend ? null : (

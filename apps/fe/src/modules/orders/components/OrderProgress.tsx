@@ -7,7 +7,7 @@ type Running = Exclude<PlaceOrderProgress, "placed">;
 const STEPS: { id: Running; label: string }[] = [
   { id: "sealing", label: "Sealing your request to the agent's key" },
   { id: "posting", label: "Storing the sealed request" },
-  { id: "window", label: "Preparing your wallet" },
+  { id: "window", label: "Preparing the payment window" },
   { id: "approving", label: "Allowing the business to take payment" },
   { id: "buying", label: "Paying into escrow" },
 ];

@@ -24,7 +24,7 @@ export function RefundButton({ position, className }: { position: Position; clas
         title={`Refund ${amount}`}
         body={`The raise of ${name} did not reach its target. Your full deposit will be returned to your wallet.`}
         confirmLabel={`Refund ${amount}`}
-        pendingLabel={`Refunding ${amount}`}
+        pendingLabel={"Taking your refund"}
         successTitle={`Refunded ${amount} from ${name}`}
         successText="Your fUSD has been returned to your wallet."
         nextStep={{ text: "Check My lending before asking for a refund again.", label: "Open My lending", href: "/lend" }}

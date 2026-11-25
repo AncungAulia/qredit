@@ -27,10 +27,17 @@ export async function beforePayment<T>(step: () => Promise<T>, sentence = WINDOW
  * Takes the lock of the account, opens (or confirms) the scoped window for `targets`, then runs `steps` with the signer.
  * The lock is released when `steps` settles, whatever the outcome. A second action waits for the first.
  */
-export async function act<T>(session: WalletSession, targets: string[], steps: (signer: EvmSigner) => Promise<T>): Promise<T> {
+export async function act<T>(
+  session: WalletSession,
+  targets: string[],
+  steps: (signer: EvmSigner) => Promise<T>,
+  onProgress?: (step: "window") => void,
+): Promise<T> {
   const signer = requireSigner(session);
   return await withAccountLock(signer.address, async () => {
-    await beforePayment(() => ensureWindowFor(session, targets));
+    // ensureWindowFor answers null when the open window already covers the targets, so only a real opening is reported.
+    const opened = await beforePayment(() => ensureWindowFor(session, targets));
+    if (opened) onProgress?.("window");
     return steps(signer);
   });
 }

@@ -54,6 +54,16 @@ test("act opens the window for the targets, then runs the steps with the signer 
   expect(ensureWindowFor.mock.invocationCallOrder[0]).toBeLessThan(send.mock.invocationCallOrder[0]);
 });
 
+test("act reports the window step only when a window was opened", async () => {
+  const onProgress = vi.fn();
+  await act(session, [VAULT], async (s) => s.send(VAULT, "0x01"), onProgress);
+  expect(onProgress).not.toHaveBeenCalled();
+  ensureWindowFor.mockResolvedValue("0xwindowtx");
+  await act(session, [VAULT], async (s) => s.send(VAULT, "0x01"), onProgress);
+  expect(onProgress).toHaveBeenCalledTimes(1);
+  expect(onProgress).toHaveBeenCalledWith("window");
+});
+
 test("act without a test wallet fails before the window and runs nothing", async () => {
   signerFor.mockReturnValue(null);
   const steps = vi.fn();
