@@ -6,3 +6,4 @@ export { ConnectDialog, type ConnectView } from "@/modules/wallet/components/Con
 export { ConnectPrompt } from "@/modules/wallet/components/ConnectPrompt";
 export { RequireReadyWallet, SetupGate, useWalletReadiness } from "@/modules/wallet/components/RequireReadyWallet";
 export { WalletSetup } from "@/modules/wallet/components/WalletSetup";
+export { NeedsWallet } from "@/modules/wallet/components/NeedsWallet";

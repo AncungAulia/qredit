@@ -88,3 +88,9 @@ test.each(["vault", "rules", "orders", "decisions"])("a failed %s refresh keeps 
   expect(screen.getAllByText(/could not be refreshed/)).toHaveLength(1);
   expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
 });
+
+test("an active business offers a link to buy a report", () => {
+  failing = [];
+  renderPage();
+  expect(screen.getAllByRole("link", { name: "Buy a report" })[0]).toHaveAttribute("href", "/shop/a");
+});

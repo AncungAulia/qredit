@@ -1,12 +1,15 @@
 import { ERC20_ABI, FUSD_ADDRESS, LOAN_VAULT_ABI, VAULT_STATE, planLend } from "@qredit/qore";
 import { encodeFunctionData } from "viem";
 import { ERC20_ERROR_SENTENCES, VAULT_ERROR_SENTENCES } from "@/components/shared/vaultErrors";
-import { publicClient, readVault } from "@/lib/chain";
+import { readVault } from "@/lib/chain";
+import { readFusdAllowance, readFusdBalance } from "@/lib/fusd";
 import type { Business } from "@/lib/schemas";
 import { readVaultSnapshot } from "@/modules/market/api/market.api";
 import type { VaultSnapshot } from "@/modules/market/schemas/vault.schema";
 import type { WalletSession } from "@/modules/wallet/session";
 import { ensureWindowFor, evmSignerFor, TxFailed, TxReverted, type EvmSigner } from "@/modules/wallet/signer";
+
+export { readFusdBalance };
 
 type Hex = `0x${string}`;
 
@@ -41,12 +44,6 @@ export async function readPositions(evm: Hex, businesses: Business[]): Promise<P
   );
 }
 
-const readFusd = (functionName: "balanceOf" | "allowance", args: [Hex] | [Hex, Hex]) =>
-  publicClient.readContract({ address: FUSD_ADDRESS, abi: ERC20_ABI, functionName, args } as never) as Promise<bigint>;
-
-/** The fUSD balance of an address on the EVM side (the part a vault can take). */
-export const readFusdBalance = (evm: Hex): Promise<bigint> => readFusd("balanceOf", [evm]);
-
 function signerOf(session: WalletSession): EvmSigner {
   const signer = evmSignerFor(session);
   if (!signer) throw new TxFailed(null, NO_TEST_WALLET_SENTENCE);
@@ -69,8 +66,8 @@ export async function lend(
     readVault(vault, "state"),
     readVault(vault, "raised"),
     readVault(vault, "loan"),
-    readFusd("balanceOf", [signer.address]),
-    readFusd("allowance", [signer.address, vault]),
+    readFusdBalance(signer.address),
+    readFusdAllowance(signer.address, vault),
   ]);
   const target = loan[0];
   // Every refusal the wallet or the vault can give is checked here, so none depends on the text of a planner error.

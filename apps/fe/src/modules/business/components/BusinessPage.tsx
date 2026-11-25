@@ -63,6 +63,13 @@ function BusinessBody({ business }: { business: Business }) {
       Lend fUSD
     </Button>
   );
+  // Reports are sold once the loan is funded, and stay on sale while it is repaid.
+  const selling = snapshot?.state === "Active" || snapshot?.state === "Trapped" || snapshot?.state === "Repaid";
+  const buyButton = (className: string) => (
+    <Button size="lg" className={className} render={<Link href={`/shop/${business.slug}`} />} nativeButton={false} role="link">
+      Buy a report
+    </Button>
+  );
   const counted = orders.data ? countDelivered(orders.data) : null;
   const delivered = counted
     ? counted.count
@@ -76,7 +83,7 @@ function BusinessBody({ business }: { business: Business }) {
         business={business}
         state={snapshot?.state}
         stateFailed={vaultFailed}
-        action={raising ? lendButton("h-11 px-5") : undefined}
+        action={raising ? lendButton("h-11 px-5") : selling ? buyButton("h-11 px-5") : undefined}
       />
       {vaultFailed ? (
         <ErrorState
@@ -181,6 +188,8 @@ function BusinessBody({ business }: { business: Business }) {
           />
         </Section>
       </div>
+
+      {selling && <div className="sticky bottom-4 z-10 md:hidden">{buyButton("h-12 w-full shadow-[0_8px_24px_var(--shadow)]")}</div>}
 
       {snapshot && raising && (
         <>

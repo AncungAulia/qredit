@@ -6,7 +6,7 @@ import type { Business } from "@/lib/schemas";
 import { formatFusd } from "@/lib/format";
 import { LendForm } from "@/modules/lend/components/LendForm";
 import type { VaultSnapshot } from "@/modules/market";
-import { ConnectPrompt } from "@/modules/wallet/components/ConnectPrompt";
+import { NeedsWallet } from "@/modules/wallet/components/NeedsWallet";
 import { RequireReadyWallet } from "@/modules/wallet/components/RequireReadyWallet";
 import { testWalletOf } from "@/modules/wallet/signer";
 import { useWallet } from "@/modules/wallet/WalletProvider";
@@ -18,25 +18,11 @@ type Props = {
   onOpenChange: (open: boolean) => void;
 };
 
-// What a session without a test wallet is told. Lending is always sent from the test wallet.
-const NEEDS_WALLET: Record<string, { title: string; text: string }> = {
-  locked: { title: "Unlock your wallet to lend", text: "Your test wallet is locked. Unlock it to lend; nothing moves until you confirm." },
-  qorex: {
-    title: "A test wallet is needed to lend",
-    text: "QoreX cannot send this kind of transaction, so a test wallet sends it. Nothing moves until you confirm.",
-  },
-  none: {
-    title: "Connect a wallet to lend",
-    text: "Lending is sent from a wallet on the QoreChain testnet. Nothing moves until you confirm.",
-  },
-};
-
 /** The Lend dialog (a bottom sheet on a phone). Opens from the Lend button of a business that is raising. */
 export function LendSheet({ business, vault, open, onOpenChange }: Props) {
   const session = useWallet((s) => s.session);
   const [busy, setBusy] = useState(false);
   const wallet = testWalletOf(session);
-  const need = NEEDS_WALLET[session.kind] ?? NEEDS_WALLET.none;
 
   return (
     <ResponsiveDialog
@@ -57,13 +43,7 @@ export function LendSheet({ business, vault, open, onOpenChange }: Props) {
           />
         </RequireReadyWallet>
       ) : (
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1.5">
-            <p className="text-[15px] font-medium text-text-primary">{need.title}</p>
-            <p className="text-sm leading-normal text-text-secondary">{need.text}</p>
-          </div>
-          <ConnectPrompt size="lg" className="h-11 w-full" />
-        </div>
+        <NeedsWallet verb="lend" noun="Lending" />
       )}
     </ResponsiveDialog>
   );
