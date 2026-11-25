@@ -7,7 +7,10 @@ const chain = vi.hoisted(() => ({
   getTransaction: vi.fn(),
   readContract: vi.fn(),
 }));
-vi.mock("@/lib/chain", () => ({ publicClient: chain }));
+vi.mock("@/lib/chain", () => ({
+  publicClient: chain,
+  readVault: (address: string, functionName: string, args?: unknown[]) => chain.readContract({ address, functionName, args }),
+}));
 const get = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/apiClient", async (orig) => ({
   ...(await orig<object>()),

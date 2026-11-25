@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { expect, test } from "vitest";
-import { StateBadge, vaultStateName } from "@/components/shared/StateBadge";
+import { StateBadge } from "@/components/shared/StateBadge";
+import { vaultStateName } from "@/lib/vaultState";
 
 test("maps chain numbers to names", () => {
   expect([0, 1, 2, 3, 4].map(vaultStateName)).toEqual([

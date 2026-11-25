@@ -1,4 +1,4 @@
-import type { VaultStateName } from "@/components/shared/StateBadge";
+import type { VaultStateName } from "@/lib/vaultState";
 import { isFailed, type MarketRow } from "@/modules/market/api/market.api";
 
 export type MarketFilterKey = "all" | "raising" | "active" | "repaid";

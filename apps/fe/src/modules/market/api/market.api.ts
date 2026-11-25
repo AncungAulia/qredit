@@ -1,8 +1,7 @@
-import { LOAN_VAULT_ABI } from "@qredit/qore";
 import { z } from "zod";
-import { vaultStateName } from "@/components/shared/StateBadge";
 import { api, parseResponse } from "@/lib/apiClient";
-import { publicClient } from "@/lib/chain";
+import { publicClient, readVault } from "@/lib/chain";
+import { vaultStateName } from "@/lib/vaultState";
 import { businessSchema, orderSchema, type Business, type Order } from "@/lib/schemas";
 import type { VaultSnapshot } from "@/modules/market/schemas/vault.schema";
 
@@ -34,18 +33,15 @@ export async function getOrders(vault: Hex): Promise<Order[]> {
   return parseResponse(z.array(orderSchema), data);
 }
 
-const read = <T>(address: Hex, functionName: string) =>
-  publicClient.readContract({ address, abi: LOAN_VAULT_ABI, functionName } as never) as Promise<T>;
-
 /** Reads the loan state of one vault from the chain. An unknown state number rejects. */
 export async function readVaultSnapshot(vault: Hex): Promise<VaultSnapshot> {
   const [state, raised, repaid, paused, lenderBps, loan] = await Promise.all([
-    read<number>(vault, "state"),
-    read<bigint>(vault, "raised"),
-    read<bigint>(vault, "repaid"),
-    read<boolean>(vault, "paused"),
-    read<number>(vault, "lenderBps"),
-    read<readonly [bigint, bigint, bigint, bigint, bigint, bigint]>(vault, "loan"),
+    readVault(vault, "state"),
+    readVault(vault, "raised"),
+    readVault(vault, "repaid"),
+    readVault(vault, "paused"),
+    readVault(vault, "lenderBps"),
+    readVault(vault, "loan"),
   ]);
   // loan() returns target, totalOwed, raiseDeadline, period, grace, installment.
   const [target, totalOwed, raiseDeadline, period, , installment] = loan;

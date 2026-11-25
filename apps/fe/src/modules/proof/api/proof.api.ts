@@ -6,14 +6,13 @@ import {
   FACTORY_RUNTIME_CODEHASH,
   FUSD_ADDRESS,
   hexToQor,
-  LOAN_VAULT_ABI,
   PAY_SUPPLIER_SELECTOR,
   VAULT_FACTORY_ABI,
 } from "@qredit/qore";
 import { keccak256 } from "viem";
-import { vaultStateName } from "@/components/shared/StateBadge";
-import { publicClient, restUrl } from "@/lib/chain";
+import { publicClient, readVault, restUrl } from "@/lib/chain";
 import type { Business } from "@/lib/schemas";
+import { vaultStateName } from "@/lib/vaultState";
 import {
   judgeBooks,
   judgeFactory,
@@ -25,8 +24,6 @@ import {
   type CheckId,
   type CheckResult,
 } from "@/modules/proof/checks";
-
-type Hex = `0x${string}`;
 
 /** The hash of the code deployed at the factory address. It never changes, so callers cache it for good. */
 export async function readFactoryCodeHash(): Promise<string> {
@@ -59,9 +56,6 @@ const guard = async (id: CheckId, run: () => Promise<CheckResult>): Promise<Chec
   }
 };
 
-const readVault = <T>(address: Hex, functionName: string) =>
-  publicClient.readContract({ address, abi: LOAN_VAULT_ABI, functionName } as never) as Promise<T>;
-
 /** Runs the six checks of one business against the chain. Each check is isolated; this never rejects. */
 export function runChecks(
   b: Business,
@@ -76,7 +70,7 @@ export function runChecks(
   return Promise.all([
     factory,
     guard("ownerKey", async () => {
-      const ownerPq = await readVault<Hex>(vault, "ownerPq");
+      const ownerPq = await readVault(vault, "ownerPq");
       return judgeOwnerKey(await fetchPqcStatus({ rest, address: hexToQor(ownerPq) }));
     }),
     guard("spenderRule", async () => {
@@ -92,7 +86,7 @@ export function runChecks(
     ),
     guard("books", async () => {
       const [books, balance] = await Promise.all([
-        readVault<readonly bigint[]>(vault, "books"),
+        readVault(vault, "books"),
         publicClient.readContract({
           address: FUSD_ADDRESS,
           abi: ERC20_ABI,
@@ -103,7 +97,7 @@ export function runChecks(
       return judgeBooks(books, balance);
     }),
     guard("widening", async () =>
-      judgeWidening(vaultStateName(Number(await readVault<number>(vault, "state"))), await factory),
+      judgeWidening(vaultStateName(Number(await readVault(vault, "state"))), await factory),
     ),
   ]);
 }

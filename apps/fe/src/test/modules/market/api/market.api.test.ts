@@ -7,6 +7,8 @@ vi.mock("@/lib/chain", () => ({
     readContract: (...a: unknown[]) => readContract(...a),
     getBlock: (...a: unknown[]) => getBlock(...a),
   },
+  readVault: (address: string, functionName: string, args?: unknown[]) =>
+    readContract({ address, functionName, args }),
 }));
 const get = vi.fn();
 vi.mock("@/lib/apiClient", async (importOriginal) => ({

@@ -1,14 +1,6 @@
 import { Circle, CircleCheck, Hourglass, TrendingUp, Undo2, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-export type VaultStateName = "Raising" | "Active" | "Trapped" | "Repaid" | "Refunded";
-const NAMES: VaultStateName[] = ["Raising", "Active", "Trapped", "Repaid", "Refunded"];
-/** Maps the chain state number to its name. An unknown number is an error, never a guess. */
-export const vaultStateName = (n: number): VaultStateName => {
-  const name = NAMES[n];
-  if (!name) throw new Error(`Unknown vault state ${n}`);
-  return name;
-};
+import type { VaultStateName } from "@/lib/vaultState";
 
 // Badge/Neutral (Raising, Repaying), Badge/Warning (Trapped), Badge/Success (Repaid) in the design.
 const LOOK: Record<VaultStateName, { label: string; icon: LucideIcon; className: string }> = {

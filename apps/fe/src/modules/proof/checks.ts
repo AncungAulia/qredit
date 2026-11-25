@@ -1,4 +1,4 @@
-import type { VaultStateName } from "@/components/shared/StateBadge";
+import type { VaultStateName } from "@/lib/vaultState";
 
 export type CheckId =
   "factory" | "ownerKey" | "spenderRule" | "operatorWindow" | "books" | "widening";

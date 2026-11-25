@@ -1,4 +1,4 @@
-import type { VaultStateName } from "@/components/shared/StateBadge";
+import type { VaultStateName } from "@/lib/vaultState";
 
 /** What the market shows of one loan vault, read from the chain. Units are fUSD with 6 decimals. */
 export type VaultSnapshot = {

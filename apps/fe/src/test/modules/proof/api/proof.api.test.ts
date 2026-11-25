@@ -4,6 +4,7 @@ import { FACTORY_RUNTIME_CODEHASH, PAY_SUPPLIER_SELECTOR } from "@qredit/qore";
 const readContract = vi.fn();
 vi.mock("@/lib/chain", () => ({
   publicClient: { readContract: (a: unknown) => readContract(a), getCode: vi.fn() },
+  readVault: (address: string, functionName: string, args?: unknown[]) => readContract({ address, functionName, args }),
   restUrl: () => "http://test/api/chain/rest",
 }));
 const fetchPqcStatus = vi.fn();

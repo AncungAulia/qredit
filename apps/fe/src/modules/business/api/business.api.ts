@@ -1,8 +1,8 @@
-import { FACTORY_ADDRESS, LOAN_VAULT_ABI, VAULT_FACTORY_ABI } from "@qredit/qore";
+import { FACTORY_ADDRESS, VAULT_FACTORY_ABI } from "@qredit/qore";
 import { decodeFunctionData, getAbiItem } from "viem";
 import { z } from "zod";
 import { api, parseResponse } from "@/lib/apiClient";
-import { publicClient } from "@/lib/chain";
+import { publicClient, readVault } from "@/lib/chain";
 import { decisionSchema, type Business, type Decision } from "@/lib/schemas";
 
 type Hex = `0x${string}`;
@@ -41,14 +41,6 @@ export async function readCreationSuppliers(b: VaultRef): Promise<Hex[]> {
   return init.suppliers.map((s) => s.toLowerCase() as Hex);
 }
 
-const read = <T>(address: Hex, functionName: string, args?: unknown[]) =>
-  publicClient.readContract({
-    address,
-    abi: LOAN_VAULT_ABI,
-    functionName,
-    args,
-  } as never) as Promise<T>;
-
 /**
  * The spending rules of a vault as they stand now. Pass the creation suppliers when they are already known;
  * otherwise they are decoded from the creation call.
@@ -56,18 +48,16 @@ const read = <T>(address: Hex, functionName: string, args?: unknown[]) =>
 export async function readVaultRules(b: VaultRef, creationSuppliers?: Hex[]): Promise<VaultRules> {
   const [addresses, dailyCap, spent, dayIndex, lenderBps, ownerBps, orderTtl] = await Promise.all([
     creationSuppliers ?? readCreationSuppliers(b),
-    read<bigint>(b.vault, "dailyCap"),
-    read<bigint>(b.vault, "spentToday"),
-    read<bigint>(b.vault, "dayIndex"),
-    read<number>(b.vault, "lenderBps"),
-    read<number>(b.vault, "ownerBps"),
-    read<bigint>(b.vault, "orderTtl"),
+    readVault(b.vault, "dailyCap"),
+    readVault(b.vault, "spentToday"),
+    readVault(b.vault, "dayIndex"),
+    readVault(b.vault, "lenderBps"),
+    readVault(b.vault, "ownerBps"),
+    readVault(b.vault, "orderTtl"),
   ]);
   const suppliers = await Promise.all(
     addresses.map(async (address) => {
-      const [allowed, perTxCap] = await read<readonly [boolean, bigint]>(b.vault, "suppliers", [
-        address,
-      ]);
+      const [allowed, perTxCap] = await readVault(b.vault, "suppliers", [address]);
       return { address, allowed, perTxCap };
     }),
   );

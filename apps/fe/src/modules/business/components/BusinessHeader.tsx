@@ -1,5 +1,6 @@
 import { BusinessMark } from "@/components/shared/BusinessMark";
-import { StateBadge, type VaultStateName } from "@/components/shared/StateBadge";
+import { StateBadge } from "@/components/shared/StateBadge";
+import type { VaultStateName } from "@/lib/vaultState";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Business } from "@/lib/schemas";
 

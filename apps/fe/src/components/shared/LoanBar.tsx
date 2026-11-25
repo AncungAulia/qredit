@@ -1,5 +1,5 @@
 import { formatFusd } from "@/lib/format";
-import type { VaultStateName } from "./StateBadge";
+import type { VaultStateName } from "@/lib/vaultState";
 
 type Props = {
   state: VaultStateName;
