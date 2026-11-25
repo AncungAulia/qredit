@@ -30,6 +30,13 @@ export function parseFusd(text: string): bigint | null {
   return BigInt(m[1]) * SCALE + BigInt((m[2] ?? "").padEnd(6, "0") || "0");
 }
 
+/** fUSD units as the raw text of an amount field: "1250" or "1250.5", no grouping, no unit. */
+export function fusdToInput(units: bigint): string {
+  const whole = units / SCALE;
+  const frac = (units % SCALE).toString().padStart(Number(DECIMALS), "0").replace(/0+$/, "");
+  return frac ? `${whole}.${frac}` : `${whole}`;
+}
+
 /** A whole count with thousands separators. */
 export const formatCount = (n: number) => n.toLocaleString(LOCALE);
 

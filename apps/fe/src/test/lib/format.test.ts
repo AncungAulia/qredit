@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { formatBps, formatCount, formatDateTime, formatFusd, formatRelative, parseFusd, shortAddress, shortHash } from "@/lib/format";
+import { formatBps, formatCount, formatDateTime, formatFusd, formatRelative, fusdToInput, parseFusd, shortAddress, shortHash } from "@/lib/format";
 
 describe("fUSD", () => {
   test("formats 6-decimal units with two decimals", () => {
@@ -18,6 +18,13 @@ describe("fUSD", () => {
     expect(parseFusd("0.0000001")).toBeNull();
     expect(parseFusd("abc")).toBeNull();
     expect(parseFusd("")).toBeNull();
+  });
+  test("turns units into the raw text of an amount field", () => {
+    expect(fusdToInput(1250000000n)).toBe("1250");
+    expect(fusdToInput(1500000n)).toBe("1.5");
+    expect(fusdToInput(1n)).toBe("0.000001");
+    expect(fusdToInput(0n)).toBe("0");
+    expect(parseFusd(fusdToInput(123456789n))).toBe(123456789n);
   });
 });
 
