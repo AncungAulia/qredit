@@ -97,10 +97,13 @@
       "dependencies": {
         "@cosmjs/proto-signing": "0.39",
         "@cosmjs/stargate": "0.39",
+        "@qorechain/evm": "0.14.0",
+        "@qorechain/qoreseal": "0.1.0",
         "@qorechain/sdk": "0.14.0",
         "@scure/base": "2.4.0",
         "cosmjs-types": "0.11.0",
         "viem": "2",
+        "zod": "4.6.7",
       },
       "devDependencies": {
         "@types/bun": "^1.4.5",
@@ -2068,6 +2071,8 @@
     "@qredit/engine/zod": ["zod@4.6.7", "", {}, "sha512-g8W2D2kU6a8untc053fX1uVBKzM7yqAxW/3zwk83+6RyF2+SKOuV+c0wBDhUwzV1PaGapmZH+rmcUzPf+3CGwg=="],
 
     "@qredit/fe/zod": ["zod@4.6.7", "", {}, "sha512-g8W2D2kU6a8untc053fX1uVBKzM7yqAxW/3zwk83+6RyF2+SKOuV+c0wBDhUwzV1PaGapmZH+rmcUzPf+3CGwg=="],
+
+    "@qredit/qore/zod": ["zod@4.6.7", "", {}, "sha512-g8W2D2kU6a8untc053fX1uVBKzM7yqAxW/3zwk83+6RyF2+SKOuV+c0wBDhUwzV1PaGapmZH+rmcUzPf+3CGwg=="],
 
     "@scure/bip32/@noble/hashes": ["@noble/hashes@1.8.0", "", {}, "sha512-jCs9ldd7NwzpgXDIf6P3+NrHh9/sD6CQdxHyjQI+h/6rDNo88ypBxxz45UDuZHz9r3tNz7N/VInSVoVdtXEI4A=="],
 

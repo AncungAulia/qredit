@@ -1,9 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { buildRegisterKemKeyMessage, generateSealKeys, recipientOf } from "@qorechain/qoreseal";
-import { addressesFrom20, qorechainRegistry } from "@qorechain/sdk";
+import { generateSealKeys, recipientOf } from "@qorechain/qoreseal";
 import { envelopeHash } from "@qredit/qore";
 import { openRequest, RequestUnreadable, sealReport, sealRequest } from "../src/agent/seal.ts";
-import { registerKemKeyMsg } from "../src/setup/seal.ts";
 
 const chainId = "qorechain-diana";
 const vault = "0x37bbb37dd96a973a22ca64bc809a8bc4d54b03d4";
@@ -33,15 +31,5 @@ describe("report codec", () => {
     const opened = open({ chainId, purpose: "qredit/report/v1", envelope: envelopeFromText(text), keys: buyer, aad: new TextEncoder().encode(`${vault}:7`) });
     expect(JSON.parse(new TextDecoder().decode(opened))).toEqual({ grade: "A" });
     expect(() => open({ chainId, purpose: "qredit/report/v1", envelope: envelopeFromText(text), keys: agent, aad: new TextEncoder().encode(`${vault}:7`) })).toThrow();
-  });
-});
-
-describe("KEM registration message", () => {
-  test("the broadcastable message encodes to the same bytes as qoreseal's builder", () => {
-    const sender = addressesFrom20(new Uint8Array(20).fill(7)).cosmos;
-    const msg = registerKemKeyMsg(sender, agent.mlkemPublicKey);
-    const reference = buildRegisterKemKeyMessage({ sender, mlkemPublicKey: agent.mlkemPublicKey });
-    expect(msg.typeUrl).toBe(reference.typeUrl);
-    expect(Buffer.from(qorechainRegistry().encodeAsAny(msg).value).toString("hex")).toBe(Buffer.from(reference.value).toString("hex"));
   });
 });

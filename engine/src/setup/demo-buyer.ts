@@ -1,9 +1,7 @@
-import { deriveSealKeys, envelopeFromText, open, type SealKeyPair } from "@qorechain/qoreseal";
+import { deriveSealKeys, type SealKeyPair } from "@qorechain/qoreseal";
 import { generateMnemonic } from "@qorechain/sdk";
-import { ERC20_ABI, envelopeHash, FUSD_ADDRESS, publicClientFor, TESTNET, VAULT_ABI, VAULT_EVENTS, walletFor } from "@qredit/qore";
+import { BUYER_WINDOW, createRecipientResolver, ERC20_ABI, envelopeHash, FUSD_ADDRESS, openReport, publicClientFor, sealRequest, TESTNET, VAULT_ABI, VAULT_EVENTS, walletFor } from "@qredit/qore";
 import { decodeEventLog, encodeFunctionData, type Hex } from "viem";
-import { createRecipientResolver } from "../agent/recipient.ts";
-import { REPORT_PURPOSE, sealRequest } from "../agent/seal.ts";
 import type { Order } from "../agent/types.ts";
 import type { Keystore } from "../keystore.ts";
 import { loadAccount } from "./accounts.ts";
@@ -13,8 +11,6 @@ import { publishCard, registerSealKey } from "./seal.ts";
 export const DEMO_BUYER = "demo-buyer";
 const INIT_UQOR = 3_000_000n;
 const INIT_FUSD = 10_000_000n;
-const BUYER_WINDOW = { blocks: 3600, maxTxs: 40, maxValue: 60_000_000n };
-const utf8 = (s: string) => new TextEncoder().encode(s);
 
 /** The buyer seal keys come from its mnemonic, so they are reproducible and need no seed file. */
 export function buyerSealKeys(ks: Keystore): SealKeyPair {
@@ -120,9 +116,5 @@ export async function readDemoReport(ks: Keystore, apiUrl: string, o: { vault: s
   if (!e.ok) throw new Error(`report fetch failed: HTTP ${e.status}`);
   const { body } = (await e.json()) as { body: string };
   if (envelopeHash(body).toLowerCase() !== order.envelopeHash.toLowerCase()) throw new Error("the report does not match the delivered hash");
-  const plain = open({
-    chainId: TESTNET.chainId, purpose: REPORT_PURPOSE, envelope: envelopeFromText(body), keys: buyerSealKeys(ks),
-    aad: utf8(`${o.vault.toLowerCase()}:${o.orderId}`),
-  });
-  return JSON.parse(new TextDecoder().decode(plain));
+  return openReport({ text: body, vault: o.vault, orderId: o.orderId, keys: buyerSealKeys(ks), chainId: TESTNET.chainId });
 }

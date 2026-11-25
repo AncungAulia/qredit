@@ -1,31 +1,21 @@
-import { evmWindowStatus, type EvmWindow } from "@qorechain/evm";
+import { linkAuthenticatorMsgs, signAuthenticatorLinkEd25519, type UnifiedAccount } from "@qorechain/sdk";
 import {
-  buildRegisterPqcKeyMsg, fetchPqcStatus, linkAuthenticatorMsgs, openEvmWindowMsg, signAuthenticatorLinkEd25519, signProofOfPossession,
-  type UnifiedAccount,
-} from "@qorechain/sdk";
-import {
-  broadcastHybrid, convertCoinMsg, ERC20_ABI, FACTORY_ABI, FACTORY_ADDRESS, FACTORY_START_BLOCK, FUSD_ADDRESS, FUSD_DENOM, PAY_SUPPLIER_SELECTOR,
-  publicClientFor, qorToHex, qoreRegistry, scanChunked, TESTNET, txEvents, VAULT_ABI, VAULT_STATE, walletFor,
+  BUYER_WINDOW, broadcastHybrid, confirmed as confirmedOn, convertFusd as convertFusdOn, ensureWindow as ensureWindowOn, ERC20_ABI, FACTORY_ABI,
+  FACTORY_ADDRESS, FACTORY_START_BLOCK, FUSD_ADDRESS, FUSD_DENOM, openWindow as openWindowOn, PAY_SUPPLIER_SELECTOR, planLend, publicClientFor,
+  registerPqcKey, scanChunked, TESTNET, VAULT_ABI, walletFor, type EnsureWindowOptions, type WindowOptions,
 } from "@qredit/qore";
 import { decodeEventLog, encodeFunctionData, parseAbiItem, type PublicClient } from "viem";
 import type { vaultInit } from "./businesses.ts";
 
+export { planLend, type EnsureWindowOptions, type LendPlan, type WindowOptions } from "@qredit/qore";
+
 const net = TESTNET;
 const client = publicClientFor(TESTNET.evm);
 
-async function confirmed(sent: { hash: string; code: number; rawLog?: string }, what: string): Promise<string> {
-  if (sent.code !== 0) throw new Error(`${what} refused: code ${sent.code} ${sent.rawLog ?? ""}`);
-  await txEvents(net.rest, sent.hash);
-  return sent.hash;
-}
+const confirmed = (sent: { hash: string; code: number; rawLog?: string }, what: string): Promise<string> => confirmedOn(net, sent, what);
 
 /** Register the account's ML-DSA-87 key (classical tx, once). Returns null if already registered. */
-export async function registerKey(acc: UnifiedAccount): Promise<string | null> {
-  if ((await fetchPqcStatus({ rest: net.rest, address: acc.cosmos })).registered) return null;
-  const pop = signProofOfPossession({ chainId: net.chainId, account: acc.cosmos, keypair: acc.pqc });
-  const msg = buildRegisterPqcKeyMsg(acc.cosmos, { pqcKeypair: acc.pqc, proofOfPossession: pop });
-  return confirmed(await broadcastHybrid(net, acc, [msg], { memo: "register ML-DSA-87", signMode: "classical" }), "key registration");
-}
+export const registerKey = (acc: UnifiedAccount): Promise<string | null> => registerPqcKey(net, acc);
 
 /** One MsgSend per recipient, in a single tx: uqor and optionally faucet fUSD (bank coin). */
 export async function sendQor(from: UnifiedAccount, to: string[], uqor: bigint, fusdUnits = 0n): Promise<string> {
@@ -38,71 +28,15 @@ export async function sendQor(from: UnifiedAccount, to: string[], uqor: bigint, 
 }
 
 /** Faucet fUSD (bank coin) to ERC-20 fUSD on the same account. */
-export async function convertFusd(acc: UnifiedAccount, units: bigint): Promise<string> {
-  return confirmed(
-    await broadcastHybrid(net, acc, [convertCoinMsg(acc.cosmos, acc.evm, units)], { memo: "convert fUSD", registry: qoreRegistry() }),
-    "conversion",
-  );
-}
+export const convertFusd = (acc: UnifiedAccount, units: bigint): Promise<string> => convertFusdOn(net, acc, units);
 
-export type WindowOptions = { blocks?: number; maxTxs?: number; maxValue?: bigint };
-export type EnsureWindowOptions = WindowOptions & { minBlocks?: number; minTxs?: number };
-
-export async function openWindow(acc: UnifiedAccount, targets: string[], o: WindowOptions = {}): Promise<string> {
-  const msg = openEvmWindowMsg({
-    sender: acc.cosmos,
-    blocks: BigInt(o.blocks ?? 17_280),
-    maxTxs: BigInt(o.maxTxs ?? 500),
-    maxValue: (o.maxValue ?? 25_000_000n).toString(),
-    allowedTargets: targets.map((t) => t.toLowerCase()),
-  });
-  const tx = await confirmed(await broadcastHybrid(net, acc, [msg], { memo: "qredit window" }), "window");
-  await Bun.sleep(10_000); // the next EVM tx must land after the window's block
-  return tx;
-}
-
-type WindowDeps = {
-  status: (acc: UnifiedAccount) => Promise<EvmWindow>;
-  open: (acc: UnifiedAccount, targets: string[], o: WindowOptions) => Promise<string>;
-};
-
-/** Targets of windows this process opened: used only if the chain does not report a window's allowed targets. */
-const openedHere = new Map<string, Set<string>>();
-
-const targetKey = (t: string): string => (t.startsWith("qor1") ? qorToHex(t) ?? t : t).toLowerCase();
-
-/** True when the window is live, allows every target and has at least `min.blocks` blocks and `min.txs` txs left. */
-export function windowCovers(w: EvmWindow, targets: string[], min: { blocks: number; txs: number }, openedByUs?: Set<string>): boolean {
-  if (!w.found || !w.live || w.nativeOnly) return false;
-  if (w.remainingBlocks < BigInt(min.blocks) || w.remainingTxs < BigInt(min.txs)) return false;
-  const wanted = targets.map(targetKey);
-  // an empty reported list means "any target"; an unreported list is trusted only for windows this run opened
-  const allowed = Array.isArray(w.allowedTargets)
-    ? (w.allowedTargets.length ? new Set(w.allowedTargets.map(targetKey)) : null)
-    : (openedByUs ?? new Set<string>());
-  return allowed === null || wanted.every((t) => allowed.has(t));
-}
-
-/**
- * Open an EVM window only when the current one cannot carry the upcoming txs (see windowCovers); opening replaces the old one.
- * Returns the open tx hash, or null when the live window was reused.
- */
-export async function ensureWindow(
-  acc: UnifiedAccount, targets: string[], opts: EnsureWindowOptions = {},
-  deps: WindowDeps = { status: (a) => evmWindowStatus({ rest: net.rest, address: a.cosmos }), open: openWindow },
-): Promise<string | null> {
-  const { minBlocks = 600, minTxs = 5, ...open } = opts;
-  // The chain refuses a window that lists a target twice; callers may pass overlapping lists.
-  const unique = [...new Set(targets.map(targetKey))];
-  const status = await deps.status(acc);
-  if (windowCovers(status, unique, { blocks: minBlocks, txs: minTxs }, openedHere.get(acc.cosmos))) return null;
-  const tx = await deps.open(acc, unique, open);
-  openedHere.set(acc.cosmos, new Set(unique));
-  return tx;
-}
+/** The shared window steps, with the engine's network and `Bun.sleep` bound. */
+export const openWindow = (acc: UnifiedAccount, targets: string[], o: WindowOptions = {}): Promise<string> => openWindowOn(net, acc, targets, o, Bun.sleep);
+export const ensureWindow = (acc: UnifiedAccount, targets: string[], opts: EnsureWindowOptions = {}): Promise<string | null> =>
+  ensureWindowOn(net, acc, targets, opts, { sleep: Bun.sleep });
 
 /** The treasury's window shape: short, few txs, small value cap. */
-export const TREASURY_WINDOW: WindowOptions = { blocks: 3600, maxTxs: 40, maxValue: 60_000_000n };
+export const TREASURY_WINDOW: WindowOptions = BUYER_WINDOW;
 
 export type FoundVault = { vault: string; startBlock: number; tx: string };
 type FactoryLog = { address: string; args: { vault?: string; spender?: string }; blockNumber: bigint; transactionHash: string };
@@ -167,22 +101,6 @@ export async function registerBusiness(apiUrl: string, token: string, body: unkn
     signal: AbortSignal.timeout(15_000),
   });
   if (res.status !== 204) throw new Error(`business registration failed: HTTP ${res.status} ${await res.text()}`);
-}
-
-export type LendPlan =
-  | { action: "skip"; reason: string }
-  | { action: "deposit"; amount: bigint; approve: boolean };
-
-/** Decide what lending needs: nothing, or a deposit (and whether an approve must precede it). Throws when the lender cannot cover it. */
-export function planLend(v: { state: number; raised: bigint; target: bigint; balance: bigint; allowance: bigint }, requested: bigint): LendPlan {
-  const closed: LendPlan = { action: "skip", reason: "already funded or closed" };
-  if (v.state !== VAULT_STATE.Raising) return closed;
-  const room = v.target - v.raised;
-  if (room <= 0n) return closed;
-  const amount = requested < room ? requested : room;
-  if (amount <= 0n) throw new Error("nothing to lend: the amount must be positive");
-  if (v.balance < amount) throw new Error(`insufficient fUSD: need ${amount} units, balance ${v.balance}`);
-  return { action: "deposit", amount, approve: v.allowance < amount };
 }
 
 export async function lend(

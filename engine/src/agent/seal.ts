@@ -1,14 +1,8 @@
 import { envelopeFromText, envelopeToText, open, seal, sealKeysFromSeed, type SealKeyPair, type SealRecipient } from "@qorechain/qoreseal";
-import { envelopeHash } from "@qredit/qore";
-import { z } from "zod";
+import { envelopeHash, MAX_INPUT, REPORT_PURPOSE, REQUEST_PURPOSE, requestSchema, sealRequest, type RequestBody } from "@qredit/qore";
 import type { Keystore } from "../keystore.ts";
 
-export const REQUEST_PURPOSE = "qredit/request/v1";
-export const REPORT_PURPOSE = "qredit/report/v1";
-export const MAX_INPUT = 2000;
-
-const requestSchema = z.object({ v: z.literal(1), serviceId: z.number().int().nonnegative(), input: z.string().min(1).max(MAX_INPUT) }).strict();
-export type RequestBody = z.infer<typeof requestSchema>;
+export { MAX_INPUT, REPORT_PURPOSE, REQUEST_PURPOSE, sealRequest, type RequestBody };
 
 export class RequestUnreadable extends Error {}
 
@@ -20,11 +14,6 @@ export function loadSealKeys(ks: Keystore, slug: string): SealKeyPair {
   const seed = ks.read(`${slug}-seal`).seed;
   if (!/^[0-9a-f]{64}$/.test(seed ?? "")) throw new Error(`${slug}-seal has no valid seed`);
   return sealKeysFromSeed(Uint8Array.from(Buffer.from(seed!, "hex")));
-}
-
-export function sealRequest(o: { body: RequestBody; vault: string; recipient: SealRecipient; chainId: string }): string {
-  const bytes = seal({ chainId: o.chainId, purpose: REQUEST_PURPOSE, recipients: [o.recipient], plaintext: utf8(JSON.stringify(o.body)), aad: utf8(lower(o.vault)), mode: modeOf(o.recipient) });
-  return envelopeToText(bytes);
 }
 
 export function openRequest(o: { text: string; requestRef: string; vault: string; keys: SealKeyPair; chainId: string }): RequestBody {
