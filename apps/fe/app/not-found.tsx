@@ -10,6 +10,7 @@ export default function NotFound() {
       {/* Empty pathname: the server cannot know the address here, so no section is active and no tab bar shows. */}
       <EmptyState
         art="notfound"
+        titleAs="h1"
         title="This page does not exist"
         message="The link may be wrong, or the page has moved."
         action={

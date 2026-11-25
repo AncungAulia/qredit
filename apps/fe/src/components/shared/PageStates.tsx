@@ -27,6 +27,8 @@ type EmptyStateProps = {
   layout?: Layout;
   className?: string;
   role?: "alert";
+  /** The heading level of the title. Use "h1" when the state is the whole page. */
+  titleAs?: "h1" | "h2";
 };
 
 export function EmptyState({
@@ -37,6 +39,7 @@ export function EmptyState({
   layout = "page",
   className,
   role,
+  titleAs: Title = "h2",
 }: EmptyStateProps) {
   return (
     <div
@@ -65,7 +68,7 @@ export function EmptyState({
           className="hidden size-full object-cover dark:block"
         />
       </span>
-      <p className="text-base font-medium text-text-primary">{title}</p>
+      <Title className="text-base font-medium text-text-primary">{title}</Title>
       {message && <p className="max-w-prose text-sm text-text-secondary">{message}</p>}
       {action}
     </div>
