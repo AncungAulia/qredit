@@ -9,6 +9,7 @@ import type { Business } from "@/lib/schemas";
 import { cn, focusRing } from "@/lib/utils";
 import { useDecisionsQuery, useRulesQuery } from "@/modules/business/api/useBusinessPage";
 import { ORDERS_LIMIT, useBusinessQuery, useOrdersQuery, useVaultQuery } from "@/modules/market";
+import { ProvenCard } from "@/modules/proof";
 import { ActivityTable } from "@/modules/business/components/ActivityTable";
 import { BusinessHeader } from "@/modules/business/components/BusinessHeader";
 import { BusinessKpis } from "@/modules/business/components/BusinessKpis";
@@ -136,6 +137,13 @@ function BusinessBody({ business }: { business: Business }) {
             description="What this business sells. Payment waits in escrow until the report is delivered."
           >
             <ServicesCard services={business.services} />
+          </Section>
+          <Section
+            id="proof"
+            title="Proof"
+            description="Each claim is checked against the chain when this page opens."
+          >
+            <ProvenCard business={business} />
           </Section>
         </div>
 
