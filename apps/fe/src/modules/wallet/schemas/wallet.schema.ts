@@ -9,12 +9,11 @@ export const cardResponseSchema = z.object({ card: z.unknown() }).refine((v) => 
 export const faucetOkSchema = z.object({ tx: z.string() });
 export const faucetLimitedSchema = z.object({ retryAt: z.coerce.date() });
 
-export const walletChainStatusSchema = z.object({
-  qor: z.bigint(),
-  fusdBank: z.bigint(),
-  fusd: z.bigint(),
-  pqcRegistered: z.boolean(),
-  kemRegistered: z.boolean(),
-  cardPublished: z.boolean(),
-});
-export type WalletChainStatus = z.infer<typeof walletChainStatusSchema>;
+export type WalletChainStatus = {
+  qor: bigint;
+  fusdBank: bigint;
+  fusd: bigint;
+  pqcRegistered: boolean;
+  kemRegistered: boolean;
+  cardPublished: boolean;
+};

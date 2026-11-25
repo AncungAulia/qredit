@@ -1,8 +1,10 @@
 import { ERC20_ABI, FUSD_ADDRESS, FUSD_DENOM } from "@qredit/qore";
+import { recipientCardFields, toHex, type RecipientCard, type SealKeyPair } from "@qorechain/qoreseal";
 import { fetchKemKey } from "@qorechain/qoreseal/network";
 import { fetchPqcStatus, type UnifiedAccount } from "@qorechain/sdk";
 import { api, ApiError, parseResponse } from "@/lib/apiClient";
 import { publicClient, restUrl } from "@/lib/chain";
+import { env } from "@/lib/env";
 import {
   balancesSchema,
   cardResponseSchema,
@@ -20,11 +22,31 @@ async function bankBalances(qor: string): Promise<Map<string, bigint>> {
   return new Map(body.balances.map((b) => [b.denom.toLowerCase(), BigInt(b.amount)]));
 }
 
-/** True when the backend holds a recipient card for the address. */
-export async function hasCard(qor: string): Promise<boolean> {
+/** The bank (not yet converted) fUSD balance of an address, read fresh. */
+export async function readBankFusd(qor: string): Promise<bigint> {
+  return (await bankBalances(qor)).get(FUSD_DENOM.toLowerCase()) ?? 0n;
+}
+
+const cardObject = (raw: unknown): Partial<RecipientCard> | null => {
+  try {
+    const value: unknown = typeof raw === "string" ? JSON.parse(raw) : raw;
+    return value !== null && typeof value === "object" ? (value as Partial<RecipientCard>) : null;
+  } catch {
+    return null;
+  }
+};
+
+/** True when the backend holds a card for the address, and, when keys are given, the card is for exactly those keys. */
+export async function hasCard(qor: string, keys?: SealKeyPair): Promise<boolean> {
   try {
     const res = await api.get<unknown>(`/v1/cards/${qor}`);
-    return cardResponseSchema.safeParse(res.data).success;
+    const parsed = cardResponseSchema.safeParse(res.data);
+    if (!parsed.success) return false;
+    if (!keys) return true;
+    const card = cardObject((parsed.data as { card: unknown }).card);
+    if (!card) return false;
+    const want = recipientCardFields({ chainId: env.chainId, address: qor, keys });
+    return card.mlkemKeySha3 === want.mlkemKeySha3 && card.x25519PublicKey === want.x25519PublicKey;
   } catch (e) {
     if (e instanceof ApiError && e.kind === "notFound") return false;
     throw e;
@@ -37,12 +59,12 @@ export async function putCard(qor: string, card: unknown): Promise<void> {
 }
 
 /** Everything the setup steps need to know about the wallet, read from the chain and the backend. */
-export async function readWalletStatus(acc: UnifiedAccount): Promise<WalletChainStatus> {
+export async function readWalletStatus(acc: UnifiedAccount, sealKeys: SealKeyPair): Promise<WalletChainStatus> {
   const [balances, pqc, kem, card, fusd] = await Promise.all([
     bankBalances(acc.cosmos),
     fetchPqcStatus({ rest: restUrl(), address: acc.cosmos }),
     fetchKemKey({ rest: restUrl(), address: acc.cosmos }),
-    hasCard(acc.cosmos),
+    hasCard(acc.cosmos, sealKeys),
     publicClient.readContract({
       address: FUSD_ADDRESS,
       abi: ERC20_ABI,
@@ -55,7 +77,7 @@ export async function readWalletStatus(acc: UnifiedAccount): Promise<WalletChain
     fusdBank: balances.get(FUSD_DENOM.toLowerCase()) ?? 0n,
     fusd,
     pqcRegistered: pqc.registered,
-    kemRegistered: kem.registered,
+    kemRegistered: kem.registered && !!kem.publicKey && toHex(kem.publicKey) === toHex(sealKeys.mlkemPublicKey),
     cardPublished: card,
   };
 }

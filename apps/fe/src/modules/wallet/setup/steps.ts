@@ -1,7 +1,7 @@
 import { convertFusd, defaultSleep, registerKemKey, registerPqcKey, signedCard, type Net } from "@qredit/qore";
 import type { SealKeyPair } from "@qorechain/qoreseal";
 import type { UnifiedAccount } from "@qorechain/sdk";
-import { putCard } from "@/modules/wallet/api/wallet.api";
+import { putCard, readBankFusd } from "@/modules/wallet/api/wallet.api";
 import type { WalletChainStatus } from "@/modules/wallet/schemas/wallet.schema";
 
 export type { WalletChainStatus };
@@ -13,9 +13,9 @@ export const SETUP_ORDER: readonly SetupStep[] = ["fund", "registerKey", "conver
 /** Which steps are done. A step whose earlier steps are not done is waiting, not todo. */
 export function setupStatus(s: WalletChainStatus): SetupStatus {
   const done: Record<SetupStep, boolean> = {
-    fund: s.qor > 0n || s.fusdBank > 0n || s.fusd > 0n,
+    fund: s.qor > 0n, // every later transaction pays its fee in QOR
     registerKey: s.pqcRegistered,
-    convert: s.fusdBank === 0n && s.fusd > 0n,
+    convert: s.fusdBank === 0n,
     registerKem: s.kemRegistered,
     publishCard: s.cardPublished,
   };
@@ -31,6 +31,9 @@ export function setupStatus(s: WalletChainStatus): SetupStatus {
   return out;
 }
 
+/** True when the wallet holds fUSD but no QOR: the faucet step cannot be called done, and the wallet needs a little QOR for fees. */
+export const needsQorForFees = (s: WalletChainStatus): boolean => s.qor === 0n && (s.fusdBank > 0n || s.fusd > 0n);
+
 /** The first step still to do, or null when the wallet is ready. */
 export const nextStep = (s: SetupStatus): SetupStep | null => SETUP_ORDER.find((step) => s[step] === "todo") ?? null;
 
@@ -38,15 +41,18 @@ export type StepContext = { acc: UnifiedAccount; sealKeys: SealKeyPair; net: Net
 
 /** Runs one step and waits until its transaction is in a block. Returns the transaction hash, or null when nothing was sent. */
 export async function runStep(step: SetupStep, ctx: StepContext): Promise<string | null> {
-  const { acc, sealKeys, net, status } = ctx;
+  const { acc, sealKeys, net } = ctx;
   switch (step) {
     case "fund":
       // The faucet is claimed through claimFaucet; the transaction is the backend's, not this wallet's.
       return null;
     case "registerKey":
       return registerPqcKey(net, acc);
-    case "convert":
-      return convertFusd(net, acc, status.fusdBank);
+    case "convert": {
+      // Read the balance again: a conversion from an earlier run may already have moved it.
+      const bank = await readBankFusd(acc.cosmos);
+      return bank > 0n ? convertFusd(net, acc, bank) : null;
+    }
     case "registerKem": {
       const tx = await registerKemKey(net, acc, sealKeys.mlkemPublicKey);
       // The card check reads the on-chain key, so wait for the next block.

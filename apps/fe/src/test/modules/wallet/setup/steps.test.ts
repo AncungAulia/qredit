@@ -14,12 +14,13 @@ vi.mock("@qredit/qore", () => ({
   signedCard: (...a: unknown[]) => signedCard(...a),
   defaultSleep: vi.fn(),
 }));
-const put = vi.fn();
-vi.mock("@/lib/apiClient", () => ({ api: { put: (...a: unknown[]) => put(...a) } }));
-vi.mock("@/lib/chain", () => ({ publicClient: {}, restUrl: () => "" }));
-vi.mock("@qorechain/sdk", () => ({ fetchPqcStatus: vi.fn() }));
-vi.mock("@qorechain/qoreseal/network", () => ({ fetchKemKey: vi.fn() }));
-import { nextStep, runStep, setupStatus, type WalletChainStatus } from "@/modules/wallet/setup/steps";
+const putCard = vi.fn();
+const readBankFusd = vi.fn();
+vi.mock("@/modules/wallet/api/wallet.api", () => ({
+  putCard: (...a: unknown[]) => putCard(...a),
+  readBankFusd: (...a: unknown[]) => readBankFusd(...a),
+}));
+import { needsQorForFees, nextStep, runStep, setupStatus, type WalletChainStatus } from "@/modules/wallet/setup/steps";
 
 const base: WalletChainStatus = { qor: 0n, fusdBank: 0n, fusd: 0n, pqcRegistered: false, kemRegistered: false, cardPublished: false };
 const next = (s: Partial<WalletChainStatus>) => nextStep(setupStatus({ ...base, ...s }));
@@ -33,8 +34,25 @@ test("each stage of the setup points at the right next step", () => {
   expect(next({ qor: 1n, fusd: 50_000_000n, pqcRegistered: true, kemRegistered: true, cardPublished: true })).toBeNull();
 });
 
-test("fund is done with QOR or any fUSD; convert needs the whole bank balance moved", () => {
-  expect(setupStatus({ ...base, fusd: 1n }).fund).toBe("done");
+test("convert is done when the bank balance is empty, whatever the ERC-20 balance", () => {
+  expect(next({ qor: 1n, pqcRegistered: true })).toBe("registerKem");
+});
+
+test("fees: bank fUSD without QOR stays at fund and asks for QOR", () => {
+  const s: WalletChainStatus = { ...base, fusdBank: 50_000_000n };
+  expect(nextStep(setupStatus(s))).toBe("fund");
+  expect(needsQorForFees(s)).toBe(true);
+  expect(needsQorForFees({ ...s, qor: 1n })).toBe(false);
+  expect(needsQorForFees(base)).toBe(false);
+});
+
+test("runStep fund sends nothing", async () => {
+  expect(await runStep("fund", { acc, sealKeys, net, status })).toBeNull();
+  expect(registerPqcKey).not.toHaveBeenCalled();
+});
+
+test("fund is done only with QOR; convert needs the bank balance moved", () => {
+  expect(setupStatus({ ...base, fusd: 1n }).fund).not.toBe("done");
   expect(setupStatus({ ...base, qor: 1n }).fund).toBe("done");
   expect(setupStatus({ ...base, qor: 1n, fusdBank: 5n, fusd: 5n }).convert).not.toBe("done");
   expect(setupStatus({ ...base, qor: 1n, fusd: 5n }).convert).toBe("done");
@@ -42,7 +60,7 @@ test("fund is done with QOR or any fUSD; convert needs the whole bank balance mo
 
 test("later steps wait while an earlier one is still to do", () => {
   const s = setupStatus(base);
-  expect(s).toEqual({ fund: "todo", registerKey: "waiting", convert: "waiting", registerKem: "waiting", publishCard: "waiting" });
+  expect(s).toEqual({ fund: "todo", registerKey: "waiting", convert: "done", registerKem: "waiting", publishCard: "waiting" });
 });
 
 const acc = { cosmos: "qor1abc", evm: "0xabc" } as unknown as UnifiedAccount;
@@ -59,10 +77,18 @@ test("registerKey registers the ML-DSA key", async () => {
   expect(registerPqcKey).toHaveBeenCalledWith(net, acc);
 });
 
-test("convert moves the whole bank balance", async () => {
+test("convert moves the bank balance read right before sending", async () => {
+  readBankFusd.mockResolvedValue(40_000_000n);
   convertFusd.mockResolvedValue("H2");
   expect(await runStep("convert", { acc, sealKeys, net, status })).toBe("H2");
-  expect(convertFusd).toHaveBeenCalledWith(net, acc, 50_000_000n);
+  expect(readBankFusd).toHaveBeenCalledWith("qor1abc");
+  expect(convertFusd).toHaveBeenCalledWith(net, acc, 40_000_000n);
+});
+
+test("convert sends nothing when the bank balance is already empty", async () => {
+  readBankFusd.mockResolvedValue(0n);
+  expect(await runStep("convert", { acc, sealKeys, net, status })).toBeNull();
+  expect(convertFusd).not.toHaveBeenCalled();
 });
 
 test("registerKem registers the key and waits a block only when a transaction was sent", async () => {
@@ -76,8 +102,8 @@ test("registerKem registers the key and waits a block only when a transaction wa
 
 test("publishCard PUTs the signed card for the address", async () => {
   signedCard.mockReturnValue({ signed: true });
-  put.mockResolvedValue({ status: 204 });
+  putCard.mockResolvedValue(undefined);
   expect(await runStep("publishCard", { acc, sealKeys, net, status })).toBeNull();
   expect(signedCard).toHaveBeenCalledWith(net, acc, sealKeys);
-  expect(put).toHaveBeenCalledWith("/v1/cards/qor1abc", { card: { signed: true } });
+  expect(putCard).toHaveBeenCalledWith("qor1abc", { signed: true });
 });
