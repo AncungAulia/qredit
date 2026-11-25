@@ -34,6 +34,7 @@ export function ReclaimButton({ order, business, withAmount = false, size = "sm"
         confirmLabel={`Reclaim ${amount}`}
         pendingLabel={`Reclaiming ${amount}`}
         successTitle={`Reclaimed ${amount} from ${business.name}`}
+        successText="The amount you paid has been returned to your wallet."
         nextStep={{ text: "Check your inbox before reclaiming again.", label: "Open the inbox", href: "/inbox" }}
         run={() => actions.reclaim(order.vault, order.orderId)}
       />

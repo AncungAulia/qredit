@@ -48,8 +48,9 @@ test("a test wallet menu shows the address, both balances, the theme switch, loc
   await user.click(await screen.findByRole("button", { name: /Account menu/ }, { timeout: 20_000 }));
   const menu = await screen.findByRole("dialog", { name: "Account menu" });
   expect(within(menu).getByText("Test wallet")).toBeInTheDocument();
-  expect(await within(menu).findByLabelText("fUSD balance")).toHaveTextContent(/50\.00\s*fUSD/);
-  expect(within(menu).getByLabelText("QOR balance")).toHaveTextContent(/2\.00\s*QOR/);
+  const fusd = await within(menu).findByRole("group", { name: "Balance" });
+  expect(fusd).toHaveTextContent("Balance50.00fUSD");
+  expect(within(menu).getByRole("group", { name: "Network fees" })).toHaveTextContent("Network fees2.00QOR");
   expect(within(menu).getByRole("button", { name: "Copy address" })).toBeInTheDocument();
   expect(within(menu).getByRole("button", { name: "Back up phrase" })).toBeInTheDocument();
   expect(within(menu).getByRole("button", { name: "Lock" })).toBeInTheDocument();
@@ -75,7 +76,7 @@ test("QoreX shows the owner console and disconnect, and no lock without a test w
   expect(within(menu).getByRole("button", { name: "Disconnect QoreX" })).toBeInTheDocument();
   expect(within(menu).queryByRole("button", { name: "Lock" })).not.toBeInTheDocument();
   // No test wallet is unlocked, so no balance is claimed.
-  expect(within(menu).queryByLabelText("fUSD balance")).not.toBeInTheDocument();
+  expect(within(menu).queryByRole("group", { name: "Balance" })).not.toBeInTheDocument();
 });
 
 test("lock leaves a locked button that opens the unlock form", async () => {

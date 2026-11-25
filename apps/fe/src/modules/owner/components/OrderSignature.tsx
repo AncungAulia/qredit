@@ -290,6 +290,7 @@ export function OrderSignature({ business, qorexAddress, values, via, onCancel, 
         confirmLabel="Apply order"
         pendingLabel="Applying the order"
         successTitle={appliedTitle(built.order)}
+        successText="The vault now follows the new rule."
         nextStep={NEXT_STEP}
         summary={<p className="rounded-lg bg-surface-muted p-3 text-sm text-text-primary">{orderSentence(built.order)}</p>}
         run={async () => {

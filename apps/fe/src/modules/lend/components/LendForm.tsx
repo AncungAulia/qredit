@@ -5,12 +5,11 @@ import Link from "next/link";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { CircleAlert } from "lucide-react";
-import { toast } from "sonner";
 import { ChainActionStatus, useChainAction } from "@/components/shared/ChainAction";
 import { fieldErrorClass, fieldHelpClass } from "@/components/shared/formStyles";
 import { NumberInput } from "@/components/shared/NumberInput";
 import { Notice } from "@/components/shared/Notice";
-import { TxLink } from "@/components/shared/TxLink";
+import { notifySuccess } from "@/components/shared/notify";
 import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -73,8 +72,9 @@ export function LendForm({ business, vault, evm, onClose, onBusyChange }: Props)
   const submit = handleSubmit(async () => {
     const result = await action.start();
     if (!result) return;
-    toast.success(`Lent ${formatFusd(units as bigint)} to ${business.name}`, {
-      description: result.hash ? <TxLink hash={result.hash} /> : undefined,
+    notifySuccess(`Lent ${formatFusd(units as bigint)} to ${business.name}`, {
+      text: `Your fUSD now backs ${business.name}'s loan. You can follow it in My lending.`,
+      hash: result.hash ?? undefined,
     });
     onClose();
   });

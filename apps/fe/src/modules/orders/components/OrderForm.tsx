@@ -5,12 +5,12 @@ import Link from "next/link";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { CircleAlert, CircleCheck, Lock, Undo2, Wallet } from "lucide-react";
-import { toast } from "sonner";
 import { ChainActionStatus, useChainAction } from "@/components/shared/ChainAction";
 import { BusinessMark } from "@/components/shared/BusinessMark";
 import { controlClass, fieldErrorClass, fieldHelpClass } from "@/components/shared/formStyles";
 import { InlineWordmark } from "@/components/shared/InlineWordmark";
 import { Notice } from "@/components/shared/Notice";
+import { notifySuccess } from "@/components/shared/notify";
 import { TxLink } from "@/components/shared/TxLink";
 import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
@@ -119,7 +119,10 @@ export function OrderForm({ business }: { business: Business }) {
     const result = await action.start();
     setStep(null);
     if (!result) return;
-    toast.success("Order placed", { description: result.hash ? <TxLink hash={result.hash} /> : undefined });
+    notifySuccess("Order placed", {
+      text: `Your payment has been sent and the order is with ${business.name}.`,
+      hash: result.hash ?? undefined,
+    });
   });
 
   const error = errors.input?.message;

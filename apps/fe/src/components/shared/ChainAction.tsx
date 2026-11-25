@@ -6,9 +6,9 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { CircleCheck, LoaderCircle } from "lucide-react";
-import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { Notice } from "@/components/shared/Notice";
+import { notifySuccess } from "@/components/shared/notify";
 import { TxLink } from "@/components/shared/TxLink";
 import { Button } from "@/components/ui/button";
 import { TxFailed, TxReverted } from "@/modules/wallet/signer";
@@ -156,6 +156,8 @@ type Props = {
   confirmLabel: string;
   pendingLabel: string;
   successTitle: string;
+  /** The line under the success title; the transaction link follows it. */
+  successText?: string;
   run: ChainRun;
   onDone?: (hash: string | null) => void;
   /** The summary block of the design (amounts, fee, result). */
@@ -175,6 +177,7 @@ export function ChainAction({
   confirmLabel,
   pendingLabel,
   successTitle,
+  successText,
   run,
   onDone,
   summary,
@@ -198,7 +201,7 @@ export function ChainAction({
     const result = await action.start();
     if (!result || finished.current) return;
     finished.current = true;
-    toast.success(successTitle, { description: result.hash ? <TxLink hash={result.hash} /> : undefined });
+    notifySuccess(successTitle, { text: successText, hash: result.hash ?? undefined });
     onDone?.(result.hash);
     onOpenChange(false);
   };

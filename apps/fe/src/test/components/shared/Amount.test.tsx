@@ -13,3 +13,11 @@ test("size changes the classes", () => {
   expect(whole.className).toContain("text-xl");
   expect(whole.className).not.toContain("text-[56px]");
 });
+
+test("the decimals sit in the same group as the whole part, with the unit once after it", () => {
+  const { container } = render(<Amount units={20_000_000n} unit="fUSD" size="sm" />);
+  const figure = screen.getByText("20").parentElement as HTMLElement;
+  expect(figure.textContent).toBe("20.00");
+  expect(figure.className).not.toMatch(/\bgap-/);
+  expect(container.textContent).toBe("20.00fUSD");
+});

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Copy, ExternalLink, KeyRound, LayoutDashboard, ListChecks, Lock, LogOut, ScrollText, SunMoon, type LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Amount } from "@/components/shared/Amount";
+import { notifySuccess } from "@/components/shared/notify";
 import { Orb } from "@/components/shared/Orb";
 import { ThemeSwitch } from "@/components/shared/ThemeSwitch";
 import { Button } from "@/components/ui/button";
@@ -49,7 +50,7 @@ function Row({
 
 function Balance({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div role="group" aria-label={`${label} balance`} className="flex items-center justify-between gap-3">
+    <div role="group" aria-label={label} className="flex items-center justify-between gap-3">
       <span className="text-[13px] text-text-secondary">{label}</span>
       {children}
     </div>
@@ -62,10 +63,10 @@ function Balances({ wallet }: { wallet: NonNullable<ReturnType<typeof testWallet
   if (isError || !data) return <p className="px-2.5 pb-2 text-[13px] text-text-tertiary">Balances could not be loaded.</p>;
   return (
     <div className="mx-1 mb-1 flex flex-col gap-1 rounded-xl bg-surface-muted px-3.5 py-2.5">
-      <Balance label="fUSD">
+      <Balance label="Balance">
         <Amount units={data.fusd + data.fusdBank} unit="fUSD" size="sm" />
       </Balance>
-      <Balance label="QOR">
+      <Balance label="Network fees">
         <Amount units={data.qor} unit="QOR" size="sm" />
       </Balance>
     </div>
@@ -90,8 +91,8 @@ export function AccountMenu({ session, onClose, onBackup, onSetup, onLock }: Pro
   };
   const copy = () => {
     void navigator.clipboard?.writeText(session.address).then(
-      () => toast.success("Address copied"),
-      () => toast.error("The address could not be copied."),
+      () => notifySuccess("Address copied", { text: `${shortAddress(session.address)} is on your clipboard.` }),
+      () => toast.error("The address could not be copied.", { description: "Your browser did not allow access to the clipboard." }),
     );
   };
 
