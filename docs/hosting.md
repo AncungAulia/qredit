@@ -37,7 +37,12 @@ Only one backend may use the relayer and treasury keys at a time (shared account
 
 ## Custom domain
 
-Add at the DNS provider: `CNAME api.qredit.fun -> vypt94fw.up.railway.app`. Railway shows the record as requiring update until it is set.
+Add at the DNS provider (Hostinger for qredit.fun):
+
+- `CNAME api -> vypt94fw.up.railway.app` (traffic).
+- `TXT _railway-verify.api -> railway-verify=<token>` (ownership). Railway issues no certificate until this record exists; read the token from the domain status in Railway (it is not a secret, but it is per domain).
+
+Both records are set and the certificate is issued: `GET https://api.qredit.fun/health` returns `{"ok":true}`.
 
 ## Railway API names used (verified by introspection)
 
