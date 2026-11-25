@@ -3,7 +3,7 @@ import { TxLink } from "@/components/shared/TxLink";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatFusd, formatRelative } from "@/lib/format";
 import type { LatestOrder } from "@/modules/market/api/market.api";
-import { OrderStatusBadge } from "./OrderStatusBadge";
+import { OrderStatusBadge } from "@/components/shared/OrderStatusBadge";
 
 // Column widths of the Table/Orders rows in the design; narrower on tablet so the order column keeps room.
 const COLUMNS =

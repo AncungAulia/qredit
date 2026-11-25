@@ -56,3 +56,12 @@ describe("other formats", () => {
 test("counts get thousands separators", () => {
   expect(formatCount(1234)).toBe("1,234");
 });
+
+test("durations use the largest exact unit", async () => {
+  const { formatDuration } = await import("@/lib/format");
+  expect(formatDuration(3600)).toBe("1 hour");
+  expect(formatDuration(7200)).toBe("2 hours");
+  expect(formatDuration(5400)).toBe("90 minutes");
+  expect(formatDuration(86400)).toBe("1 day");
+  expect(formatDuration(45)).toBe("45 seconds");
+});

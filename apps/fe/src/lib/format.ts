@@ -66,3 +66,17 @@ export function formatRelative(d: Date | number, now: Date | number = Date.now()
 
 export const shortAddress = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 export const shortHash = (h: string) => `${h.slice(0, 6)}…${h.slice(-4)}`;
+
+const DURATION_UNITS: [string, number][] = [
+  ["day", 86_400],
+  ["hour", 3_600],
+  ["minute", 60],
+  ["second", 1],
+];
+
+/** A length of time in the largest unit that divides it exactly: "1 hour", "90 minutes". */
+export function formatDuration(seconds: number): string {
+  const [unit, size] = DURATION_UNITS.find(([, s]) => seconds % s === 0) ?? DURATION_UNITS[3];
+  const n = seconds / size;
+  return `${n.toLocaleString(LOCALE)} ${unit}${n === 1 ? "" : "s"}`;
+}

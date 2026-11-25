@@ -1,3 +1,4 @@
+export { KPI_GRID } from "./components/MarketKpis";
 export { BusinessCard } from "./components/BusinessCard";
 export { MarketPage } from "./components/MarketPage";
 export { getBusiness, readVaultSnapshot } from "./api/market.api";
