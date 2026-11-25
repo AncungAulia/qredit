@@ -4,6 +4,7 @@ WORKDIR /app
 # Workspace manifests first: a frozen install needs every workspace member present.
 COPY package.json bun.lock ./
 COPY apps/be/package.json apps/be/package.json
+COPY apps/fe/package.json apps/fe/package.json
 COPY engine/package.json engine/package.json
 COPY packages/qore/package.json packages/qore/package.json
 RUN bun install --frozen-lockfile --production
