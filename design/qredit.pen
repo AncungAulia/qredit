@@ -217195,6 +217195,7 @@
                           "x": -416,
                           "y": 16,
                           "name": "Carousel",
+                          "context": "Live in code, not a static image: the tiles in CarouselSource (exported from Pencil) sit on a curved 3D band and drift slowly sideways; scrolling the page speeds them up in the scroll direction, then they ease back to the slow drift. Port the user's useScrollSpeed + ScrollVelocity / ProjectWheel pattern from D:/Coding/portfolio/portofolio-latest (src/components/motion/lerp.ts, ScrollVelocity.tsx, src/modules/home/components/ProjectWheel.tsx): frame-rate independent smoothing (decay 5.4), velocity clamp, loop wrap, pause off screen, static under prefers-reduced-motion. carousel.png stays as the reduced-motion and no-JS fallback.",
                           "width": 2160,
                           "height": 371,
                           "fill": {
@@ -218230,9 +218231,13 @@
                               "context": "Links to the business page in the app.",
                               "width": "fill_container",
                               "height": 280,
-                              "fill": "$surface-muted",
+                              "fill": {
+                                "type": "image",
+                                "enabled": true,
+                                "url": "landing/scenes/counterparty.jpg",
+                                "mode": "cover"
+                              },
                               "cornerRadius": 32,
-                              "padding": 10,
                               "children": [
                                 {
                                   "type": "frame",
@@ -218244,7 +218249,7 @@
                                   "fill": {
                                     "type": "image",
                                     "enabled": true,
-                                    "url": "landing/sky.png",
+                                    "url": "landing/scenes/counterparty.jpg",
                                     "mode": "cover"
                                   },
                                   "cornerRadius": 24,
@@ -218354,7 +218359,7 @@
                                           "name": "Open",
                                           "width": 44,
                                           "height": 44,
-                                          "fill": "$surface",
+                                          "fill": "#FFFFFFCC",
                                           "cornerRadius": "$radius-full",
                                           "justifyContent": "center",
                                           "alignItems": "center",
@@ -218383,9 +218388,13 @@
                               "context": "Links to the business page in the app.",
                               "width": "fill_container",
                               "height": 280,
-                              "fill": "$surface-muted",
+                              "fill": {
+                                "type": "image",
+                                "enabled": true,
+                                "url": "landing/scenes/sanctions.jpg",
+                                "mode": "cover"
+                              },
                               "cornerRadius": 32,
-                              "padding": 10,
                               "children": [
                                 {
                                   "type": "frame",
@@ -218397,7 +218406,7 @@
                                   "fill": {
                                     "type": "image",
                                     "enabled": true,
-                                    "url": "landing/sky.png",
+                                    "url": "landing/scenes/sanctions.jpg",
                                     "mode": "cover"
                                   },
                                   "cornerRadius": 24,
@@ -218445,7 +218454,7 @@
                                         {
                                           "type": "text",
                                           "id": "tG4g2",
-                                          "fill": "$text-primary",
+                                          "fill": "#FFFFFF",
                                           "content": "Sanctions Screen",
                                           "fontFamily": "$font-body",
                                           "fontSize": 24,
@@ -218455,7 +218464,7 @@
                                         {
                                           "type": "text",
                                           "id": "D3ehSi",
-                                          "fill": "$text-secondary",
+                                          "fill": "#FFFFFFCC",
                                           "textGrowth": "fixed-width",
                                           "width": "fill_container",
                                           "content": "Is this address on a sanctions list?",
@@ -218484,7 +218493,7 @@
                                             {
                                               "type": "text",
                                               "id": "L7Cq19",
-                                              "fill": "$text-tertiary",
+                                              "fill": "#FFFFFFCC",
                                               "content": "Price per report",
                                               "fontFamily": "$font-body",
                                               "fontSize": 13,
@@ -218493,7 +218502,7 @@
                                             {
                                               "type": "text",
                                               "id": "OeDZt",
-                                              "fill": "$text-primary",
+                                              "fill": "#FFFFFF",
                                               "content": "0.50 fUSD",
                                               "fontFamily": "$font-body",
                                               "fontSize": 18,
@@ -218507,7 +218516,7 @@
                                           "name": "Open",
                                           "width": 44,
                                           "height": 44,
-                                          "fill": "$surface",
+                                          "fill": "#FFFFFFCC",
                                           "cornerRadius": "$radius-full",
                                           "justifyContent": "center",
                                           "alignItems": "center",
@@ -218545,9 +218554,13 @@
                               "context": "Links to the business page in the app.",
                               "width": "fill_container",
                               "height": 280,
-                              "fill": "$surface-muted",
+                              "fill": {
+                                "type": "image",
+                                "enabled": true,
+                                "url": "landing/scenes/diligence.jpg",
+                                "mode": "cover"
+                              },
                               "cornerRadius": 32,
-                              "padding": 10,
                               "children": [
                                 {
                                   "type": "frame",
@@ -218559,7 +218572,7 @@
                                   "fill": {
                                     "type": "image",
                                     "enabled": true,
-                                    "url": "landing/sky.png",
+                                    "url": "landing/scenes/diligence.jpg",
                                     "mode": "cover"
                                   },
                                   "cornerRadius": 24,
@@ -218656,7 +218669,7 @@
                                               "type": "text",
                                               "id": "CmWSk",
                                               "fill": "$text-primary",
-                                              "content": "1.00 fUSD",
+                                              "content": "3.00 fUSD",
                                               "fontFamily": "$font-body",
                                               "fontSize": 18,
                                               "fontWeight": "600"
@@ -218669,7 +218682,7 @@
                                           "name": "Open",
                                           "width": 44,
                                           "height": 44,
-                                          "fill": "$surface",
+                                          "fill": "#FFFFFFCC",
                                           "cornerRadius": "$radius-full",
                                           "justifyContent": "center",
                                           "alignItems": "center",
@@ -218698,9 +218711,13 @@
                               "context": "Links to the business page in the app.",
                               "width": "fill_container",
                               "height": 280,
-                              "fill": "$surface-muted",
+                              "fill": {
+                                "type": "image",
+                                "enabled": true,
+                                "url": "landing/scenes/auditor.jpg",
+                                "mode": "cover"
+                              },
                               "cornerRadius": 32,
-                              "padding": 10,
                               "children": [
                                 {
                                   "type": "frame",
@@ -218712,7 +218729,7 @@
                                   "fill": {
                                     "type": "image",
                                     "enabled": true,
-                                    "url": "landing/sky.png",
+                                    "url": "landing/scenes/auditor.jpg",
                                     "mode": "cover"
                                   },
                                   "cornerRadius": 24,
@@ -218760,7 +218777,7 @@
                                         {
                                           "type": "text",
                                           "id": "GjoVy",
-                                          "fill": "$text-primary",
+                                          "fill": "#FFFFFF",
                                           "content": "Contract Auditor",
                                           "fontFamily": "$font-body",
                                           "fontSize": 24,
@@ -218770,7 +218787,7 @@
                                         {
                                           "type": "text",
                                           "id": "Q6jFIM",
-                                          "fill": "$text-secondary",
+                                          "fill": "#FFFFFFCC",
                                           "textGrowth": "fixed-width",
                                           "width": "fill_container",
                                           "content": "Risky patterns in a contract before you use it.",
@@ -218799,7 +218816,7 @@
                                             {
                                               "type": "text",
                                               "id": "yEwxf",
-                                              "fill": "$text-tertiary",
+                                              "fill": "#FFFFFFCC",
                                               "content": "Price per report",
                                               "fontFamily": "$font-body",
                                               "fontSize": 13,
@@ -218808,8 +218825,8 @@
                                             {
                                               "type": "text",
                                               "id": "S7dxMU",
-                                              "fill": "$text-primary",
-                                              "content": "0.75 fUSD",
+                                              "fill": "#FFFFFF",
+                                              "content": "5.00 fUSD",
                                               "fontFamily": "$font-body",
                                               "fontSize": 18,
                                               "fontWeight": "600"
@@ -218822,7 +218839,7 @@
                                           "name": "Open",
                                           "width": 44,
                                           "height": 44,
-                                          "fill": "$surface",
+                                          "fill": "#FFFFFFCC",
                                           "cornerRadius": "$radius-full",
                                           "justifyContent": "center",
                                           "alignItems": "center",
@@ -219334,7 +219351,7 @@
                   ],
                   "layout": "vertical",
                   "padding": [
-                    420,
+                    540,
                     0,
                     0,
                     0
@@ -219350,7 +219367,7 @@
                       "padding": [
                         0,
                         0,
-                        160,
+                        100,
                         0
                       ],
                       "alignItems": "center",
@@ -220892,9 +220909,13 @@
                               "context": "Links to the business page in the app.",
                               "width": "fill_container",
                               "height": 280,
-                              "fill": "$surface-muted",
+                              "fill": {
+                                "type": "image",
+                                "enabled": true,
+                                "url": "landing/scenes/counterparty.jpg",
+                                "mode": "cover"
+                              },
                               "cornerRadius": 32,
-                              "padding": 10,
                               "children": [
                                 {
                                   "type": "frame",
@@ -220906,7 +220927,7 @@
                                   "fill": {
                                     "type": "image",
                                     "enabled": true,
-                                    "url": "landing/sky.png",
+                                    "url": "landing/scenes/counterparty.jpg",
                                     "mode": "cover"
                                   },
                                   "cornerRadius": 24,
@@ -221016,7 +221037,7 @@
                                           "name": "Open",
                                           "width": 44,
                                           "height": 44,
-                                          "fill": "$surface",
+                                          "fill": "#FFFFFFCC",
                                           "cornerRadius": "$radius-full",
                                           "justifyContent": "center",
                                           "alignItems": "center",
@@ -221045,9 +221066,13 @@
                               "context": "Links to the business page in the app.",
                               "width": "fill_container",
                               "height": 280,
-                              "fill": "$surface-muted",
+                              "fill": {
+                                "type": "image",
+                                "enabled": true,
+                                "url": "landing/scenes/sanctions.jpg",
+                                "mode": "cover"
+                              },
                               "cornerRadius": 32,
-                              "padding": 10,
                               "children": [
                                 {
                                   "type": "frame",
@@ -221059,7 +221084,7 @@
                                   "fill": {
                                     "type": "image",
                                     "enabled": true,
-                                    "url": "landing/sky.png",
+                                    "url": "landing/scenes/sanctions.jpg",
                                     "mode": "cover"
                                   },
                                   "cornerRadius": 24,
@@ -221107,7 +221132,7 @@
                                         {
                                           "type": "text",
                                           "id": "ITZ4W",
-                                          "fill": "$text-primary",
+                                          "fill": "#FFFFFF",
                                           "content": "Sanctions Screen",
                                           "fontFamily": "$font-body",
                                           "fontSize": 24,
@@ -221117,7 +221142,7 @@
                                         {
                                           "type": "text",
                                           "id": "QnyJJ",
-                                          "fill": "$text-secondary",
+                                          "fill": "#FFFFFFCC",
                                           "textGrowth": "fixed-width",
                                           "width": "fill_container",
                                           "content": "Is this address on a sanctions list?",
@@ -221146,7 +221171,7 @@
                                             {
                                               "type": "text",
                                               "id": "GZUMo",
-                                              "fill": "$text-tertiary",
+                                              "fill": "#FFFFFFCC",
                                               "content": "Price per report",
                                               "fontFamily": "$font-body",
                                               "fontSize": 13,
@@ -221155,7 +221180,7 @@
                                             {
                                               "type": "text",
                                               "id": "iLrRi",
-                                              "fill": "$text-primary",
+                                              "fill": "#FFFFFF",
                                               "content": "0.50 fUSD",
                                               "fontFamily": "$font-body",
                                               "fontSize": 18,
@@ -221169,7 +221194,7 @@
                                           "name": "Open",
                                           "width": 44,
                                           "height": 44,
-                                          "fill": "$surface",
+                                          "fill": "#FFFFFFCC",
                                           "cornerRadius": "$radius-full",
                                           "justifyContent": "center",
                                           "alignItems": "center",
@@ -221208,9 +221233,13 @@
                               "context": "Links to the business page in the app.",
                               "width": "fill_container",
                               "height": 280,
-                              "fill": "$surface-muted",
+                              "fill": {
+                                "type": "image",
+                                "enabled": true,
+                                "url": "landing/scenes/diligence.jpg",
+                                "mode": "cover"
+                              },
                               "cornerRadius": 32,
-                              "padding": 10,
                               "children": [
                                 {
                                   "type": "frame",
@@ -221222,7 +221251,7 @@
                                   "fill": {
                                     "type": "image",
                                     "enabled": true,
-                                    "url": "landing/sky.png",
+                                    "url": "landing/scenes/diligence.jpg",
                                     "mode": "cover"
                                   },
                                   "cornerRadius": 24,
@@ -221319,7 +221348,7 @@
                                               "type": "text",
                                               "id": "nJqOZ",
                                               "fill": "$text-primary",
-                                              "content": "1.00 fUSD",
+                                              "content": "3.00 fUSD",
                                               "fontFamily": "$font-body",
                                               "fontSize": 18,
                                               "fontWeight": "600"
@@ -221332,7 +221361,7 @@
                                           "name": "Open",
                                           "width": 44,
                                           "height": 44,
-                                          "fill": "$surface",
+                                          "fill": "#FFFFFFCC",
                                           "cornerRadius": "$radius-full",
                                           "justifyContent": "center",
                                           "alignItems": "center",
@@ -221361,9 +221390,13 @@
                               "context": "Links to the business page in the app.",
                               "width": "fill_container",
                               "height": 280,
-                              "fill": "$surface-muted",
+                              "fill": {
+                                "type": "image",
+                                "enabled": true,
+                                "url": "landing/scenes/auditor.jpg",
+                                "mode": "cover"
+                              },
                               "cornerRadius": 32,
-                              "padding": 10,
                               "children": [
                                 {
                                   "type": "frame",
@@ -221375,7 +221408,7 @@
                                   "fill": {
                                     "type": "image",
                                     "enabled": true,
-                                    "url": "landing/sky.png",
+                                    "url": "landing/scenes/auditor.jpg",
                                     "mode": "cover"
                                   },
                                   "cornerRadius": 24,
@@ -221423,7 +221456,7 @@
                                         {
                                           "type": "text",
                                           "id": "zjB4Z",
-                                          "fill": "$text-primary",
+                                          "fill": "#FFFFFF",
                                           "content": "Contract Auditor",
                                           "fontFamily": "$font-body",
                                           "fontSize": 24,
@@ -221433,7 +221466,7 @@
                                         {
                                           "type": "text",
                                           "id": "G7aQ7",
-                                          "fill": "$text-secondary",
+                                          "fill": "#FFFFFFCC",
                                           "textGrowth": "fixed-width",
                                           "width": "fill_container",
                                           "content": "Risky patterns in a contract before you use it.",
@@ -221462,7 +221495,7 @@
                                             {
                                               "type": "text",
                                               "id": "ggBF4",
-                                              "fill": "$text-tertiary",
+                                              "fill": "#FFFFFFCC",
                                               "content": "Price per report",
                                               "fontFamily": "$font-body",
                                               "fontSize": 13,
@@ -221471,8 +221504,8 @@
                                             {
                                               "type": "text",
                                               "id": "VnKrM",
-                                              "fill": "$text-primary",
-                                              "content": "0.75 fUSD",
+                                              "fill": "#FFFFFF",
+                                              "content": "5.00 fUSD",
                                               "fontFamily": "$font-body",
                                               "fontSize": 18,
                                               "fontWeight": "600"
@@ -221485,7 +221518,7 @@
                                           "name": "Open",
                                           "width": 44,
                                           "height": 44,
-                                          "fill": "$surface",
+                                          "fill": "#FFFFFFCC",
                                           "cornerRadius": "$radius-full",
                                           "justifyContent": "center",
                                           "alignItems": "center",
@@ -221997,7 +222030,7 @@
                   ],
                   "layout": "vertical",
                   "padding": [
-                    380,
+                    490,
                     0,
                     0,
                     0
@@ -222013,7 +222046,7 @@
                       "padding": [
                         0,
                         0,
-                        160,
+                        100,
                         0
                       ],
                       "alignItems": "center",
@@ -223551,9 +223584,13 @@
                               "context": "Links to the business page in the app.",
                               "width": "fill_container",
                               "height": 200,
-                              "fill": "$surface-muted",
+                              "fill": {
+                                "type": "image",
+                                "enabled": true,
+                                "url": "landing/scenes/counterparty.jpg",
+                                "mode": "cover"
+                              },
                               "cornerRadius": 32,
-                              "padding": 8,
                               "children": [
                                 {
                                   "type": "frame",
@@ -223565,7 +223602,7 @@
                                   "fill": {
                                     "type": "image",
                                     "enabled": true,
-                                    "url": "landing/sky.png",
+                                    "url": "landing/scenes/counterparty.jpg",
                                     "mode": "cover"
                                   },
                                   "cornerRadius": 24,
@@ -223675,7 +223712,7 @@
                                           "name": "Open",
                                           "width": 44,
                                           "height": 44,
-                                          "fill": "$surface",
+                                          "fill": "#FFFFFFCC",
                                           "cornerRadius": "$radius-full",
                                           "justifyContent": "center",
                                           "alignItems": "center",
@@ -223704,9 +223741,13 @@
                               "context": "Links to the business page in the app.",
                               "width": "fill_container",
                               "height": 200,
-                              "fill": "$surface-muted",
+                              "fill": {
+                                "type": "image",
+                                "enabled": true,
+                                "url": "landing/scenes/sanctions.jpg",
+                                "mode": "cover"
+                              },
                               "cornerRadius": 32,
-                              "padding": 8,
                               "children": [
                                 {
                                   "type": "frame",
@@ -223718,7 +223759,7 @@
                                   "fill": {
                                     "type": "image",
                                     "enabled": true,
-                                    "url": "landing/sky.png",
+                                    "url": "landing/scenes/sanctions.jpg",
                                     "mode": "cover"
                                   },
                                   "cornerRadius": 24,
@@ -223766,7 +223807,7 @@
                                         {
                                           "type": "text",
                                           "id": "ZkMJM",
-                                          "fill": "$text-primary",
+                                          "fill": "#FFFFFF",
                                           "content": "Sanctions Screen",
                                           "fontFamily": "$font-body",
                                           "fontSize": 19,
@@ -223776,7 +223817,7 @@
                                         {
                                           "type": "text",
                                           "id": "g9NVw",
-                                          "fill": "$text-secondary",
+                                          "fill": "#FFFFFFCC",
                                           "textGrowth": "fixed-width",
                                           "width": "fill_container",
                                           "content": "Is this address on a sanctions list?",
@@ -223805,7 +223846,7 @@
                                             {
                                               "type": "text",
                                               "id": "LKDgY",
-                                              "fill": "$text-tertiary",
+                                              "fill": "#FFFFFFCC",
                                               "content": "Price per report",
                                               "fontFamily": "$font-body",
                                               "fontSize": 13,
@@ -223814,7 +223855,7 @@
                                             {
                                               "type": "text",
                                               "id": "Pp04T",
-                                              "fill": "$text-primary",
+                                              "fill": "#FFFFFF",
                                               "content": "0.50 fUSD",
                                               "fontFamily": "$font-body",
                                               "fontSize": 18,
@@ -223828,7 +223869,7 @@
                                           "name": "Open",
                                           "width": 44,
                                           "height": 44,
-                                          "fill": "$surface",
+                                          "fill": "#FFFFFFCC",
                                           "cornerRadius": "$radius-full",
                                           "justifyContent": "center",
                                           "alignItems": "center",
@@ -223867,9 +223908,13 @@
                               "context": "Links to the business page in the app.",
                               "width": "fill_container",
                               "height": 200,
-                              "fill": "$surface-muted",
+                              "fill": {
+                                "type": "image",
+                                "enabled": true,
+                                "url": "landing/scenes/diligence.jpg",
+                                "mode": "cover"
+                              },
                               "cornerRadius": 32,
-                              "padding": 8,
                               "children": [
                                 {
                                   "type": "frame",
@@ -223881,7 +223926,7 @@
                                   "fill": {
                                     "type": "image",
                                     "enabled": true,
-                                    "url": "landing/sky.png",
+                                    "url": "landing/scenes/diligence.jpg",
                                     "mode": "cover"
                                   },
                                   "cornerRadius": 24,
@@ -223978,7 +224023,7 @@
                                               "type": "text",
                                               "id": "JLAb5",
                                               "fill": "$text-primary",
-                                              "content": "1.00 fUSD",
+                                              "content": "3.00 fUSD",
                                               "fontFamily": "$font-body",
                                               "fontSize": 18,
                                               "fontWeight": "600"
@@ -223991,7 +224036,7 @@
                                           "name": "Open",
                                           "width": 44,
                                           "height": 44,
-                                          "fill": "$surface",
+                                          "fill": "#FFFFFFCC",
                                           "cornerRadius": "$radius-full",
                                           "justifyContent": "center",
                                           "alignItems": "center",
@@ -224020,9 +224065,13 @@
                               "context": "Links to the business page in the app.",
                               "width": "fill_container",
                               "height": 200,
-                              "fill": "$surface-muted",
+                              "fill": {
+                                "type": "image",
+                                "enabled": true,
+                                "url": "landing/scenes/auditor.jpg",
+                                "mode": "cover"
+                              },
                               "cornerRadius": 32,
-                              "padding": 8,
                               "children": [
                                 {
                                   "type": "frame",
@@ -224034,7 +224083,7 @@
                                   "fill": {
                                     "type": "image",
                                     "enabled": true,
-                                    "url": "landing/sky.png",
+                                    "url": "landing/scenes/auditor.jpg",
                                     "mode": "cover"
                                   },
                                   "cornerRadius": 24,
@@ -224082,7 +224131,7 @@
                                         {
                                           "type": "text",
                                           "id": "xgxLC",
-                                          "fill": "$text-primary",
+                                          "fill": "#FFFFFF",
                                           "content": "Contract Auditor",
                                           "fontFamily": "$font-body",
                                           "fontSize": 19,
@@ -224092,7 +224141,7 @@
                                         {
                                           "type": "text",
                                           "id": "JvL9n",
-                                          "fill": "$text-secondary",
+                                          "fill": "#FFFFFFCC",
                                           "textGrowth": "fixed-width",
                                           "width": "fill_container",
                                           "content": "Risky patterns in a contract before you use it.",
@@ -224121,7 +224170,7 @@
                                             {
                                               "type": "text",
                                               "id": "ISte8",
-                                              "fill": "$text-tertiary",
+                                              "fill": "#FFFFFFCC",
                                               "content": "Price per report",
                                               "fontFamily": "$font-body",
                                               "fontSize": 13,
@@ -224130,8 +224179,8 @@
                                             {
                                               "type": "text",
                                               "id": "yjzpS",
-                                              "fill": "$text-primary",
-                                              "content": "0.75 fUSD",
+                                              "fill": "#FFFFFF",
+                                              "content": "5.00 fUSD",
                                               "fontFamily": "$font-body",
                                               "fontSize": 18,
                                               "fontWeight": "600"
@@ -224144,7 +224193,7 @@
                                           "name": "Open",
                                           "width": 44,
                                           "height": 44,
-                                          "fill": "$surface",
+                                          "fill": "#FFFFFFCC",
                                           "cornerRadius": "$radius-full",
                                           "justifyContent": "center",
                                           "alignItems": "center",
@@ -224685,7 +224734,7 @@
                   ],
                   "layout": "vertical",
                   "padding": [
-                    460,
+                    530,
                     0,
                     0,
                     0
@@ -224701,7 +224750,7 @@
                       "padding": [
                         0,
                         16,
-                        96,
+                        64,
                         16
                       ],
                       "alignItems": "center",
@@ -225465,6 +225514,22 @@
                       "name": "State"
                     }
                   ]
+                },
+                {
+                  "type": "frame",
+                  "id": "q7qCs",
+                  "layoutPosition": "absolute",
+                  "x": 140,
+                  "y": -10,
+                  "name": "Coin",
+                  "width": 130,
+                  "height": 130,
+                  "fill": {
+                    "type": "image",
+                    "enabled": true,
+                    "url": "landing/coins/coin-4.png",
+                    "mode": "contain"
+                  }
                 }
               ]
             },
@@ -225475,7 +225540,12 @@
               "clip": true,
               "width": 260,
               "height": 320,
-              "fill": "$surface",
+              "fill": {
+                "type": "image",
+                "enabled": true,
+                "url": "landing/scenes/counterparty.jpg",
+                "mode": "cover"
+              },
               "cornerRadius": 28,
               "layout": "vertical",
               "padding": 12,
@@ -225488,7 +225558,7 @@
                   "clip": true,
                   "width": "fill_container",
                   "height": 190,
-                  "fill": "#F4F4F2",
+                  "fill": "#FFFFFF00",
                   "cornerRadius": 18,
                   "layout": "vertical",
                   "justifyContent": "center",
@@ -225498,13 +225568,13 @@
                       "type": "frame",
                       "id": "eLGK3",
                       "name": "Art",
-                      "width": 170,
-                      "height": 170,
+                      "width": 190,
+                      "height": 190,
                       "fill": {
                         "type": "image",
                         "enabled": true,
-                        "url": "agents/counterparty-light.png",
-                        "mode": "cover"
+                        "url": "agents/counterparty-cutout.png",
+                        "mode": "contain"
                       }
                     }
                   ]
@@ -225514,13 +225584,13 @@
                   "id": "srkZ5",
                   "name": "Copy",
                   "width": "fill_container",
+                  "fill": "#FFFFFFD9",
+                  "cornerRadius": 18,
                   "layout": "vertical",
                   "gap": 4,
                   "padding": [
-                    0,
-                    8,
-                    8,
-                    8
+                    12,
+                    14
                   ],
                   "children": [
                     {
@@ -225571,6 +225641,19 @@
                 },
                 {
                   "type": "frame",
+                  "id": "s1SdP",
+                  "name": "Vault",
+                  "width": "fill_container",
+                  "height": 160,
+                  "fill": {
+                    "type": "image",
+                    "enabled": true,
+                    "url": "landing/vault-cutout.png",
+                    "mode": "contain"
+                  }
+                },
+                {
+                  "type": "frame",
                   "id": "nCVbm",
                   "name": "Fig",
                   "width": "fill_container",
@@ -225600,7 +225683,12 @@
               "clip": true,
               "width": 260,
               "height": 320,
-              "fill": "$surface",
+              "fill": {
+                "type": "image",
+                "enabled": true,
+                "url": "landing/scenes/sanctions.jpg",
+                "mode": "cover"
+              },
               "cornerRadius": 28,
               "layout": "vertical",
               "padding": 12,
@@ -225613,7 +225701,7 @@
                   "clip": true,
                   "width": "fill_container",
                   "height": 190,
-                  "fill": "#F4F4F2",
+                  "fill": "#FFFFFF00",
                   "cornerRadius": 18,
                   "layout": "vertical",
                   "justifyContent": "center",
@@ -225623,13 +225711,13 @@
                       "type": "frame",
                       "id": "FAsZX",
                       "name": "Art",
-                      "width": 170,
-                      "height": 170,
+                      "width": 190,
+                      "height": 190,
                       "fill": {
                         "type": "image",
                         "enabled": true,
-                        "url": "agents/sanctions-light.png",
-                        "mode": "cover"
+                        "url": "agents/sanctions-cutout.png",
+                        "mode": "contain"
                       }
                     }
                   ]
@@ -225639,13 +225727,13 @@
                   "id": "Y5Xij",
                   "name": "Copy",
                   "width": "fill_container",
+                  "fill": "#FFFFFFD9",
+                  "cornerRadius": 18,
                   "layout": "vertical",
                   "gap": 4,
                   "padding": [
-                    0,
-                    8,
-                    8,
-                    8
+                    12,
+                    14
                   ],
                   "children": [
                     {
@@ -225684,9 +225772,14 @@
                   "type": "frame",
                   "id": "wR11p",
                   "name": "Icon",
-                  "width": 44,
-                  "height": 44,
-                  "fill": "$accent-soft",
+                  "width": "fill_container",
+                  "height": 160,
+                  "fill": {
+                    "type": "image",
+                    "enabled": true,
+                    "url": "landing/lock.png",
+                    "mode": "contain"
+                  },
                   "cornerRadius": "$radius-full",
                   "justifyContent": "center",
                   "alignItems": "center",
@@ -225694,6 +225787,9 @@
                     {
                       "type": "icon",
                       "id": "NxQlf",
+                      "x": 12,
+                      "y": 12,
+                      "enabled": false,
                       "width": 20,
                       "height": 20,
                       "icon": "mail",
@@ -225797,7 +225893,12 @@
               "clip": true,
               "width": 260,
               "height": 320,
-              "fill": "$surface",
+              "fill": {
+                "type": "image",
+                "enabled": true,
+                "url": "landing/scenes/diligence.jpg",
+                "mode": "cover"
+              },
               "cornerRadius": 28,
               "layout": "vertical",
               "padding": 12,
@@ -225810,7 +225911,7 @@
                   "clip": true,
                   "width": "fill_container",
                   "height": 190,
-                  "fill": "#F4F4F2",
+                  "fill": "#FFFFFF00",
                   "cornerRadius": 18,
                   "layout": "vertical",
                   "justifyContent": "center",
@@ -225820,13 +225921,13 @@
                       "type": "frame",
                       "id": "kd7KI",
                       "name": "Art",
-                      "width": 170,
-                      "height": 170,
+                      "width": 190,
+                      "height": 190,
                       "fill": {
                         "type": "image",
                         "enabled": true,
-                        "url": "agents/diligence-light.png",
-                        "mode": "cover"
+                        "url": "agents/diligence-cutout.png",
+                        "mode": "contain"
                       }
                     }
                   ]
@@ -225836,13 +225937,13 @@
                   "id": "dmfPl",
                   "name": "Copy",
                   "width": "fill_container",
+                  "fill": "#FFFFFFD9",
+                  "cornerRadius": 18,
                   "layout": "vertical",
                   "gap": 4,
                   "padding": [
-                    0,
-                    8,
-                    8,
-                    8
+                    12,
+                    14
                   ],
                   "children": [
                     {
@@ -225858,7 +225959,7 @@
                       "type": "text",
                       "id": "QGjxB",
                       "fill": "$text-secondary",
-                      "content": "1.00 fUSD per report",
+                      "content": "3.00 fUSD per report",
                       "fontFamily": "$font-body",
                       "fontSize": 13,
                       "fontWeight": "normal"
@@ -225900,6 +226001,22 @@
                   "fontSize": 64,
                   "fontWeight": "600",
                   "letterSpacing": -2.4
+                },
+                {
+                  "type": "frame",
+                  "id": "XpdNK",
+                  "layoutPosition": "absolute",
+                  "x": 62,
+                  "y": 66,
+                  "name": "Coin",
+                  "width": 136,
+                  "height": 136,
+                  "fill": {
+                    "type": "image",
+                    "enabled": true,
+                    "url": "landing/coins/coin-2.png",
+                    "mode": "contain"
+                  }
                 }
               ]
             },
@@ -225910,7 +226027,12 @@
               "clip": true,
               "width": 260,
               "height": 320,
-              "fill": "$surface",
+              "fill": {
+                "type": "image",
+                "enabled": true,
+                "url": "landing/scenes/auditor.jpg",
+                "mode": "cover"
+              },
               "cornerRadius": 28,
               "layout": "vertical",
               "padding": 12,
@@ -225923,7 +226045,7 @@
                   "clip": true,
                   "width": "fill_container",
                   "height": 190,
-                  "fill": "#F4F4F2",
+                  "fill": "#FFFFFF00",
                   "cornerRadius": 18,
                   "layout": "vertical",
                   "justifyContent": "center",
@@ -225933,13 +226055,13 @@
                       "type": "frame",
                       "id": "mJ7Ki",
                       "name": "Art",
-                      "width": 170,
-                      "height": 170,
+                      "width": 190,
+                      "height": 190,
                       "fill": {
                         "type": "image",
                         "enabled": true,
-                        "url": "agents/auditor-light.png",
-                        "mode": "cover"
+                        "url": "agents/auditor-cutout.png",
+                        "mode": "contain"
                       }
                     }
                   ]
@@ -225949,13 +226071,13 @@
                   "id": "oStwY",
                   "name": "Copy",
                   "width": "fill_container",
+                  "fill": "#FFFFFFD9",
+                  "cornerRadius": 18,
                   "layout": "vertical",
                   "gap": 4,
                   "padding": [
-                    0,
-                    8,
-                    8,
-                    8
+                    12,
+                    14
                   ],
                   "children": [
                     {
@@ -225971,7 +226093,7 @@
                       "type": "text",
                       "id": "j7EZcQ",
                       "fill": "$text-secondary",
-                      "content": "0.75 fUSD per report",
+                      "content": "5.00 fUSD per report",
                       "fontFamily": "$font-body",
                       "fontSize": 13,
                       "fontWeight": "normal"
