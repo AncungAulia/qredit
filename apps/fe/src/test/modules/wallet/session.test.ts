@@ -1,6 +1,8 @@
 import { expect, test } from "vitest";
+import { hexToQor } from "@qredit/qore";
 import { createWalletStore } from "@/modules/wallet/session";
 import { readStored, StorageUnavailable, WrongPassword } from "@/modules/wallet/keystore";
+import type { QorexClient } from "@/modules/wallet/qorex";
 
 const PHRASE = "abandon ".repeat(23) + "art";
 
@@ -112,3 +114,67 @@ test("a blocked storage write throws StorageUnavailable and sets nothing", async
   await expect(store.getState().create(PHRASE, "correct horse")).rejects.toBeInstanceOf(StorageUnavailable);
   expect(store.getState().session.kind).toBe("none");
 }, 30_000);
+
+const QOREX_EVM = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8" as const;
+const QOREX_ADDR = hexToQor(QOREX_EVM);
+const fakeQorex = (over: Partial<QorexClient> = {}): QorexClient => ({
+  detect: () => "ready",
+  connect: async () => ({ address: QOREX_ADDR, evm: QOREX_EVM }),
+  signArbitrary: async () => new Uint8Array(),
+  capabilities: () => [],
+  ...over,
+});
+
+test("connectQorex without a wallet gives a QoreX session without a test wallet, disconnect returns to none", async () => {
+  const store = createWalletStore({ storage: memoryStorage(), qorex: fakeQorex() });
+  await store.getState().connectQorex();
+  expect(store.getState().session).toEqual({ kind: "qorex", address: QOREX_ADDR, evm: QOREX_EVM, testWallet: null });
+  store.getState().disconnectQorex();
+  expect(store.getState().session).toEqual({ kind: "none" });
+});
+
+test("connectQorex keeps an unlocked test wallet, lock drops it but keeps QoreX, disconnect goes to locked", async () => {
+  const store = createWalletStore({ storage: memoryStorage(), qorex: fakeQorex() });
+  await store.getState().create(PHRASE, "correct horse");
+  const test = store.getState().session;
+  await store.getState().connectQorex();
+  const s = store.getState().session;
+  expect(s.kind === "qorex" && s.testWallet).toEqual(test);
+
+  store.getState().lock();
+  expect(store.getState().session).toEqual({ kind: "qorex", address: QOREX_ADDR, evm: QOREX_EVM, testWallet: null });
+  store.getState().disconnectQorex();
+  expect(store.getState().session.kind).toBe("locked");
+}, 30_000);
+
+test("unlock while QoreX is connected nests the test wallet; disconnect returns to it", async () => {
+  const store = createWalletStore({ storage: memoryStorage(), qorex: fakeQorex() });
+  await store.getState().create(PHRASE, "correct horse");
+  store.getState().lock();
+  await store.getState().connectQorex();
+  await store.getState().unlock("correct horse");
+  const s = store.getState().session;
+  expect(s.kind === "qorex" && s.testWallet?.kind).toBe("test");
+  store.getState().disconnectQorex();
+  expect(store.getState().session.kind).toBe("test");
+}, 30_000);
+
+test("a failing connect leaves the session unchanged", async () => {
+  const store = createWalletStore({ storage: memoryStorage(), qorex: fakeQorex({ connect: async () => { throw new Error("refused"); } }) });
+  await expect(store.getState().connectQorex()).rejects.toThrow("refused");
+  expect(store.getState().session).toEqual({ kind: "none" });
+});
+
+test("a forget during a slow QoreX connect is not undone", async () => {
+  let release!: () => void;
+  const gate = new Promise<void>((r) => (release = r));
+  const store = createWalletStore({
+    storage: memoryStorage(),
+    qorex: fakeQorex({ connect: async () => { await gate; return { address: QOREX_ADDR, evm: QOREX_EVM }; } }),
+  });
+  const pending = store.getState().connectQorex();
+  store.getState().forget();
+  release();
+  await pending;
+  expect(store.getState().session).toEqual({ kind: "none" });
+});

@@ -11,6 +11,7 @@ import {
   readStored,
   writeStored,
 } from "@/modules/wallet/keystore";
+import { createQorexClient, type QorexClient } from "@/modules/wallet/qorex";
 
 export type TestSession = {
   kind: "test";
@@ -34,9 +35,17 @@ export type WalletStore = {
   create(phrase: string, password: string): Promise<void>;
   lock(): void;
   forget(): void;
+  /** Connects QoreX; an unlocked test wallet stays available under it. */
+  connectQorex(): Promise<void>;
+  /** Drops QoreX and returns to the test wallet (unlocked, locked or none). */
+  disconnectQorex(): void;
 };
 
-export type WalletDeps = { storage?: Storage };
+export type WalletDeps = { storage?: Storage; qorex?: QorexClient };
+
+/** A finished unlock or create: nested under QoreX when QoreX is connected, otherwise the session itself. */
+const withTestWallet = (current: WalletSession, test: TestSession): WalletSession =>
+  current.kind === "qorex" ? { ...current, testWallet: test } : test;
 
 async function deriveSession(phrase: string): Promise<TestSession> {
   const derived = await deriveUnifiedAccount(phrase, 0);
@@ -49,6 +58,8 @@ async function deriveSession(phrase: string): Promise<TestSession> {
 export const createWalletStore = (deps: WalletDeps = {}): StoreApi<WalletStore> => {
   // Bumped by every operation; an async unlock or create applies its result only while it is still the latest.
   let token = 0;
+  let qorexClient: QorexClient | undefined;
+  const qorex = () => (qorexClient ??= deps.qorex ?? createQorexClient());
   return createStore<WalletStore>()((set, get) => ({
     session: { kind: "none" },
     hydrate() {
@@ -62,7 +73,7 @@ export const createWalletStore = (deps: WalletDeps = {}): StoreApi<WalletStore> 
       const mine = ++token;
       const phrase = await decryptPhrase(stored, password);
       const session = await deriveSession(phrase);
-      if (mine === token) set({ session });
+      if (mine === token) set({ session: withTestWallet(get().session, session) });
     },
     async create(phrase, password) {
       const clean = phrase.trim().replace(/\s+/g, " ");
@@ -73,17 +84,35 @@ export const createWalletStore = (deps: WalletDeps = {}): StoreApi<WalletStore> 
       const record = await encryptPhrase(clean, password, session.address);
       if (mine !== token) return;
       writeStored(record, deps.storage);
-      set({ session });
+      set({ session: withTestWallet(get().session, session) });
     },
     lock() {
       token++;
       const { session } = get();
       if (session.kind === "test") set({ session: { kind: "locked", address: session.address } });
+      else if (session.kind === "qorex" && session.testWallet) set({ session: { ...session, testWallet: null } });
     },
     forget() {
       token++;
       forgetStored(deps.storage);
-      set({ session: { kind: "none" } });
+      const { session } = get();
+      set({ session: session.kind === "qorex" ? { ...session, testWallet: null } : { kind: "none" } });
+    },
+    async connectQorex() {
+      const mine = ++token;
+      const { address, evm } = await qorex().connect();
+      if (mine !== token) return;
+      const current = get().session;
+      const testWallet = current.kind === "test" ? current : current.kind === "qorex" ? current.testWallet : null;
+      set({ session: { kind: "qorex", address, evm, testWallet } });
+    },
+    disconnectQorex() {
+      token++;
+      const { session } = get();
+      if (session.kind !== "qorex") return;
+      if (session.testWallet) return set({ session: session.testWallet });
+      const stored = readStored(deps.storage);
+      set({ session: stored ? { kind: "locked", address: stored.address } : { kind: "none" } });
     },
   }));
 };
