@@ -20,6 +20,18 @@ vi.mock("@/modules/wallet/components/ConnectPrompt", () => ({
   ConnectPrompt: ({ label }: { label?: string }) => <button type="button">{label ?? "Connect wallet"}</button>,
 }));
 
+const ready = vi.hoisted(() => ({
+  qor: 5n,
+  fusdBank: 0n,
+  fusd: 50n,
+  pqcRegistered: true,
+  kemRegistered: true,
+  cardPublished: true,
+}));
+const status = vi.hoisted(() => ({ data: undefined as unknown, isPending: false, isError: false, refetch: vi.fn() }));
+vi.mock("@/modules/wallet/api/useWalletStatus", () => ({ useWalletStatusQuery: () => status }));
+vi.mock("@/modules/wallet/components/WalletSetup", () => ({ WalletSetup: () => <p>setup steps</p> }));
+
 const market = vi.hoisted(() => ({ data: [] as unknown[] | undefined, isError: false }));
 vi.mock("@/modules/market", async (orig) => ({
   ...(await orig<object>()),
@@ -69,6 +81,18 @@ beforeEach(() => {
   positions.data = undefined;
   positions.isError = false;
   positions.isRefetchError = false;
+  status.data = ready;
+  status.isPending = false;
+  status.isError = false;
+});
+
+test("a wallet that is not set up sees the setup state and no claim or refund buttons", () => {
+  status.data = { ...ready, pqcRegistered: false };
+  positions.data = [position("a", "Counterparty Check", "Active", 500, 151.2, 18.4)];
+  render(<PositionsPage />);
+  expect(screen.getByText("Counterparty Check")).toBeInTheDocument();
+  expect(screen.getByText("Finish setting up your wallet")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /^Claim / })).not.toBeInTheDocument();
 });
 
 test("before the browser storage is read the page shows its loading state, not a wrong one", () => {

@@ -4,6 +4,7 @@ import type { Business } from "@/lib/schemas";
 import { claim, lend, readFusdBalance, readPositions, refund } from "@/modules/lend/api/lend.api";
 import { lendKeys } from "@/modules/lend/api/lend.keys";
 import { marketKeys } from "@/modules/market";
+import { walletKeys } from "@/modules/wallet/api/useWalletStatus";
 import { useWallet } from "@/modules/wallet/WalletProvider";
 
 type Hex = `0x${string}`;
@@ -37,6 +38,8 @@ export function useLendActions() {
     const refresh = () => {
       void client.invalidateQueries({ queryKey: marketKeys.all });
       void client.invalidateQueries({ queryKey: lendKeys.all });
+      // The wallet's fUSD and the window it opened changed too.
+      void client.invalidateQueries({ queryKey: walletKeys.all });
     };
     const done = <T>(result: T): T => {
       refresh();

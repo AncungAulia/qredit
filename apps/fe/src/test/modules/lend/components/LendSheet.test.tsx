@@ -17,6 +17,18 @@ vi.mock("@/modules/wallet/components/ConnectPrompt", () => ({
   ConnectPrompt: ({ label }: { label?: string }) => <button type="button">{label ?? "Connect wallet"}</button>,
 }));
 
+const ready = vi.hoisted(() => ({
+  qor: 5n,
+  fusdBank: 0n,
+  fusd: 50n,
+  pqcRegistered: true,
+  kemRegistered: true,
+  cardPublished: true,
+}));
+const status = vi.hoisted(() => ({ data: undefined as unknown, isPending: false, isError: false, refetch: vi.fn() }));
+vi.mock("@/modules/wallet/api/useWalletStatus", () => ({ useWalletStatusQuery: () => status }));
+vi.mock("@/modules/wallet/components/WalletSetup", () => ({ WalletSetup: () => <p>setup steps</p> }));
+
 const balance = vi.hoisted(() => ({ data: 1_250_000_000n as bigint | undefined, isError: false }));
 const lendFn = vi.hoisted(() => vi.fn());
 vi.mock("@/modules/lend/api/useLend", () => ({
@@ -52,6 +64,33 @@ beforeEach(() => {
   wallet.session = { kind: "test", evm: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8" };
   balance.data = fusd(1250);
   balance.isError = false;
+  status.data = ready;
+  status.isPending = false;
+  status.isError = false;
+});
+
+test("a wallet that is not set up sees the setup state instead of the form, even with fUSD in the bank account", () => {
+  status.data = { ...ready, fusdBank: 50_000_000n, fusd: 0n };
+  balance.data = 0n;
+  open();
+  expect(screen.getByText("Finish setting up your wallet")).toBeInTheDocument();
+  expect(screen.queryByLabelText("Amount")).not.toBeInTheDocument();
+  expect(screen.queryByText("Your wallet holds no fUSD to lend.")).not.toBeInTheDocument();
+});
+
+test("the summary warns that the wallet may ask for two or three steps", () => {
+  open();
+  expect(screen.getByText("Your wallet may ask you to confirm two or three steps.")).toBeInTheDocument();
+});
+
+test("closing the form reports that nothing is in flight", async () => {
+  const onBusyChange = vi.fn();
+  const { LendForm } = await import("@/modules/lend/components/LendForm");
+  const { unmount } = render(
+    <LendForm business={business} vault={vault} evm="0x70997970C51812dc3A010C7d01b50e0d17dc79C8" onClose={vi.fn()} onBusyChange={onBusyChange} />,
+  );
+  unmount();
+  expect(onBusyChange).toHaveBeenLastCalledWith(false);
 });
 
 test("enter amount: the summary follows the amount and the button names it", async () => {

@@ -2,7 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import type { TestSession } from "@/modules/wallet/session";
 import { readWalletStatus } from "@/modules/wallet/api/wallet.api";
 
-export const walletKeys = { status: (address: string | null) => ["wallet", "status", address] as const };
+export const walletKeys = {
+  all: ["wallet"] as const,
+  status: (address: string | null) => ["wallet", "status", address] as const,
+};
 
 /** The wallet's on-chain setup status; disabled until a test wallet is unlocked. */
 export const useWalletStatusQuery = (session: Pick<TestSession, "account" | "sealKeys"> | null) =>

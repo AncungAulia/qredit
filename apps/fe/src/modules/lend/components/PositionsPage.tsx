@@ -13,6 +13,7 @@ import { PositionList } from "@/modules/lend/components/PositionList";
 import { lendTotals, lenderAddress } from "@/modules/lend/lib/lender";
 import { KPI_GRID, useMarketQuery } from "@/modules/market";
 import { ConnectPrompt } from "@/modules/wallet/components/ConnectPrompt";
+import { SetupGate, useWalletReadiness } from "@/modules/wallet/components/RequireReadyWallet";
 import { testWalletOf } from "@/modules/wallet/signer";
 import { useWallet } from "@/modules/wallet/WalletProvider";
 
@@ -52,7 +53,10 @@ export function PositionsPage() {
   const businesses = market.data?.map((row) => row.business);
   const positions = usePositionsQuery(evm, businesses);
   const rows = positions.data;
-  const canSend = Boolean(testWalletOf(session));
+  const hasTestWallet = Boolean(testWalletOf(session));
+  // Claim and refund need the wallet set up (the window), so they wait until it is ready.
+  const readiness = useWalletReadiness();
+  const canSend = hasTestWallet && readiness.state === "ready";
 
   let body;
   if (!hydrated) {
@@ -118,7 +122,16 @@ export function PositionsPage() {
             </h2>
             <p className="text-sm text-text-secondary">Repayments arrive with every sale. Claim them at any time.</p>
           </div>
-          {!canSend && (
+          {hasTestWallet && readiness.state === "setup" && <SetupGate />}
+          {hasTestWallet && readiness.state === "error" && (
+            <Notice tone="warning">
+              The status of your wallet could not be read, so claiming and refunds are paused.{" "}
+              <button type="button" className="font-medium underline" onClick={readiness.refetch}>
+                Try again
+              </button>
+            </Notice>
+          )}
+          {!hasTestWallet && (
             <Notice tone="info">
               Claiming and refunds are sent from a test wallet, because QoreX cannot send this kind of transaction.
             </Notice>

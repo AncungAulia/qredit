@@ -7,6 +7,7 @@ import { formatFusd } from "@/lib/format";
 import { LendForm } from "@/modules/lend/components/LendForm";
 import type { VaultSnapshot } from "@/modules/market";
 import { ConnectPrompt } from "@/modules/wallet/components/ConnectPrompt";
+import { RequireReadyWallet } from "@/modules/wallet/components/RequireReadyWallet";
 import { testWalletOf } from "@/modules/wallet/signer";
 import { useWallet } from "@/modules/wallet/WalletProvider";
 
@@ -46,13 +47,15 @@ export function LendSheet({ business, vault, open, onOpenChange }: Props) {
       dismissible={!busy}
     >
       {wallet ? (
-        <LendForm
-          business={business}
-          vault={vault}
-          evm={wallet.evm}
-          onClose={() => onOpenChange(false)}
-          onBusyChange={setBusy}
-        />
+        <RequireReadyWallet>
+          <LendForm
+            business={business}
+            vault={vault}
+            evm={wallet.evm}
+            onClose={() => onOpenChange(false)}
+            onBusyChange={setBusy}
+          />
+        </RequireReadyWallet>
       ) : (
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">

@@ -21,6 +21,7 @@ export type Position = {
 
 export const RAISE_FULL_SENTENCE =
   "The vault refused this loan, and your fUSD has not moved. Please choose a business that is still raising.";
+export const LEND_NOT_PREPARED_SENTENCE = "The loan could not be prepared. Please try again.";
 export const NO_TEST_WALLET_SENTENCE =
   "A test wallet is needed to send this transaction. Create or unlock one first.";
 
@@ -72,15 +73,19 @@ export async function lend(
     readFusd("allowance", [signer.address, vault]),
   ]);
   const target = loan[0];
+  // Every refusal the wallet or the vault can give is checked here, so none depends on the text of a planner error.
+  const room = target - raised;
+  if (Number(state) !== VAULT_STATE.Raising || room <= 0n) throw new TxReverted(null, RAISE_FULL_SENTENCE);
+  if (amount <= 0n) throw new TxReverted(null, VAULT_ERROR_SENTENCES.ZeroAmount);
+  if (amount > room) throw new TxReverted(null, VAULT_ERROR_SENTENCES.OverTarget);
+  if (balance < amount) throw new TxReverted(null, ERC20_ERROR_SENTENCES.ERC20InsufficientBalance);
   let plan;
   try {
     plan = planLend({ state: Number(state), raised, target, balance, allowance }, amount);
-  } catch (e) {
-    const zero = e instanceof Error && /must be positive/.test(e.message);
-    throw new TxReverted(null, zero ? VAULT_ERROR_SENTENCES.ZeroAmount : ERC20_ERROR_SENTENCES.ERC20InsufficientBalance);
+  } catch {
+    throw new TxFailed(null, LEND_NOT_PREPARED_SENTENCE);
   }
-  if (plan.action === "skip" || Number(state) !== VAULT_STATE.Raising) throw new TxReverted(null, RAISE_FULL_SENTENCE);
-  if (plan.amount !== amount) throw new TxReverted(null, VAULT_ERROR_SENTENCES.OverTarget);
+  if (plan.action !== "deposit" || plan.amount !== amount) throw new TxFailed(null, LEND_NOT_PREPARED_SENTENCE);
 
   await ensureWindowFor(session, [FUSD_ADDRESS, vault]);
   onSent?.();

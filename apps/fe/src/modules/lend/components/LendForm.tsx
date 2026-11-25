@@ -65,6 +65,8 @@ export function LendForm({ business, vault, evm, onClose, onBusyChange }: Props)
   const action = useChainAction(run);
   const busy = action.phase === "wallet" || action.phase === "chain";
   useEffect(() => onBusyChange(busy), [busy, onBusyChange]);
+  // When the form goes away nothing of it is in flight any more, so the dialog may be closed again.
+  useEffect(() => () => onBusyChange(false), [onBusyChange]);
 
   const submit = handleSubmit(async () => {
     const result = await action.start();
@@ -153,6 +155,7 @@ export function LendForm({ business, vault, evm, onClose, onBusyChange }: Props)
         <Line label="Repaid from">{`${formatBps(vault.lenderBps)} of every sale, before the owner`}</Line>
         <Line label="Deadline">{formatDate(vault.raiseDeadline)}</Line>
         <Line label="Network fee">Paid in QOR by your wallet</Line>
+        <p className="py-1.5 text-sm text-text-secondary">Your wallet may ask you to confirm two or three steps.</p>
       </div>
 
       <p className="text-[13px] leading-normal text-text-secondary">

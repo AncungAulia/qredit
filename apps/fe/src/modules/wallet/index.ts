@@ -4,4 +4,5 @@ export type { WalletSession, WalletStore, TestSession } from "@/modules/wallet/s
 export { AccountButton } from "@/modules/wallet/components/AccountButton";
 export { ConnectDialog, type ConnectView } from "@/modules/wallet/components/ConnectDialog";
 export { ConnectPrompt } from "@/modules/wallet/components/ConnectPrompt";
+export { RequireReadyWallet, SetupGate, useWalletReadiness } from "@/modules/wallet/components/RequireReadyWallet";
 export { WalletSetup } from "@/modules/wallet/components/WalletSetup";
