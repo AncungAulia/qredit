@@ -2,8 +2,20 @@ import { beforeEach, expect, test, vi } from "vitest";
 
 const call = vi.fn();
 const waitForTransactionReceipt = vi.fn();
-const sendTransaction = vi.fn();
-const walletFor = vi.fn((...args: [string, string]) => (void args, { sendTransaction, account: { address: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8" }, chain: {} }));
+const prepareTransactionRequest = vi.fn();
+const sendRawTransaction = vi.fn();
+const signTransaction = vi.fn();
+const walletFor = vi.fn(
+  (...args: [string, string]) => (
+    void args,
+    {
+      prepareTransactionRequest,
+      sendRawTransaction,
+      account: { address: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8", signTransaction },
+      chain: {},
+    }
+  ),
+);
 const ensureWindow = vi.fn();
 
 vi.mock("@/lib/chain", () => ({ restUrl: () => "http://localhost/api/chain/rest", publicClient: { call: (a: unknown) => call(a), waitForTransactionReceipt: (a: unknown) => waitForTransactionReceipt(a) } }));
@@ -14,13 +26,15 @@ vi.mock("@qredit/qore", async (orig) => ({
 }));
 
 import { BUYER_WINDOW } from "@qredit/qore";
-import { encodeErrorResult } from "viem";
+import { encodeErrorResult, keccak256 } from "viem";
 import { LOAN_VAULT_ABI } from "@qredit/qore";
-import { ensureWindowFor, evmSignerFor, TxFailed, TxReverted } from "@/modules/wallet/signer";
+import { mayHaveSpent } from "@/components/shared/ChainAction";
+import { ensureWindowFor, evmSignerFor, TxFailed, TxReverted, withAccountLock } from "@/modules/wallet/signer";
 import type { TestSession, WalletSession } from "@/modules/wallet/session";
 
 const PK = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d" as const;
 const EVM = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8" as const;
+const ADDR_B = "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC" as const;
 const TO = "0x1111111111111111111111111111111111111111" as const;
 const test_: TestSession = {
   kind: "test",
@@ -30,7 +44,15 @@ const test_: TestSession = {
   sealKeys: {} as never,
 };
 
-beforeEach(() => vi.clearAllMocks());
+const SIGNED = "0x02f86e01" as const;
+const HASH = keccak256(SIGNED);
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  prepareTransactionRequest.mockImplementation(async (r: object) => ({ ...r, nonce: 1, gas: 21000n }));
+  signTransaction.mockResolvedValue(SIGNED);
+  sendRawTransaction.mockResolvedValue(HASH);
+});
 
 test("no signer for none, locked and QoreX without a test wallet", () => {
   const sessions: WalletSession[] = [
@@ -46,15 +68,24 @@ test("a test wallet, also under QoreX, gives a signer", () => {
   expect(evmSignerFor({ kind: "qorex", address: "qor1y", evm: EVM, testWallet: test_ })?.address).toBe(EVM);
 });
 
-test("send simulates, sends with the test key, waits for the receipt and returns the hash", async () => {
+test("send simulates, prepares, signs, sends the raw transaction, waits for the receipt and returns the hash", async () => {
   call.mockResolvedValue({ data: "0x" });
-  sendTransaction.mockResolvedValue("0xabc");
   waitForTransactionReceipt.mockResolvedValue({ status: "success" });
   const hash = await evmSignerFor(test_)!.send(TO, "0x1234");
   expect(call).toHaveBeenCalledWith(expect.objectContaining({ account: EVM, to: TO, data: "0x1234" }));
   expect(walletFor).toHaveBeenCalledWith(PK, "https://evm-testnet.qore.host");
-  expect(sendTransaction).toHaveBeenCalled();
-  expect(hash).toBe("0xabc");
+  expect(prepareTransactionRequest).toHaveBeenCalledWith(expect.objectContaining({ to: TO, data: "0x1234" }));
+  expect(signTransaction).toHaveBeenCalledWith(expect.objectContaining({ nonce: 1 }));
+  expect(sendRawTransaction).toHaveBeenCalledWith({ serializedTransaction: SIGNED });
+  expect(waitForTransactionReceipt).toHaveBeenCalledWith({ hash: HASH });
+  expect(hash).toBe(HASH);
+});
+
+test("sendForReceipt returns the hash with the receipt, so callers need no second lookup", async () => {
+  call.mockResolvedValue({ data: "0x" });
+  const receipt = { status: "success", logs: [{ address: TO }] };
+  waitForTransactionReceipt.mockResolvedValue(receipt);
+  expect(await evmSignerFor(test_)!.sendForReceipt(TO, "0x1234")).toEqual({ hash: HASH, receipt });
 });
 
 test("a simulation revert throws TxReverted(null, sentence) and sends nothing", async () => {
@@ -64,76 +95,123 @@ test("a simulation revert throws TxReverted(null, sentence) and sends nothing", 
   expect(err).toBeInstanceOf(TxReverted);
   expect((err as TxReverted).hash).toBeNull();
   expect((err as TxReverted).reason).toBe("The vault refuses to widen its rules until the loan is repaid.");
-  expect(sendTransaction).not.toHaveBeenCalled();
+  expect(sendRawTransaction).not.toHaveBeenCalled();
 });
 
 test("a reverted receipt throws TxReverted with the hash", async () => {
   call.mockResolvedValue({ data: "0x" });
-  sendTransaction.mockResolvedValue("0xdef");
   waitForTransactionReceipt.mockResolvedValue({ status: "reverted", blockNumber: 77n });
   const err = await evmSignerFor(test_)!.send(TO, "0x1234").catch((e: unknown) => e);
   expect(err).toBeInstanceOf(TxReverted);
-  expect((err as TxReverted).hash).toBe("0xdef");
+  expect((err as TxReverted).hash).toBe(HASH);
   expect((err as TxReverted).reason).toBe("The transaction was refused.");
 });
 
 test("a reverted receipt replays the call at its block to decode the reason", async () => {
   const data = encodeErrorResult({ abi: LOAN_VAULT_ABI, errorName: "WrongState" } as never);
   call.mockResolvedValueOnce({ data: "0x" }).mockRejectedValueOnce(Object.assign(new Error("execution reverted"), { data }));
-  sendTransaction.mockResolvedValue("0xdef");
   waitForTransactionReceipt.mockResolvedValue({ status: "reverted", blockNumber: 77n });
   const err = await evmSignerFor(test_)!.send(TO, "0x1234").catch((e: unknown) => e);
   expect((err as TxReverted).reason).toBe("The loan is not in a state that allows this action.");
   expect(call).toHaveBeenLastCalledWith(expect.objectContaining({ blockNumber: 77n }));
 });
 
-test("a rejected sendTransaction becomes TxFailed with a formal sentence, never raw text", async () => {
+test("a request that cannot be prepared is TxFailed without a hash and with a formal sentence, never raw text", async () => {
   call.mockResolvedValue({ data: "0x" });
-  sendTransaction.mockRejectedValue(new Error("insufficient funds for gas * price + value: address 0xabc"));
+  prepareTransactionRequest.mockRejectedValue(new Error("insufficient funds for gas * price + value: address 0xabc"));
   const err = await evmSignerFor(test_)!.send(TO, "0x1234").catch((e: unknown) => e);
   expect(err).toBeInstanceOf(TxFailed);
   expect((err as TxFailed).hash).toBeNull();
   expect((err as TxFailed).reason).toBe("The wallet has too little QOR to pay the network fee.");
-  sendTransaction.mockRejectedValue(new Error("HTTP request failed. internal 500"));
+  prepareTransactionRequest.mockRejectedValue(new Error("HTTP request failed. internal 500"));
   const other = await evmSignerFor(test_)!.send(TO, "0x1234").catch((e: unknown) => e);
   expect((other as TxFailed).reason).toBe("The transaction could not be sent.");
+  expect(signTransaction).not.toHaveBeenCalled();
+});
+
+test("a send that times out after signing keeps the hash, so no second payment is offered", async () => {
+  call.mockResolvedValue({ data: "0x" });
+  sendRawTransaction.mockRejectedValue(Object.assign(new Error("The request timed out."), { name: "TimeoutError" }));
+  const err = await evmSignerFor(test_)!.send(TO, "0x1234").catch((e: unknown) => e);
+  expect(err).toBeInstanceOf(TxFailed);
+  expect((err as TxFailed).hash).toBe(HASH);
+  expect((err as TxFailed).reason).toMatch(/may have been sent/i);
+  expect(mayHaveSpent(err)).toBe(true);
+  expect(waitForTransactionReceipt).not.toHaveBeenCalled();
+});
+
+test("any other failure after signing also keeps the hash", async () => {
+  call.mockResolvedValue({ data: "0x" });
+  sendRawTransaction.mockRejectedValue(new Error("HTTP request failed. internal 500"));
+  const err = await evmSignerFor(test_)!.send(TO, "0x1234").catch((e: unknown) => e);
+  expect((err as TxFailed).hash).toBe(HASH);
+  expect(mayHaveSpent(err)).toBe(true);
+});
+
+test("a signing failure has no hash: nothing left the browser", async () => {
+  call.mockResolvedValue({ data: "0x" });
+  signTransaction.mockRejectedValue(new Error("bad key"));
+  const err = await evmSignerFor(test_)!.send(TO, "0x1234").catch((e: unknown) => e);
+  expect((err as TxFailed).hash).toBeNull();
+  expect(sendRawTransaction).not.toHaveBeenCalled();
 });
 
 test("a receipt timeout becomes TxFailed that keeps the hash", async () => {
   call.mockResolvedValue({ data: "0x" });
-  sendTransaction.mockResolvedValue("0xdef");
   waitForTransactionReceipt.mockRejectedValue(Object.assign(new Error("Timed out while waiting"), { name: "WaitForTransactionReceiptTimeoutError" }));
   const err = await evmSignerFor(test_)!.send(TO, "0x1234").catch((e: unknown) => e);
   expect(err).toBeInstanceOf(TxFailed);
-  expect((err as TxFailed).hash).toBe("0xdef");
+  expect((err as TxFailed).hash).toBe(HASH);
   expect((err as TxFailed).reason).toMatch(/not confirmed in time/);
 });
 
-test("sends from one address never overlap, so two sends never share a nonce", async () => {
-  call.mockResolvedValue({ data: "0x" });
-  let active = 0;
-  let maxActive = 0;
-  sendTransaction.mockImplementation(async () => {
-    active++;
-    maxActive = Math.max(maxActive, active);
+test("two locked jobs on one address never overlap or interleave, and run in the order they were asked", async () => {
+  const events: string[] = [];
+  const job = (name: string) => async () => {
+    events.push(`${name}:start`);
     await new Promise((r) => setTimeout(r, 10));
-    active--;
-    return "0xabc";
-  });
-  waitForTransactionReceipt.mockResolvedValue({ status: "success" });
-  const signer = evmSignerFor(test_)!;
-  await Promise.all([signer.send(TO, "0x01"), signer.send(TO, "0x02"), evmSignerFor(test_)!.send(TO, "0x03")]);
-  expect(sendTransaction).toHaveBeenCalledTimes(3);
-  expect(maxActive).toBe(1);
+    events.push(`${name}:end`);
+    return name;
+  };
+  const out = await Promise.all([withAccountLock(EVM, job("a")), withAccountLock(EVM, job("b")), withAccountLock(EVM, job("c"))]);
+  expect(out).toEqual(["a", "b", "c"]);
+  expect(events).toEqual(["a:start", "a:end", "b:start", "b:end", "c:start", "c:end"]);
 });
 
-test("a failed send does not block the next one in the queue", async () => {
-  call.mockResolvedValueOnce({ data: "0x" }).mockRejectedValueOnce(new Error("x")).mockResolvedValue({ data: "0x" });
-  sendTransaction.mockResolvedValue("0xabc");
-  waitForTransactionReceipt.mockResolvedValue({ status: "success" });
-  const signer = evmSignerFor(test_)!;
-  const results = await Promise.allSettled([signer.send(TO, "0x01"), signer.send(TO, "0x02"), signer.send(TO, "0x03")]);
+test("the lock ignores the case of the address", async () => {
+  const events: string[] = [];
+  const job = (name: string) => async () => {
+    events.push(`${name}:start`);
+    await new Promise((r) => setTimeout(r, 5));
+    events.push(`${name}:end`);
+  };
+  await Promise.all([withAccountLock(EVM, job("a")), withAccountLock(EVM.toLowerCase(), job("b"))]);
+  expect(events).toEqual(["a:start", "a:end", "b:start", "b:end"]);
+});
+
+test("jobs on different addresses run side by side", async () => {
+  let active = 0;
+  let max = 0;
+  const job = async () => {
+    active++;
+    max = Math.max(max, active);
+    await new Promise((r) => setTimeout(r, 10));
+    active--;
+  };
+  await Promise.all([withAccountLock(EVM, job), withAccountLock(ADDR_B, job)]);
+  expect(max).toBe(2);
+});
+
+test("a failed job releases the lock for the next one", async () => {
+  const results = await Promise.allSettled([
+    withAccountLock(EVM, async () => "ok"),
+    withAccountLock(EVM, async () => {
+      throw new Error("x");
+    }),
+    withAccountLock(EVM, async () => "after"),
+  ]);
   expect(results.map((r) => r.status)).toEqual(["fulfilled", "rejected", "fulfilled"]);
+  expect((results[2] as PromiseFulfilledResult<string>).value).toBe("after");
 });
 
 test("ensureWindowFor is null without a test wallet and uses browserNet and BUYER_WINDOW with one", async () => {
