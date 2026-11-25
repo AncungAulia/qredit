@@ -1,6 +1,6 @@
 import { Skeleton } from "@/components/ui/skeleton";
-import { LatestOrdersSkeletonBody } from "./LatestOrders";
-import { KPI_GRID } from "./MarketKpis";
+import { LatestOrdersSkeletonBody } from "@/modules/market/components/LatestOrders";
+import { KPI_GRID } from "@/modules/market/components/MarketKpis";
 
 /** State/Loading from the design: the shape of a business card, so nothing jumps when data arrives. */
 function CardSkeleton() {

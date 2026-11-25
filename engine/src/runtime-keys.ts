@@ -7,7 +7,8 @@ import { SUPPLIER_ACCOUNTS } from "./setup/accounts.ts";
 export const RUNTIME_KEY_FIELDS = { agent: ["ed25519"], operator: ["privateKey"], seal: ["seed"] } as const;
 
 export type SupplierAddresses = Record<keyof typeof SUPPLIER_ACCOUNTS, string>;
-export const SUPPLIERS_PATH = join(import.meta.dir, "..", "suppliers.json");
+/** The supplier addresses live in packages/qore so the engine and the web app read the same file; the owner CLI writes it. */
+export const SUPPLIERS_PATH = join(import.meta.dir, "..", "..", "packages", "qore", "src", "suppliers.json");
 
 /** Builds the ENGINE_KEYS_JSON payload: per business the agent, operator and seal records cut down to the runtime fields. Errors name files and fields, never values. */
 export function runtimeBundle(ks: Keystore, slugs: string[]): Record<string, Record<string, string>> {
@@ -47,9 +48,9 @@ export function runtimeKeystore(env: Record<string, string | undefined>, dir: st
   return memoryKeystore(parsed as Record<string, Record<string, string>>);
 }
 
-/** Public supplier EVM addresses (engine/suppliers.json), so the runtime needs no supplier key files. */
+/** Public supplier EVM addresses (packages/qore/src/suppliers.json), so the runtime needs no supplier key files. */
 export function loadSupplierAddresses(path = SUPPLIERS_PATH): SupplierAddresses {
-  if (!existsSync(path)) throw new Error("engine/suppliers.json is missing; run `bun run owner suppliers-json`");
+  if (!existsSync(path)) throw new Error("packages/qore/src/suppliers.json is missing; run `bun run owner suppliers-json`");
   const data = JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>;
   const out = {} as SupplierAddresses;
   for (const role of Object.keys(SUPPLIER_ACCOUNTS) as (keyof SupplierAddresses)[]) {

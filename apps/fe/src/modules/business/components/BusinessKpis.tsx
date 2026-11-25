@@ -1,16 +1,19 @@
 import { KpiTile } from "@/components/shared/KpiTile";
 import { formatBps, formatCount, formatDate, formatFusd } from "@/lib/format";
 import { lenderReturnBps } from "@/modules/business/lib/loanFacts";
-import { KPI_GRID, type VaultSnapshot } from "@/modules/market";
+import { KPI_GRID, ORDERS_LIMIT, type VaultSnapshot } from "@/modules/market";
 
 /** Four figures of the loan (Kpis in the design). While raising they describe the raise; afterwards, the repayment. */
 export function BusinessKpis({
   vault,
   delivered,
+  ordersCapped,
 }: {
   vault: VaultSnapshot;
   /** Orders delivered, or why the count is not known yet. */
   delivered: number | "loading" | "unavailable";
+  /** The order list reached the backend limit, so the count covers only the newest orders. */
+  ordersCapped: boolean;
 }) {
   const fusd = (n: bigint) => formatFusd(n, { unit: false });
   if (vault.state === "Raising") {
@@ -57,6 +60,7 @@ export function BusinessKpis({
       <KpiTile
         variant="soft"
         label="Orders delivered"
+        unit={ordersCapped ? `in the latest ${ORDERS_LIMIT} orders` : undefined}
         value={
           typeof delivered === "number"
             ? formatCount(delivered)

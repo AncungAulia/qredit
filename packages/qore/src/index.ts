@@ -9,3 +9,4 @@ export * from "./logs.ts";
 export * from "./relayed.ts";
 export * from "./relay-types.ts";
 export * from "./generated/abis.ts";
+export * from "./suppliers.ts";

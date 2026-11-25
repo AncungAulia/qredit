@@ -8,11 +8,11 @@ import { Button } from "@/components/ui/button";
 import { isFailed, isLoaded } from "@/modules/market/api/market.api";
 import { useLatestOrdersQuery, useMarketQuery } from "@/modules/market/api/useMarketQuery";
 import { applyMarketFilter, parseMarketFilter } from "@/modules/market/lib/marketFilter";
-import { BusinessGrid } from "./BusinessGrid";
-import { LatestOrders } from "./LatestOrders";
-import { MarketFilter } from "./MarketFilter";
-import { MarketKpis } from "./MarketKpis";
-import { MarketSkeleton } from "./MarketSkeleton";
+import { BusinessGrid } from "@/modules/market/components/BusinessGrid";
+import { LatestOrders } from "@/modules/market/components/LatestOrders";
+import { MarketFilter } from "@/modules/market/components/MarketFilter";
+import { MarketKpis } from "@/modules/market/components/MarketKpis";
+import { MarketSkeleton } from "@/modules/market/components/MarketSkeleton";
 
 function PageHead({ filter }: { filter: ReturnType<typeof parseMarketFilter> | null }) {
   return (

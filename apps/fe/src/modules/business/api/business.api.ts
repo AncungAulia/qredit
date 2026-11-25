@@ -72,6 +72,8 @@ export async function readVaultRules(b: VaultRef, creationSuppliers?: Hex[]): Pr
     }),
   );
   // The vault resets spentToday lazily on the next payment, so a counter from an earlier day is zero today.
+  // The day comes from the browser clock while the vault uses the block time; within a few seconds of UTC
+  // midnight the two can disagree, so the figure can be stale (or zero) for that moment only.
   const today = BigInt(Math.floor(Date.now() / 1000 / DAY_SECONDS));
   return {
     suppliers,

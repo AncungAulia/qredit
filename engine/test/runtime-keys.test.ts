@@ -80,3 +80,14 @@ describe("loadSupplierAddresses", () => {
   });
   test("reports a missing file", () => expect(() => loadSupplierAddresses(join(tmp(), "none.json"))).toThrow("suppliers.json"));
 });
+
+describe("supplier roles", () => {
+  test("the shared supplier map in qore has exactly the owner's supplier accounts", async () => {
+    const { SUPPLIERS } = await import("@qredit/qore");
+    const { SUPPLIER_ACCOUNTS } = await import("../src/setup/accounts.ts");
+    expect(Object.keys(SUPPLIERS).sort()).toEqual(Object.keys(SUPPLIER_ACCOUNTS).sort());
+  });
+  test("the committed file passes the runtime validation", () => {
+    expect(Object.keys(loadSupplierAddresses()).sort()).toEqual(["computeBasic", "computeDeep", "dataIndexer", "listOracle"]);
+  });
+});

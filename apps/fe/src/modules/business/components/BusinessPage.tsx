@@ -8,16 +8,16 @@ import { ApiError } from "@/lib/apiClient";
 import type { Business } from "@/lib/schemas";
 import { cn, focusRing } from "@/lib/utils";
 import { useDecisionsQuery, useRulesQuery } from "@/modules/business/api/useBusinessPage";
-import { useBusinessQuery, useOrdersQuery, useVaultQuery } from "@/modules/market";
-import { ActivityTable } from "./ActivityTable";
-import { BusinessHeader } from "./BusinessHeader";
-import { BusinessKpis } from "./BusinessKpis";
-import { BusinessSkeleton } from "./BusinessSkeleton";
-import { DecisionLog } from "./DecisionLog";
-import { LoanTerms } from "./LoanTerms";
-import { Section } from "./Section";
-import { ServicesCard } from "./ServicesCard";
-import { VaultRules } from "./VaultRules";
+import { ORDERS_LIMIT, useBusinessQuery, useOrdersQuery, useVaultQuery } from "@/modules/market";
+import { ActivityTable } from "@/modules/business/components/ActivityTable";
+import { BusinessHeader } from "@/modules/business/components/BusinessHeader";
+import { BusinessKpis } from "@/modules/business/components/BusinessKpis";
+import { BusinessSkeleton } from "@/modules/business/components/BusinessSkeleton";
+import { DecisionLog } from "@/modules/business/components/DecisionLog";
+import { LoanTerms } from "@/modules/business/components/LoanTerms";
+import { Section } from "@/modules/business/components/Section";
+import { ServicesCard } from "@/modules/business/components/ServicesCard";
+import { VaultRules } from "@/modules/business/components/VaultRules";
 
 function Breadcrumb() {
   return (
@@ -68,7 +68,11 @@ function BusinessBody({ business }: { business: Business }) {
         />
       ) : snapshot ? (
         <div className="animate-in duration-200 fade-in">
-          <BusinessKpis vault={snapshot} delivered={delivered} />
+          <BusinessKpis
+            vault={snapshot}
+            delivered={delivered}
+            ordersCapped={(orders.data?.length ?? 0) >= ORDERS_LIMIT}
+          />
         </div>
       ) : (
         <SectionLoading className="h-[118px]" />
@@ -95,7 +99,7 @@ function BusinessBody({ business }: { business: Business }) {
         <Section
           id="orders"
           title="Orders"
-          description="The orders placed with this business, newest first."
+          description="The newest orders placed with this business."
           className="xl:col-start-1"
         >
           <ActivityTable
@@ -110,7 +114,7 @@ function BusinessBody({ business }: { business: Business }) {
           <Section
             id="rules"
             title="Spending rules"
-            description="Read from the vault now. The agent can pay only the suppliers listed here."
+            description="Suppliers this business was created with. Caps are read from the vault now."
           >
             {rules.data ? (
               <div className="animate-in duration-200 fade-in">

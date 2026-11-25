@@ -18,6 +18,9 @@ export async function getBusiness(slug: string): Promise<Business> {
   return parseResponse(businessSchema, data);
 }
 
+/** The most orders the backend returns for one vault (newest first). A list this long may be missing older orders. */
+export const ORDERS_LIMIT = 100;
+
 export async function getOrders(vault: Hex): Promise<Order[]> {
   const { data } = await api.get("/v1/orders", { params: { vault } });
   return parseResponse(z.array(orderSchema), data);

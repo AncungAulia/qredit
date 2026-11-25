@@ -1,8 +1,8 @@
 import { Address } from "@/components/shared/Address";
-import { SUPPLIER_NAMES } from "@/config/suppliers";
 import { formatDuration, formatFusd } from "@/lib/format";
 import type { VaultRules as Rules } from "@/modules/business/api/business.api";
 import { splitText } from "@/modules/business/lib/loanFacts";
+import { supplierName } from "@/modules/business/lib/supplierNames";
 
 function Rule({ label, value }: { label: string; value: string }) {
   return (
@@ -26,7 +26,9 @@ export function VaultRules({ rules }: { rules: Rules }) {
         <Rule label="Order time limit" value={formatDuration(rules.orderTtlSeconds)} />
       </div>
       <div className="flex flex-col gap-2.5">
-        <span className="text-[13px] text-text-tertiary">Suppliers the agent may pay</span>
+        <span className="text-[13px] text-text-tertiary">
+          Suppliers set when the business was created
+        </span>
         {rules.suppliers.length === 0 ? (
           <p className="text-sm text-text-secondary">No supplier was approved for this business.</p>
         ) : (
@@ -35,8 +37,8 @@ export function VaultRules({ rules }: { rules: Rules }) {
               <li key={s.address} className="flex flex-col items-start gap-1.5">
                 <span className="flex flex-wrap items-center gap-2">
                   <Address value={s.address} copyable />
-                  {SUPPLIER_NAMES[s.address] && (
-                    <span className="text-sm text-text-primary">{SUPPLIER_NAMES[s.address]}</span>
+                  {supplierName(s.address) && (
+                    <span className="text-sm text-text-primary">{supplierName(s.address)}</span>
                   )}
                 </span>
                 <span className="text-[13px] text-text-secondary tabular-nums">

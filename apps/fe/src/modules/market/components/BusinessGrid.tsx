@@ -1,5 +1,5 @@
 import { isFailed, type MarketRow } from "@/modules/market/api/market.api";
-import { BusinessCard, FailedBusinessCard } from "./BusinessCard";
+import { BusinessCard, FailedBusinessCard } from "@/modules/market/components/BusinessCard";
 
 /** Two columns from tablet up, one on a phone; every card in a row has the same height. */
 export function BusinessGrid({ rows, onRetry }: { rows: MarketRow[]; onRetry: () => void }) {

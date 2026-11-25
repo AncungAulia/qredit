@@ -1,14 +1,14 @@
-export { KPI_GRID } from "./components/MarketKpis";
-export { BusinessCard } from "./components/BusinessCard";
-export { MarketPage } from "./components/MarketPage";
-export { getBusiness, readVaultSnapshot } from "./api/market.api";
-export { marketKeys } from "./api/market.keys";
+export { KPI_GRID } from "@/modules/market/components/MarketKpis";
+export { BusinessCard } from "@/modules/market/components/BusinessCard";
+export { MarketPage } from "@/modules/market/components/MarketPage";
+export { getBusiness, ORDERS_LIMIT, readVaultSnapshot } from "@/modules/market/api/market.api";
+export { marketKeys } from "@/modules/market/api/market.keys";
 export {
   useBusinessQuery,
   useLatestOrdersQuery,
   useMarketQuery,
   useOrdersQuery,
   useVaultQuery,
-} from "./api/useMarketQuery";
-export type { LatestOrder, MarketEntry, MarketRow } from "./api/market.api";
-export type { VaultSnapshot } from "./schemas/vault.schema";
+} from "@/modules/market/api/useMarketQuery";
+export type { LatestOrder, MarketEntry, MarketRow } from "@/modules/market/api/market.api";
+export type { VaultSnapshot } from "@/modules/market/schemas/vault.schema";
