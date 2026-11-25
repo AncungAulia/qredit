@@ -12,18 +12,32 @@ export const ALLOWED_PREFIXES = [
 
 export const isAllowedPath = (p: string) => !p.includes("..") && ALLOWED_PREFIXES.some((x) => p.startsWith(x));
 
+/** A segment is safe only when it cannot change the path or the query once placed in a URL. */
+const isSafeSegment = (s: string) => s !== "" && s !== "." && s !== ".." && !/[%/\\?#]/.test(s);
+
+/** Builds the upstream URL from decoded segments, or null when the request must be refused. */
+function upstreamUrl(segments: string[], search: string): string | null {
+  if (!segments.every(isSafeSegment)) return null;
+  const base = new URL(REST);
+  const url = new URL(segments.map(encodeURIComponent).join("/"), `${REST}/`);
+  if (url.origin !== base.origin || !isAllowedPath(url.pathname.replace(/^\//, ""))) return null;
+  return `${url.origin}${url.pathname}${search}`;
+}
+
 export async function GET(req: Request, ctx: { params: Promise<{ path: string[] }> }) {
-  const path = (await ctx.params).path.join("/");
-  if (!isAllowedPath(path)) return Response.json({ error: "not found" }, { status: 404 });
-  const query = new URL(req.url).search;
+  const target = upstreamUrl((await ctx.params).path, new URL(req.url).search);
+  if (!target) return Response.json({ error: "not found" }, { status: 404 });
   let upstream: Response;
   try {
-    upstream = await fetch(`${REST}/${path}${query}`, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(15_000) });
+    upstream = await fetch(target, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(15_000) });
   } catch {
     return Response.json({ error: "upstream unavailable" }, { status: 502 });
   }
   return new Response(upstream.body, {
     status: upstream.status,
-    headers: { "content-type": upstream.headers.get("content-type") ?? "application/json", "cache-control": "public, max-age=5" },
+    headers: {
+      "content-type": upstream.headers.get("content-type") ?? "application/json",
+      "cache-control": upstream.ok ? "public, max-age=5" : "no-store",
+    },
   });
 }
