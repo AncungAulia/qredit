@@ -31,5 +31,9 @@ test("order", () => {
 });
 
 test("rejects an unknown status", () => {
-  expect(() => decisionSchema.parse({ id: 1, vault: "0x", orderId: null, decision: "maybe", reason: "", suppliers: [], cost: "0", createdAt: "2026-01-01T00:00:00Z" })).toThrow();
+  const result = decisionSchema.safeParse({
+    id: 1, vault: "0x37bbb37dd96a973a22ca64bc809a8bc4d54b03d4", orderId: null, decision: "maybe", reason: "", suppliers: [], cost: "0", createdAt: "2026-01-01T00:00:00Z",
+  });
+  expect(result.success).toBe(false);
+  expect(result.error?.issues.map((i) => i.path.join("."))).toEqual(["decision"]);
 });

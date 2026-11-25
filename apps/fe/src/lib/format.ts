@@ -38,8 +38,20 @@ const timeFmt = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-d
 export const formatDate = (d: Date | number) => dateFmt.format(d);
 export const formatDateTime = (d: Date | number) => `${dateFmt.format(d)}, ${timeFmt.format(d)} UTC`;
 
+/** A time still ahead of now, given as whole seconds ahead. */
+function formatFuture(d: Date | number, ahead: number): string {
+  if (ahead < 60) return "in less than a minute";
+  const m = Math.floor(ahead / 60);
+  if (m < 60) return `in ${m} ${m === 1 ? "minute" : "minutes"}`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `in ${h} ${h === 1 ? "hour" : "hours"}`;
+  return formatDate(d);
+}
+
 export function formatRelative(d: Date | number, now: Date | number = Date.now()): string {
-  const s = Math.floor((+now - +d) / 1000);
+  const ms = +now - +d;
+  if (ms < 0) return formatFuture(d, Math.floor(-ms / 1000));
+  const s = Math.floor(ms / 1000);
   if (s < 60) return "just now";
   const m = Math.floor(s / 60);
   if (m < 60) return `${m} ${m === 1 ? "minute" : "minutes"} ago`;

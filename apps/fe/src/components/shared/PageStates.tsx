@@ -1,4 +1,4 @@
-// src/components/shared/PageStates.tsx: loading, error, offline, no-access and empty states.
+// src/components/shared/PageStates.tsx: loading, error and empty states.
 // Every state fills the space its content would take, with its message centered:
 // layout="page" (default) fills the rest of the screen below the header; layout="section"
 // fills its card or panel. Filling works through flex-1, so each parent up to <body> must be a
@@ -85,7 +85,7 @@ type ErrorStateProps = {
   className?: string;
 };
 
-/** Picks the error, offline or no-access state from ApiError.kind. */
+/** Shows the message for an ApiError; any other error shows the generic server message. */
 export function ErrorState({
   title = "The data failed to load",
   error,
@@ -93,7 +93,7 @@ export function ErrorState({
   layout,
   className,
 }: ErrorStateProps) {
-  // Only ApiError messages are written for people; anything else stays off the screen.
+  // Only ApiError messages are written for people; any other error stays off the screen.
   const apiError = error instanceof ApiError ? error : new ApiError("server");
   const retry = onRetry && (
     <Button variant="outline" size="sm" onClick={onRetry}>
