@@ -49,7 +49,7 @@ test("create shows the phrase once, asks for the password twice, encrypts and st
   await user.click(screen.getByRole("button", { name: "Create a new test wallet" }));
 
   // A 24-word phrase is shown and nothing is stored yet.
-  const words = screen.getByTestId("phrase").textContent!.trim().split(/\s+/);
+  const words = screen.getByRole("list", { name: "Recovery phrase" }).textContent!.trim().split(/\s+/);
   expect(words).toHaveLength(24);
   expect(readStored(storage)).toBeNull();
 
@@ -62,10 +62,15 @@ test("create shows the phrase once, asks for the password twice, encrypts and st
 
   // The phrase must be saved first.
   await user.click(screen.getByRole("button", { name: "Create test wallet" }));
-  expect(await screen.findByText("Confirm that you saved the recovery phrase.")).toBeInTheDocument();
+  const savedError = await screen.findByText("Confirm that you saved the recovery phrase.");
+  expect(savedError).toBeInTheDocument();
+  expect(screen.getByRole("checkbox", { name: "I saved the recovery phrase" })).toHaveAttribute("aria-describedby", savedError.closest("[id]")!.id);
   expect(readStored(storage)).toBeNull();
 
-  await user.click(screen.getByRole("checkbox", { name: "I saved the recovery phrase" }));
+  // The label toggles the checkbox, and the error is tied to it.
+  const saved = screen.getByRole("checkbox", { name: "I saved the recovery phrase" });
+  await user.click(screen.getByText("I saved the recovery phrase"));
+  expect(saved).toBeChecked();
   await user.click(screen.getByRole("button", { name: "Create test wallet" }));
 
   // The wallet is encrypted (the stored record never holds the phrase) and the setup list appears.
@@ -93,14 +98,9 @@ test("import validates the phrase and starts setup", async () => {
   expect(readStored(storage)).not.toBeNull();
 }, 60_000);
 
-async function lockedStore() {
-  const storage = memoryStorage();
-  return storage;
-}
-
 test("a wrong password shows the error under the field and keeps the wallet locked", async () => {
   const user = userEvent.setup();
-  const storage = await lockedStore();
+  const storage = memoryStorage();
   renderWithWallet(
     <>
       <Probe />
@@ -119,7 +119,7 @@ test("a wrong password shows the error under the field and keeps the wallet lock
   await user.type(field, "wrong password");
   await user.click(screen.getByRole("button", { name: "Unlock" }));
   const message = await screen.findByText("The password is not correct.", undefined, { timeout: 20_000 });
-  expect(field.closest("[data-field]")).toContainElement(message);
+  expect(field.closest("[data-slot=field]")).toContainElement(message);
   expect(field).toHaveAttribute("aria-invalid", "true");
   expect(screen.getByLabelText("session")).toHaveTextContent("locked");
 }, 60_000);
@@ -231,4 +231,16 @@ test("the Connect QoreX press looks for the extension again, because it may inje
   await waitFor(() => expect(connect).toHaveBeenCalled());
   await waitFor(() => expect(screen.getByLabelText("session")).toHaveTextContent("qorex"));
   expect(onOpenChange).toHaveBeenCalledWith(false);
+});
+
+test("a mismatch is reported even while the password is still too short", async () => {
+  const user = userEvent.setup();
+  renderWithWallet(<ConnectDialog open onOpenChange={vi.fn()} />, { storage: memoryStorage() });
+  await user.click(screen.getByRole("button", { name: /Test wallet in this browser/ }));
+  await user.click(screen.getByRole("button", { name: "Create a new test wallet" }));
+  await user.type(screen.getByLabelText("Password"), "abc");
+  await user.type(screen.getByLabelText("Repeat the password"), "abd");
+  await user.tab();
+  expect(await screen.findByText("The passwords do not match.")).toBeInTheDocument();
+  expect(screen.getByText("The password must have at least 8 characters.")).toBeInTheDocument();
 });

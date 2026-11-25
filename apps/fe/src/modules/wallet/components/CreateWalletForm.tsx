@@ -4,12 +4,12 @@ import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { generateMnemonic } from "@qorechain/sdk";
-import { LoaderCircle } from "lucide-react";
-import { FormField } from "@/components/shared/FormField";
+import { CircleAlert, LoaderCircle } from "lucide-react";
+import { fieldErrorClass } from "@/components/shared/formStyles";
 import { Notice } from "@/components/shared/Notice";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
+import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { useWallet } from "@/modules/wallet/WalletProvider";
 import { BackupPhrase } from "@/modules/wallet/components/BackupPhrase";
 import { PasswordField } from "@/modules/wallet/components/PasswordField";
@@ -54,27 +54,35 @@ export function CreateWalletForm({ onCreated }: { onCreated: () => void }) {
         keep real funds in it.
       </Notice>
       <BackupPhrase phrase={phrase} />
-      <FormField id="saved" label="" error={errors.saved?.message}>
+      <Field data-invalid={errors.saved ? true : undefined}>
         <div className="flex items-center gap-3">
           <Controller
             control={control}
             name="saved"
             render={({ field }) => (
               <Checkbox
-                aria-labelledby="saved-label"
+                id="saved"
                 checked={field.value}
                 onCheckedChange={(checked) => field.onChange(checked)}
                 onBlur={field.onBlur}
                 name={field.name}
                 aria-invalid={errors.saved ? true : undefined}
+                aria-describedby={errors.saved ? "saved-error" : undefined}
+                className="size-5 rounded-[6px] border-border-strong bg-surface pointer-coarse:size-6"
               />
             )}
           />
-          <Label id="saved-label" className="font-normal">
+          <FieldLabel htmlFor="saved" className="text-sm font-normal text-text-primary">
             I saved the recovery phrase
-          </Label>
+          </FieldLabel>
         </div>
-      </FormField>
+        {errors.saved && (
+          <FieldError id="saved-error" className={fieldErrorClass}>
+            <CircleAlert className="mt-px size-3.5 shrink-0" aria-hidden />
+            {errors.saved.message}
+          </FieldError>
+        )}
+      </Field>
       <PasswordField
         id="password"
         label="Password"

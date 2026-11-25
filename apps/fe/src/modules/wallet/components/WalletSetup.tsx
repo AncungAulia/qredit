@@ -13,6 +13,7 @@ import { browserNet } from "@/lib/net";
 import { claimFaucet } from "@/modules/wallet/api/wallet.api";
 import { useWalletStatusQuery } from "@/modules/wallet/api/useWalletStatus";
 import { setupDisplay, type StepDisplay } from "@/modules/wallet/setup/display";
+import { readRetryAt, writeRetryAt } from "@/modules/wallet/setup/faucetRetry";
 import { TxFailed, TxReverted, testWalletOf } from "@/modules/wallet/signer";
 import {
   needsQorForFees,
@@ -85,9 +86,11 @@ type RowProps = {
   run: ChainRun;
   /** Extra lines under the description of the step that is next (faucet messages). */
   notes?: ReactNode;
+  /** The button waits (the faucet was asked and its transfer has not arrived). */
+  disabled?: boolean;
 };
 
-function StepRow({ step, display, run, notes }: RowProps) {
+function StepRow({ step, display, run, notes, disabled }: RowProps) {
   const copy = STEPS[step];
   const action = useChainAction(run);
   const running = action.phase === "wallet" || action.phase === "chain";
@@ -110,7 +113,7 @@ function StepRow({ step, display, run, notes }: RowProps) {
                 {action.phase === "refused" && (
                   <ChainActionStatus phase="refused" reason={action.reason} hash={action.hash} refusedTitle="This step was not completed" />
                 )}
-                <Button type="button" size="lg" className="h-10 self-start px-3.5" onClick={() => void action.start()}>
+                <Button type="button" size="lg" className="h-10 self-start px-3.5" disabled={disabled} onClick={() => void action.start()}>
                   {copy.button}
                 </Button>
               </>
@@ -155,7 +158,12 @@ function FaucetNotes({ status, address, retryAt, claimed }: { status: WalletChai
 
 function SetupList({ wallet }: { wallet: TestSession }) {
   const query = useWalletStatusQuery(wallet);
-  const [retryAt, setRetryAt] = useState<Date | null>(null);
+  // The faucet's answer is kept per address for the tab, so a reload keeps the message.
+  const [retryAt, setRetryAtState] = useState<Date | null>(() => readRetryAt(wallet.address));
+  const setRetryAt = (at: Date | null) => {
+    setRetryAtState(at);
+    writeRetryAt(wallet.address, at);
+  };
   const [claimed, setClaimed] = useState(false);
   const status = query.data;
   const raw = useMemo(() => (status ? setupStatus(status) : null), [status]);
@@ -220,6 +228,7 @@ function SetupList({ wallet }: { wallet: TestSession }) {
             step={step}
             display={display[step]}
             run={runFor(step)}
+            disabled={step === "fund" && claimed}
             notes={
               step === "fund" && next === "fund" ? (
                 <FaucetNotes status={status} address={wallet.address} retryAt={retryAt} claimed={claimed} />

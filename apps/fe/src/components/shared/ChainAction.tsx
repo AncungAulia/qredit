@@ -191,9 +191,12 @@ export function ChainAction({
         busy ? (
           <ChainActionStatus phase={phase} pendingLabel={pendingLabel} slow={action.slow} asButton />
         ) : phase === "refused" ? (
-          <div className="flex gap-2.5 max-md:flex-col md:justify-end">
-            <Button variant="secondary" size="lg" className="h-11 px-4 max-md:w-full" onClick={() => onOpenChange(false)}>
+          <div className="flex gap-2.5 max-md:flex-col-reverse md:justify-end">
+            <Button variant="ghost" size="lg" className="h-11 px-4 max-md:w-full" onClick={() => onOpenChange(false)}>
               Close
+            </Button>
+            <Button size="lg" className="h-11 px-4 max-md:w-full" onClick={() => void confirm()}>
+              Try again
             </Button>
           </div>
         ) : undefined

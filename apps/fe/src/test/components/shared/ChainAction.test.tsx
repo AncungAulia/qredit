@@ -99,6 +99,22 @@ test("a refused transaction stays in the dialog with the reason", async () => {
   expect(onOpenChange).not.toHaveBeenCalledWith(false);
   expect(toast.success).not.toHaveBeenCalled();
   expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+});
+
+test("try again after a refusal runs the action again", async () => {
+  const user = userEvent.setup();
+  const run = vi
+    .fn()
+    .mockRejectedValueOnce(new TxReverted(null, "The raise is already full."))
+    .mockResolvedValueOnce(HASH);
+  render(
+    <ChainAction open onOpenChange={vi.fn()} title="T" body="B" confirmLabel="Lend" pendingLabel="Lending" successTitle="Lent" run={run} />,
+  );
+  await user.click(screen.getByRole("button", { name: "Lend" }));
+  await user.click(await screen.findByRole("button", { name: "Try again" }));
+  await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Lent", expect.anything()));
+  expect(run).toHaveBeenCalledTimes(2);
 });
 
 test("an unknown failure shows a plain sentence, not the error text", async () => {

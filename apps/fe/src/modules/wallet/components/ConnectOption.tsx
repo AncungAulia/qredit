@@ -1,17 +1,18 @@
 import type { ComponentProps, ReactNode } from "react";
-import { cn, focusRing } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 type Tone = "default" | "active" | "warning";
 
 const TONES: Record<Tone, string> = {
   default: "bg-surface-muted border-transparent hover:bg-surface-hover",
-  active: "bg-accent-soft border-accent",
-  warning: "bg-warning-soft border-warning",
+  active: "bg-accent-soft border-accent hover:bg-accent-soft",
+  warning: "bg-warning-soft border-warning hover:bg-warning-soft",
 };
 
 type Common = {
   icon: ReactNode;
-  /** Fill of the icon tile: the inverse surface for QoreX, a muted surface for the test wallet. */
+  /** Fill of the icon tile: the primary colour for QoreX, a muted surface for the test wallet. */
   iconTile: string;
   title: string;
   badge?: ReactNode;
@@ -21,7 +22,7 @@ type Common = {
 };
 
 const base =
-  "flex w-full items-center gap-3.5 rounded-lg border-[1.5px] p-4 text-left transition-[background-color,transform] duration-[120ms] ease-[var(--ease-out)] active:scale-[0.99] disabled:opacity-50 disabled:active:scale-100 pointer-coarse:min-h-11";
+  "h-auto w-full justify-start gap-3.5 rounded-lg border-[1.5px] p-4 text-left font-normal whitespace-normal active:scale-[0.99] disabled:active:scale-100";
 
 function Content({ icon, iconTile, title, badge, description, trailing }: Common) {
   return (
@@ -39,21 +40,28 @@ function Content({ icon, iconTile, title, badge, description, trailing }: Common
   );
 }
 
-/** One way in from the Connect dialog (design: Option QoreX, Option Test). A button, or a link to the install page. */
-export function ConnectOption(props: Common & Omit<ComponentProps<"button">, keyof Common | "children">) {
+/** One way in from the Connect dialog (design: Option QoreX, Option Test), as a shadcn Button. */
+export function ConnectOption(props: Common & Omit<ComponentProps<typeof Button>, keyof Common | "children" | "variant">) {
   const { icon, iconTile, title, badge, description, trailing, tone = "default", className, ...rest } = props;
   return (
-    <button type="button" className={cn(base, TONES[tone], focusRing, className)} {...rest}>
+    <Button variant="ghost" className={cn(base, TONES[tone], className)} {...rest}>
       <Content {...{ icon, iconTile, title, badge, description, trailing }} />
-    </button>
+    </Button>
   );
 }
 
+/** The same option as a link (the install page); a Button rendered as an anchor. */
 export function ConnectOptionLink(props: Common & Omit<ComponentProps<"a">, keyof Common | "children">) {
   const { icon, iconTile, title, badge, description, trailing, tone = "default", className, ...rest } = props;
   return (
-    <a className={cn(base, TONES[tone], focusRing, className)} {...rest}>
+    <Button
+      variant="ghost"
+      nativeButton={false}
+      role="link"
+      className={cn(base, TONES[tone], className)}
+      render={<a {...rest} />}
+    >
       <Content {...{ icon, iconTile, title, badge, description, trailing }} />
-    </a>
+    </Button>
   );
 }

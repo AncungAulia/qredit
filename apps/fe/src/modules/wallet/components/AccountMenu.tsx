@@ -1,15 +1,18 @@
 "use client";
 
+import type { ReactNode } from "react";
 import Link from "next/link";
-import { Copy, ExternalLink, KeyRound, LayoutDashboard, ListChecks, Lock, LogOut, ScrollText, SunMoon } from "lucide-react";
+import { Copy, ExternalLink, KeyRound, LayoutDashboard, ListChecks, Lock, LogOut, ScrollText, SunMoon, type LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Amount } from "@/components/shared/Amount";
 import { Orb } from "@/components/shared/Orb";
 import { ThemeSwitch } from "@/components/shared/ThemeSwitch";
-import { DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
+import { PopoverContent } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { env } from "@/lib/env";
 import { shortAddress } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import { useWalletStatusQuery } from "@/modules/wallet/api/useWalletStatus";
 import { nextStep, setupStatus } from "@/modules/wallet/setup/steps";
 import { testWalletOf } from "@/modules/wallet/signer";
@@ -18,13 +21,31 @@ import { useWallet } from "@/modules/wallet/WalletProvider";
 
 type Props = {
   session: Extract<WalletSession, { kind: "test" | "qorex" }>;
+  /** Closes the menu; every action runs it first. */
+  onClose: () => void;
   onBackup: () => void;
   onSetup: () => void;
 };
 
-const item = "gap-3 rounded-xl px-2.5 py-[11px] text-sm text-text-primary pointer-coarse:min-h-11 [&_svg]:text-text-secondary";
+const rowClass =
+  "h-auto w-full justify-start gap-3 rounded-xl px-2.5 py-[11px] text-left text-sm font-normal text-text-primary [&_svg]:text-text-secondary";
 
-function Balance({ label, children }: { label: string; children: React.ReactNode }) {
+/** One action of the menu: a ghost shadcn Button, or an anchor/link through `render`. */
+function Row({
+  Icon,
+  danger,
+  children,
+  ...props
+}: { Icon: LucideIcon; danger?: boolean; children: ReactNode } & React.ComponentProps<typeof Button>) {
+  return (
+    <Button variant="ghost" className={cn(rowClass, danger && "text-danger [&_svg]:text-danger")} {...props}>
+      <Icon aria-hidden />
+      {children}
+    </Button>
+  );
+}
+
+function Balance({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div role="group" aria-label={`${label} balance`} className="flex items-center justify-between gap-3">
       <span className="text-[13px] text-text-secondary">{label}</span>
@@ -49,8 +70,11 @@ function Balances({ wallet }: { wallet: NonNullable<ReturnType<typeof testWallet
   );
 }
 
-/** The menu of the account button: address, balances, actions, appearance and the way out. */
-export function AccountMenu({ session, onBackup, onSetup }: Props) {
+/**
+ * The account menu: address, balances, actions, appearance and the way out. It is a popover of buttons, so Tab
+ * reaches every control, the appearance switch included.
+ */
+export function AccountMenu({ session, onClose, onBackup, onSetup }: Props) {
   const lock = useWallet((s) => s.lock);
   const disconnectQorex = useWallet((s) => s.disconnectQorex);
   const wallet = testWalletOf(session);
@@ -58,6 +82,10 @@ export function AccountMenu({ session, onBackup, onSetup }: Props) {
   const status = useWalletStatusQuery(wallet);
   const setupOpen = wallet && status.data ? nextStep(setupStatus(status.data)) !== null : false;
 
+  const run = (action: () => void) => () => {
+    onClose();
+    action();
+  };
   const copy = () => {
     void navigator.clipboard?.writeText(session.address).then(
       () => toast.success("Address copied"),
@@ -66,9 +94,10 @@ export function AccountMenu({ session, onBackup, onSetup }: Props) {
   };
 
   return (
-    <DropdownMenuContent
+    <PopoverContent
       align="end"
       sideOffset={10}
+      aria-label="Account menu"
       className="w-72 gap-1 rounded-[24px] bg-glass-strong p-2 shadow-[0_8px_32px_var(--shadow)] ring-1 ring-glass-edge backdrop-blur-xl"
     >
       <div className="flex items-center gap-3 px-2.5 pt-2.5 pb-3.5">
@@ -81,40 +110,37 @@ export function AccountMenu({ session, onBackup, onSetup }: Props) {
         </div>
       </div>
       {wallet && <Balances wallet={wallet} />}
-      <DropdownMenuItem className={item} onClick={copy}>
-        <Copy aria-hidden />
+      <Row Icon={Copy} onClick={run(copy)}>
         Copy address
-      </DropdownMenuItem>
+      </Row>
       {env.explorerUrl && (
-        <DropdownMenuItem
-          className={item}
+        <Row
+          Icon={ExternalLink}
+          nativeButton={false}
+          role="link"
           render={<a href={`${env.explorerUrl}/address/${session.evm}`} target="_blank" rel="noreferrer" />}
         >
-          <ExternalLink aria-hidden />
           View on explorer
-        </DropdownMenuItem>
+        </Row>
       )}
       {isQorex && (
-        <DropdownMenuItem className={item} render={<Link href="/owner" />}>
-          <LayoutDashboard aria-hidden />
+        <Row Icon={LayoutDashboard} nativeButton={false} role="link" render={<Link href="/owner" onClick={onClose} />}>
           <span className="flex-1">Owner console</span>
           <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-muted px-2.5 py-1 text-xs font-medium text-text-secondary">
             <KeyRound className="size-3" aria-hidden />
             Owner
           </span>
-        </DropdownMenuItem>
+        </Row>
       )}
       {wallet && setupOpen && (
-        <DropdownMenuItem className={item} onClick={onSetup}>
-          <ListChecks aria-hidden />
+        <Row Icon={ListChecks} onClick={run(onSetup)}>
           Finish wallet setup
-        </DropdownMenuItem>
+        </Row>
       )}
       {wallet && (
-        <DropdownMenuItem className={item} onClick={onBackup}>
-          <ScrollText aria-hidden />
+        <Row Icon={ScrollText} onClick={run(onBackup)}>
           Back up phrase
-        </DropdownMenuItem>
+        </Row>
       )}
       <div className="flex items-center gap-3 px-2.5 py-[7px]">
         <SunMoon className="size-4 text-text-secondary" aria-hidden />
@@ -122,17 +148,15 @@ export function AccountMenu({ session, onBackup, onSetup }: Props) {
         <ThemeSwitch />
       </div>
       {wallet && (
-        <DropdownMenuItem className={item} onClick={lock}>
-          <Lock aria-hidden />
+        <Row Icon={Lock} onClick={run(lock)}>
           Lock
-        </DropdownMenuItem>
+        </Row>
       )}
       {isQorex && (
-        <DropdownMenuItem className={`${item} text-danger [&_svg]:text-danger`} onClick={disconnectQorex}>
-          <LogOut aria-hidden />
+        <Row Icon={LogOut} danger onClick={run(disconnectQorex)}>
           Disconnect QoreX
-        </DropdownMenuItem>
+        </Row>
       )}
-    </DropdownMenuContent>
+    </PopoverContent>
   );
 }

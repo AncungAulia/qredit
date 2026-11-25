@@ -3,11 +3,13 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { LoaderCircle } from "lucide-react";
-import { FormField } from "@/components/shared/FormField";
+import { CircleAlert, LoaderCircle } from "lucide-react";
+import { controlClass, fieldErrorClass, fieldHelpClass } from "@/components/shared/formStyles";
 import { Notice } from "@/components/shared/Notice";
 import { Button } from "@/components/ui/button";
+import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 import { useWallet } from "@/modules/wallet/WalletProvider";
 import { PasswordField } from "@/modules/wallet/components/PasswordField";
 import { StorageUnavailable } from "@/modules/wallet/keystore";
@@ -48,7 +50,8 @@ export function ImportWalletForm({ onImported }: { onImported: () => void }) {
   return (
     <form onSubmit={submit} noValidate className="flex flex-col gap-5">
       <Notice tone="info">Use a throwaway testnet phrase only. Never enter the phrase of a wallet that holds real funds.</Notice>
-      <FormField id="phrase" label="Recovery phrase" help="The 12 or 24 words, separated by spaces." error={errors.phrase?.message}>
+      <Field data-invalid={errors.phrase ? true : undefined}>
+        <FieldLabel htmlFor="phrase">Recovery phrase</FieldLabel>
         <Textarea
           id="phrase"
           rows={3}
@@ -57,9 +60,20 @@ export function ImportWalletForm({ onImported }: { onImported: () => void }) {
           spellCheck={false}
           aria-invalid={errors.phrase ? true : undefined}
           aria-describedby={errors.phrase ? "phrase-error" : "phrase-help"}
+          className={cn(controlClass, "h-auto min-h-24 resize-none py-3")}
           {...register("phrase")}
         />
-      </FormField>
+        {errors.phrase ? (
+          <FieldError id="phrase-error" className={fieldErrorClass}>
+            <CircleAlert className="mt-px size-3.5 shrink-0" aria-hidden />
+            {errors.phrase.message}
+          </FieldError>
+        ) : (
+          <FieldDescription id="phrase-help" className={fieldHelpClass}>
+            The 12 or 24 words, separated by spaces.
+          </FieldDescription>
+        )}
+      </Field>
       <PasswordField
         id="password"
         label="Password"

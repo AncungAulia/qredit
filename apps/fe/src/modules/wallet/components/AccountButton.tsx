@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { ChevronDown, Lock } from "lucide-react";
 import { Orb } from "@/components/shared/Orb";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Popover, PopoverTrigger } from "@/components/ui/popover";
 import { shortAddress } from "@/lib/format";
 import { cn, focusRing } from "@/lib/utils";
 import { useWallet } from "@/modules/wallet/WalletProvider";
@@ -13,7 +13,7 @@ import { BackupFlow } from "@/modules/wallet/components/BackupFlow";
 import { ConnectDialog, type ConnectView } from "@/modules/wallet/components/ConnectDialog";
 
 const pill =
-  "inline-flex items-center gap-2 rounded-full border border-border bg-surface py-1.5 pr-3.5 pl-1.5 text-[13px] text-text-primary transition-[transform,background-color] duration-[120ms] ease-[var(--ease-out)] hover:bg-surface-hover active:scale-[0.97] pointer-coarse:min-h-11";
+  "h-auto gap-2 rounded-full border-border bg-surface py-1.5 pr-3.5 pl-1.5 text-[13px] font-normal text-text-primary hover:bg-surface-hover";
 
 /**
  * The account entry of the header: connect when there is no wallet, unlock when the saved wallet is locked,
@@ -21,16 +21,21 @@ const pill =
  */
 export function AccountButton({ compact = false, className }: { compact?: boolean; className?: string }) {
   const session = useWallet((s) => s.session);
+  const hydrated = useWallet((s) => s.hydrated);
   const [connectOpen, setConnectOpen] = useState(false);
   const [connectView, setConnectView] = useState<ConnectView>("choose");
   const [backupOpen, setBackupOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const openConnect = (view: ConnectView) => {
     setConnectView(view);
     setConnectOpen(true);
   };
 
-  let trigger;
+  // Until the browser storage has been read the header holds the space and shows nothing that could be wrong.
+  if (!hydrated) return <span aria-hidden className={cn("block h-10", compact ? "w-11" : "w-[148px]", className)} />;
+
+  let trigger: ReactNode;
   if (session.kind === "none") {
     trigger = (
       <Button
@@ -44,8 +49,9 @@ export function AccountButton({ compact = false, className }: { compact?: boolea
     );
   } else if (session.kind === "locked") {
     trigger = (
-      <button
+      <Button
         type="button"
+        variant="outline"
         aria-label="Unlock wallet"
         title={session.address}
         onClick={() => openConnect("unlock")}
@@ -60,14 +66,20 @@ export function AccountButton({ compact = false, className }: { compact?: boolea
             <span className="text-text-tertiary">Locked</span>
           </>
         )}
-      </button>
+      </Button>
     );
   } else {
     trigger = (
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          aria-label="Account menu"
-          className={cn(pill, compact && "size-11 justify-center p-0", focusRing, className)}
+      <Popover open={menuOpen} onOpenChange={setMenuOpen}>
+        <PopoverTrigger
+          render={
+            <Button
+              type="button"
+              variant="outline"
+              aria-label="Account menu"
+              className={cn(pill, compact && "size-11 justify-center p-0", focusRing, className)}
+            />
+          }
         >
           <Orb />
           {!compact && (
@@ -76,9 +88,14 @@ export function AccountButton({ compact = false, className }: { compact?: boolea
               <ChevronDown className="size-4 text-text-tertiary" aria-hidden />
             </>
           )}
-        </DropdownMenuTrigger>
-        <AccountMenu session={session} onBackup={() => setBackupOpen(true)} onSetup={() => openConnect("setup")} />
-      </DropdownMenu>
+        </PopoverTrigger>
+        <AccountMenu
+          session={session}
+          onClose={() => setMenuOpen(false)}
+          onBackup={() => setBackupOpen(true)}
+          onSetup={() => openConnect("setup")}
+        />
+      </Popover>
     );
   }
 

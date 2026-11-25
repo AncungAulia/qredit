@@ -39,6 +39,8 @@ export type WalletStore = {
   session: WalletSession;
   /** Whether QoreX is installed, rejected the last connection, or is ready. Read by hydrate, set by connectQorex. */
   qorexState: QorexState;
+  /** False until hydrate has read the browser storage; the header shows a neutral placeholder before that. */
+  hydrated: boolean;
   /** Reads the browser storage: a stored wallet means locked, none means none. Called from an effect. */
   hydrate(): void;
   unlock(password: string): Promise<void>;
@@ -79,11 +81,14 @@ export const createWalletStore = (deps: WalletDeps = {}): StoreApi<WalletStore> 
   return createStore<WalletStore>()((set, get) => ({
     session: { kind: "none" },
     qorexState: "notInstalled",
+    hydrated: false,
     hydrate() {
-      set({ qorexState: qorex().detect() });
-      if (get().session.kind !== "none") return;
-      const stored = readStored(deps.storage);
-      if (stored) set({ session: { kind: "locked", address: stored.address } });
+      const stored = get().session.kind === "none" ? readStored(deps.storage) : null;
+      set({
+        qorexState: qorex().detect(),
+        hydrated: true,
+        ...(stored ? { session: { kind: "locked" as const, address: stored.address } } : {}),
+      });
     },
     async unlock(password) {
       const stored = readStored(deps.storage);

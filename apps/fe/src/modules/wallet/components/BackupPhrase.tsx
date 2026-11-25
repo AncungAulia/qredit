@@ -25,7 +25,6 @@ export function BackupPhrase({ phrase }: { phrase: string }) {
   return (
     <div className="flex flex-col gap-3">
       <ol
-        data-testid="phrase"
         aria-label="Recovery phrase"
         className="grid list-none grid-cols-2 gap-x-4 gap-y-2 rounded-lg bg-surface-muted p-4 font-mono text-[13px] text-text-primary [counter-reset:word] sm:grid-cols-3"
       >

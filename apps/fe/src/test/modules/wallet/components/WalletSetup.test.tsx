@@ -37,6 +37,7 @@ const renderSetup = () =>
   );
 
 beforeEach(() => {
+  sessionStorage.clear();
   useDesktopViewport();
   vi.mocked(readWalletStatus).mockReset();
   vi.mocked(claimFaucet).mockReset();
@@ -123,3 +124,27 @@ test("a status that cannot be read shows an error with retry, never a default", 
   expect(await screen.findByRole("button", { name: "Retry" })).toBeInTheDocument();
   expect(screen.queryByText("Waiting")).not.toBeInTheDocument();
 }, 30_000);
+
+test("after a successful claim the button waits until the funds arrive", async () => {
+  const user = userEvent.setup();
+  vi.mocked(readWalletStatus).mockResolvedValue(fresh);
+  vi.mocked(claimFaucet).mockResolvedValue({ tx: "ABCD" });
+  renderSetup();
+  await user.click(await screen.findByRole("button", { name: "Get test funds" }));
+  expect(await screen.findByText(/The faucet sent your test funds/)).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Get test funds" })).toBeDisabled();
+}, 30_000);
+
+test("the faucet limit message survives a reload of the page", async () => {
+  const user = userEvent.setup();
+  const retryAt = new Date(Date.now() + 3_600_000);
+  vi.mocked(readWalletStatus).mockResolvedValue(fresh);
+  vi.mocked(claimFaucet).mockResolvedValue({ retryAt });
+  const first = renderSetup();
+  await user.click(await screen.findByRole("button", { name: "Get test funds" }));
+  await screen.findByText(`You can ask for test funds again at ${formatDateTime(retryAt)}.`);
+  first.unmount();
+  renderSetup();
+  expect(await screen.findByText(`You can ask for test funds again at ${formatDateTime(retryAt)}.`)).toBeInTheDocument();
+  expect(claimFaucet).toHaveBeenCalledTimes(1);
+}, 40_000);
