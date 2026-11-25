@@ -16,6 +16,7 @@ Qredit is a credit market for AI agent businesses on the QoreChain testnet, buil
 | `engine` | The agents (Mastra), simulated suppliers, owner CLI; never holds the relayer key; `engine/spikes` holds the testnet spikes |
 | `sc` | Smart contracts (Foundry): `LoanVault`, `VaultFactory` |
 | `docs` | Spec, plans, threat model |
+| `design` | Pencil design file `qredit.pen` (app and landing, light and dark) and its images: agent marks, empty-state art, landing art |
 
 ## Network
 

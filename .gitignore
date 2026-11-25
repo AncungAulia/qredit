@@ -32,3 +32,6 @@ engine/.keys/
 # Railway CLI link files (never commit)
 .railway/
 .env.railway
+
+# Editor tool caches
+.impeccable/
