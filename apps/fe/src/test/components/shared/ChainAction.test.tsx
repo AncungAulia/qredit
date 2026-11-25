@@ -2,12 +2,13 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, test, vi } from "vitest";
 import { ChainAction, ChainActionStatus } from "@/components/shared/ChainAction";
-import { TxReverted } from "@/modules/wallet/signer";
+import { TxFailed, TxReverted } from "@/modules/wallet/signer";
 import { useDesktopViewport } from "@/test/helpers/wallet";
 
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 vi.mock("sonner", () => ({ toast }));
 
+const NEXT = { text: "Check My lending before lending again.", label: "Open My lending", href: "/lend" };
 const HASH = "0x1111111111111111111111111111111111111111111111111111111111111111";
 
 beforeEach(() => {
@@ -54,6 +55,7 @@ test("confirm, wallet, chain, done: the dialog closes and a toast carries the tr
   const onDone = vi.fn();
   render(
     <ChainAction
+      nextStep={NEXT}
       open
       onOpenChange={onOpenChange}
       title="Lend 500 fUSD to Counterparty Check?"
@@ -84,6 +86,7 @@ test("a refused transaction stays in the dialog with the reason", async () => {
   const onOpenChange = vi.fn();
   render(
     <ChainAction
+      nextStep={NEXT}
       open
       onOpenChange={onOpenChange}
       title="Lend 500 fUSD?"
@@ -109,7 +112,7 @@ test("try again after a refusal runs the action again", async () => {
     .mockRejectedValueOnce(new TxReverted(null, "The raise is already full."))
     .mockResolvedValueOnce(HASH);
   render(
-    <ChainAction open onOpenChange={vi.fn()} title="T" body="B" confirmLabel="Lend" pendingLabel="Lending" successTitle="Lent" run={run} />,
+    <ChainAction nextStep={NEXT} open onOpenChange={vi.fn()} title="T" body="B" confirmLabel="Lend" pendingLabel="Lending" successTitle="Lent" run={run} />,
   );
   await user.click(screen.getByRole("button", { name: "Lend" }));
   await user.click(await screen.findByRole("button", { name: "Try again" }));
@@ -121,6 +124,7 @@ test("an unknown failure shows a plain sentence, not the error text", async () =
   const user = userEvent.setup();
   render(
     <ChainAction
+      nextStep={NEXT}
       open
       onOpenChange={vi.fn()}
       title="T"
@@ -135,4 +139,49 @@ test("an unknown failure shows a plain sentence, not the error text", async () =
   const alert = await screen.findByRole("alert");
   expect(alert).not.toHaveTextContent("0xdeadbeef");
   expect(alert).toHaveTextContent("The transaction could not be completed.");
+});
+
+const renderRun = (error: unknown, nextStep = NEXT) =>
+  render(
+    <ChainAction
+      open
+      onOpenChange={vi.fn()}
+      title="T"
+      body="B"
+      confirmLabel="Go"
+      pendingLabel="Going"
+      successTitle="Went"
+      nextStep={nextStep}
+      run={() => Promise.reject(error)}
+    />,
+  );
+
+test("a send that could not be confirmed offers no retry, only the transaction and the next step", async () => {
+  const user = userEvent.setup();
+  renderRun(new TxFailed(HASH as `0x${string}`, "The transaction was sent but was not confirmed in time."));
+  await user.click(screen.getByRole("button", { name: "Go" }));
+  const alert = await screen.findByRole("alert");
+  expect(alert).toHaveTextContent("not confirmed in time");
+  expect(alert).toHaveTextContent("0x1111…1111");
+  expect(alert).toHaveTextContent(NEXT.text);
+  expect(screen.getByRole("link", { name: NEXT.label })).toHaveAttribute("href", "/lend");
+  expect(screen.queryByRole("button", { name: "Try again" })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
+});
+
+test("a reverted transaction moved no funds, so it can be tried again", async () => {
+  const user = userEvent.setup();
+  renderRun(new TxReverted(HASH as `0x${string}`, "The raise is already full."));
+  await user.click(screen.getByRole("button", { name: "Go" }));
+  await screen.findByRole("alert");
+  expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: NEXT.label })).not.toBeInTheDocument();
+});
+
+test("a failure before any send (no hash) can be tried again", async () => {
+  const user = userEvent.setup();
+  renderRun(new TxFailed(null, "The transaction could not be sent."));
+  await user.click(screen.getByRole("button", { name: "Go" }));
+  await screen.findByRole("alert");
+  expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
 });

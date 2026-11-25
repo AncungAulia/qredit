@@ -19,8 +19,19 @@ export const NO_TEST_WALLET_SENTENCE = "A test wallet is needed to send this ord
 export const NOT_SEALABLE_SENTENCE = "This business cannot receive sealed requests right now.";
 export const NOT_STORED_SENTENCE = "The sealed request could not be stored. Nothing was paid; please try again.";
 export const HASH_MISMATCH_SENTENCE = "The stored request does not match the sealed one. Nothing was paid; please try again.";
+export const NOT_PAID_SENTENCE = "The order could not be prepared. Nothing was paid; please try again.";
 export const NO_ORDER_SENTENCE =
   "The payment was sent, but the order number could not be read. Check your inbox before trying again.";
+
+/** Runs a step that comes before any payment: a failure that is not already a decoded transaction failure says that nothing was paid. */
+async function beforePayment<T>(step: () => Promise<T>): Promise<T> {
+  try {
+    return await step();
+  } catch (e) {
+    if (e instanceof TxFailed || e instanceof TxReverted) throw e;
+    throw new TxFailed(null, NOT_PAID_SENTENCE);
+  }
+}
 
 /** What one service costs and how long a buyer waits before a refund can be taken; both are read from the vault. */
 export async function readQuote(vault: Hex, serviceId: number): Promise<{ price: bigint; ttlSeconds: number }> {
@@ -49,7 +60,13 @@ async function postRequest(text: string): Promise<Hex> {
 }
 
 async function orderIdOf(vault: Hex, hash: Hex): Promise<string> {
-  const receipt = await publicClient.getTransactionReceipt({ hash });
+  let receipt;
+  try {
+    receipt = await publicClient.getTransactionReceipt({ hash });
+  } catch {
+    // The payment is on its way: the hash must reach the person, so nothing is offered a second time.
+    throw new TxFailed(hash, NO_ORDER_SENTENCE);
+  }
   for (const log of receipt.logs) {
     if (log.address.toLowerCase() !== vault.toLowerCase()) continue;
     try {
@@ -77,16 +94,12 @@ export async function placeOrder(
   const signer = evmSignerFor(session);
   if (!signer) throw new TxFailed(null, NO_TEST_WALLET_SENTENCE);
   const vault = business.vault;
-  const [{ price }, balance, allowance] = await Promise.all([
-    readQuote(vault, serviceId),
-    readFusdBalance(signer.address),
-    readFusdAllowance(signer.address, vault),
-  ]);
+  const [{ price }, balance] = await beforePayment(() => Promise.all([readQuote(vault, serviceId), readFusdBalance(signer.address)]));
   if (balance < price) throw new TxReverted(null, ERC20_ERROR_SENTENCES.ERC20InsufficientBalance);
 
   onProgress("sealing");
   const resolve = createRecipientResolver({ rest: restUrl(), chainId: env.chainId, card: fetchCard });
-  const recipient = await resolve(business.spender);
+  const recipient = await beforePayment(() => resolve(business.spender));
   if (!recipient) throw new TxFailed(null, NOT_SEALABLE_SENTENCE);
   const text = sealRequest({ body: { v: 1, serviceId, input }, vault, recipient, chainId: env.chainId });
 
@@ -95,7 +108,9 @@ export async function placeOrder(
   if (hash.toLowerCase() !== envelopeHash(text).toLowerCase()) throw new TxFailed(null, HASH_MISMATCH_SENTENCE);
 
   onProgress("window");
-  await ensureWindowFor(session, [FUSD_ADDRESS, vault]);
+  await beforePayment(() => ensureWindowFor(session, [FUSD_ADDRESS, vault]));
+  // Read again right before the approval: the allowance may have changed since the form was opened.
+  const allowance = await beforePayment(() => readFusdAllowance(signer.address, vault));
   if (allowance < price) {
     onProgress("approving");
     await signer.send(FUSD_ADDRESS, encodeFunctionData({ abi: ERC20_ABI, functionName: "approve", args: [vault, price] }));

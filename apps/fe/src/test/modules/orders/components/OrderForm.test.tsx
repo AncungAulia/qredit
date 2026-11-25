@@ -27,12 +27,12 @@ vi.mock("@/modules/orders/api/useOrders", () => ({
   useQuotesQuery: (b: Business) => b.services.map(() => quote),
   useOrderActions: () => ({ place }),
 }));
-const vault = vi.hoisted(() => ({ data: { state: "Active" } as { state: string } | undefined }));
+const vault = vi.hoisted(() => ({ data: { state: "Active" } as { state: string } | undefined, isError: false, refetch: vi.fn() }));
 vi.mock("@/modules/market", () => ({ useVaultQuery: () => vault }));
 
 import { OrderForm } from "@/modules/orders/components/OrderForm";
 import { NOT_SEALABLE_SENTENCE } from "@/modules/orders/api/orders.api";
-import { TxFailed } from "@/modules/wallet/signer";
+import { TxFailed, TxReverted } from "@/modules/wallet/signer";
 
 const HEX = "0x37bb4c1e9a2f03d4aa11bb22cc33dd44ee55ff66";
 const OWN = hexToQor("0x70997970c51812dc3a010c7d01b50e0d17dc79c8");
@@ -55,13 +55,14 @@ beforeEach(() => {
   quote.data = { price: 250_000n, ttlSeconds: 3600 };
   quote.isError = false;
   vault.data = { state: "Active" };
+  vault.isError = false;
 });
 
 test("the price comes from the vault and the refund time is shown", () => {
   render(<OrderForm business={business("counterparty-check")} />);
   expect(screen.getByRole("button", { name: "Seal and buy for 0.25 fUSD" })).toBeInTheDocument();
   expect(screen.getByText("after 1 hour")).toBeInTheDocument();
-  expect(screen.getByText("Refunded if it is not delivered in 1 hour")).toBeInTheDocument();
+  expect(screen.getByText("You can take a refund if it is not delivered within 1 hour.")).toBeInTheDocument();
 });
 
 test("the counterparty check starts with the address of the buyer", async () => {
@@ -118,8 +119,8 @@ test("the steps show while the order is sent", async () => {
   );
   render(<OrderForm business={business("counterparty-check")} />);
   await user.click(await screen.findByRole("button", { name: /Seal and buy/ }));
-  expect(await screen.findByText("Storing the sealed request")).toHaveTextContent("Storing");
-  expect(screen.getByText("Sealing your request to the agent's key")).toBeInTheDocument();
+  expect((await screen.findByText("Storing the sealed request")).closest("li")).toHaveAttribute("aria-current", "step");
+  expect(screen.getByText("Sealing your request to the agent's key").closest("li")).not.toHaveAttribute("aria-current");
   expect(screen.queryByRole("button", { name: /Seal and buy/ })).not.toBeInTheDocument();
 });
 
@@ -130,6 +131,51 @@ test("a business that cannot receive sealed requests shows its sentence and offe
   await user.click(await screen.findByRole("button", { name: /Seal and buy/ }));
   expect(await screen.findByText(NOT_SEALABLE_SENTENCE)).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+});
+
+const BUY = "0x3333333333333333333333333333333333333333333333333333333333333333" as const;
+
+test("a payment that may have been sent offers no retry: the transaction, the inbox, no second order", async () => {
+  const user = userEvent.setup();
+  place.mockRejectedValue(new TxFailed(BUY, "The payment was sent, but the order number could not be read."));
+  render(<OrderForm business={business("counterparty-check")} />);
+  await user.click(await screen.findByRole("button", { name: /Seal and buy/ }));
+  expect(await screen.findByText("Check your inbox before ordering again.")).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Open the inbox" })).toHaveAttribute("href", "/inbox");
+  expect(screen.queryByRole("button", { name: "Try again" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /Seal and buy/ })).not.toBeInTheDocument();
+});
+
+test("a reverted payment moved no funds, so the order can be tried again", async () => {
+  const user = userEvent.setup();
+  place.mockRejectedValue(new TxReverted(BUY, "The fUSD balance is too low for this transaction."));
+  render(<OrderForm business={business("counterparty-check")} />);
+  await user.click(await screen.findByRole("button", { name: /Seal and buy/ }));
+  expect(await screen.findByRole("button", { name: "Try again" })).toBeInTheDocument();
+});
+
+test("a second press while the order is being sent starts nothing", async () => {
+  const user = userEvent.setup();
+  place.mockImplementation(() => new Promise(() => {}));
+  render(<OrderForm business={business("counterparty-check")} />);
+  const button = await screen.findByRole("button", { name: /Seal and buy/ });
+  await user.dblClick(button);
+  expect(place).toHaveBeenCalledTimes(1);
+});
+
+test("a vault that cannot be read shows an error with a retry", async () => {
+  const user = userEvent.setup();
+  vault.data = undefined;
+  vault.isError = true;
+  render(<OrderForm business={business("counterparty-check")} />);
+  expect(screen.getByText("The state of this business could not be read")).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Try again" }));
+  expect(vault.refetch).toHaveBeenCalled();
+});
+
+test("the refund sentence says the buyer takes it", () => {
+  render(<OrderForm business={business("counterparty-check")} />);
+  expect(screen.getByText("You can take a refund if it is not delivered within 1 hour.")).toBeInTheDocument();
 });
 
 test("a wallet whose setup is not finished shows the setup steps in place of the button", () => {

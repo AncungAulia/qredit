@@ -5,11 +5,16 @@ import { inputRuleFor, orderInput, orderInputSchema, ADDRESS_ERROR } from "@/mod
 const HEX = "0x37bb4c1e9a2f03d4aa11bb22cc33dd44ee55ff66";
 const QOR = "qor1q4k8xv2d9ewn7lm0t5c3j6yhp4r8z2s0km3s07d";
 
-test("a single-address service takes one qor1 or 0x address", () => {
+test("a single-address service takes one 0x address, also with spaces around it", () => {
   const schema = orderInputSchema("counterparty-check");
   expect(schema.safeParse(HEX).success).toBe(true);
   expect(schema.safeParse(`  ${HEX}\n`).success).toBe(true);
-  expect(schema.safeParse(QOR).success).toBe(false); // checksum of the sample is not valid
+});
+
+test("a qor1 text whose checksum is wrong is refused", () => {
+  const r = orderInputSchema("counterparty-check").safeParse(QOR);
+  expect(r.success).toBe(false);
+  expect(r.error?.issues[0]?.message).toBe(ADDRESS_ERROR);
 });
 
 test("a real qor1 address is accepted", async () => {

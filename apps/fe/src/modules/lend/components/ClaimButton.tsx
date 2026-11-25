@@ -26,6 +26,7 @@ export function ClaimButton({ position, className }: { position: Position; class
         confirmLabel={`Claim ${amount}`}
         pendingLabel={`Claiming ${amount}`}
         successTitle={`Claimed ${amount} from ${name}`}
+        nextStep={{ text: "Check My lending before claiming again.", label: "Open My lending", href: "/lend" }}
         run={() => actions.claim(position.business.vault)}
       />
     </>

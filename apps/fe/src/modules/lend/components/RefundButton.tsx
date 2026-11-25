@@ -26,6 +26,7 @@ export function RefundButton({ position, className }: { position: Position; clas
         confirmLabel={`Refund ${amount}`}
         pendingLabel={`Refunding ${amount}`}
         successTitle={`Refunded ${amount} from ${name}`}
+        nextStep={{ text: "Check My lending before asking for a refund again.", label: "Open My lending", href: "/lend" }}
         run={() => actions.refund(position.business.vault)}
       />
     </>

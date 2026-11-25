@@ -4,6 +4,7 @@
 // ready -> waiting for the wallet -> on chain -> done (dialog closes, a toast carries the transaction)
 // or refused (the dialog stays with the reason). Refusals always show a mapped sentence, never raw data.
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import Link from "next/link";
 import { CircleCheck, LoaderCircle } from "lucide-react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
@@ -11,14 +12,17 @@ import { Notice } from "@/components/shared/Notice";
 import { TxLink } from "@/components/shared/TxLink";
 import { Button } from "@/components/ui/button";
 import { TxFailed, TxReverted } from "@/modules/wallet/signer";
-import { cn } from "@/lib/utils";
+import { cn, focusRing } from "@/lib/utils";
 
 export type ChainPhase = "idle" | "wallet" | "chain" | "done" | "refused";
 
 /** The work of one action; resolves with the transaction hash, or null when no transaction was needed. Call `sent` once the transaction is on its way. */
 export type ChainRun = (control: { sent(): void }) => Promise<string | null>;
 
-type ActionState = { phase: ChainPhase; hash?: string; reason?: string };
+type ActionState = { phase: ChainPhase; hash?: string; reason?: string; maySpend?: boolean };
+
+/** Where to look after a failure that may have moved funds, and the sentence that says so. */
+export type NextStep = { text: string; label: string; href: string };
 
 export const SLOW_AFTER_MS = 20_000;
 export const SLOW_SENTENCE = "The chain is taking longer than usual. Your funds are safe.";
@@ -29,6 +33,9 @@ export function failureSentence(error: unknown): string {
   if (error instanceof TxReverted || error instanceof TxFailed) return error.reason;
   return NOT_COMPLETED_SENTENCE;
 }
+
+/** A send that left the wallet but could not be confirmed: funds may have moved, so the action must not be offered again. A revert moved nothing. */
+export const mayHaveSpent = (error: unknown) => error instanceof TxFailed && error.hash !== null;
 
 const failureHash = (error: unknown) =>
   error instanceof TxReverted || error instanceof TxFailed ? (error.hash ?? undefined) : undefined;
@@ -58,7 +65,7 @@ export function useChainAction(run: ChainRun) {
       setState({ phase: "done", hash: hash ?? undefined });
       return { hash };
     } catch (e) {
-      setState({ phase: "refused", reason: failureSentence(e), hash: failureHash(e) });
+      setState({ phase: "refused", reason: failureSentence(e), hash: failureHash(e), maySpend: mayHaveSpent(e) });
       return null;
     }
   }, [run]);
@@ -77,6 +84,9 @@ type StatusProps = {
   asButton?: boolean;
   /** Title of the refusal notice; steps that are not transactions say "step". */
   refusedTitle?: string;
+  /** Set when a failure may have moved funds: the notice then names the next step instead of a retry. */
+  maySpend?: boolean;
+  nextStep?: NextStep;
 };
 
 /** One state of the lifecycle: waiting rows, the refusal notice, or the finished transaction. */
@@ -88,6 +98,8 @@ export function ChainActionStatus({
   slow,
   asButton,
   refusedTitle = "This transaction was not completed",
+  maySpend,
+  nextStep,
 }: StatusProps) {
   if (phase === "wallet" || phase === "chain") {
     const label = phase === "wallet" ? "Confirm in your wallet" : (pendingLabel ?? "Waiting for the chain");
@@ -116,6 +128,14 @@ export function ChainActionStatus({
             <TxLink hash={hash} />
           </span>
         )}
+        {maySpend && nextStep && (
+          <span className="mt-2 flex flex-col gap-2">
+            <span className="font-medium text-text-primary">{nextStep.text}</span>
+            <Link href={nextStep.href} className={cn("w-fit underline", focusRing)}>
+              {nextStep.label}
+            </Link>
+          </span>
+        )}
       </Notice>
     );
   }
@@ -140,6 +160,8 @@ type Props = {
   onDone?: (hash: string | null) => void;
   /** The summary block of the design (amounts, fee, result). */
   summary?: ReactNode;
+  /** Where to look when a failure may have moved funds; such a failure is never offered again. */
+  nextStep: NextStep;
 };
 
 /** A confirmation dialog that carries one chain action from the confirmation to its ending. */
@@ -154,6 +176,7 @@ export function ChainAction({
   run,
   onDone,
   summary,
+  nextStep,
 }: Props) {
   const action = useChainAction(run);
   const { phase, reset } = action;
@@ -186,7 +209,7 @@ export function ChainAction({
       confirmLabel={confirmLabel}
       onConfirm={() => void confirm()}
       dismissible={!busy}
-      status={phase === "refused" ? <ChainActionStatus phase="refused" reason={action.reason} hash={action.hash} /> : undefined}
+      status={phase === "refused" ? <ChainActionStatus phase="refused" reason={action.reason} hash={action.hash} maySpend={action.maySpend} nextStep={nextStep} /> : undefined}
       actions={
         busy ? (
           <ChainActionStatus phase={phase} pendingLabel={pendingLabel} slow={action.slow} asButton />
@@ -195,9 +218,11 @@ export function ChainAction({
             <Button variant="ghost" size="lg" className="h-11 px-4 max-md:w-full" onClick={() => onOpenChange(false)}>
               Close
             </Button>
-            <Button size="lg" className="h-11 px-4 max-md:w-full" onClick={() => void confirm()}>
-              Try again
-            </Button>
+            {!action.maySpend && (
+              <Button size="lg" className="h-11 px-4 max-md:w-full" onClick={() => void confirm()}>
+                Try again
+              </Button>
+            )}
           </div>
         ) : undefined
       }

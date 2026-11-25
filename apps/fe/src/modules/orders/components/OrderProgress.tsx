@@ -13,7 +13,7 @@ const STEPS: { id: Running; label: string }[] = [
 ];
 
 /** The steps of an order while it is sent: the finished ones are ticked, the running one shows a spinner. */
-export function OrderProgress({ step, slow }: { step: Running; slow?: boolean }) {
+export function OrderProgress({ step, reached, slow }: { step: Running; reached: Running[]; slow?: boolean }) {
   const at = STEPS.findIndex((s) => s.id === step);
   return (
     <div className="flex flex-col gap-3" role="status" aria-live="polite">
@@ -33,7 +33,7 @@ export function OrderProgress({ step, slow }: { step: Running; slow?: boolean })
               ) : (
                 <Circle className="size-[18px] shrink-0" aria-hidden />
               )}
-              <span>{s.label}</span>
+              <span>{s.id === "approving" && state === "done" && !reached.includes("approving") ? "Already allowed" : s.label}</span>
               <span className="sr-only">{state === "done" ? "Done" : state === "running" ? "In progress" : "Waiting"}</span>
             </li>
           );

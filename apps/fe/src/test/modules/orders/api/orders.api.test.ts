@@ -74,7 +74,10 @@ beforeEach(() => {
     throw new Error(`unexpected read ${fn}`);
   });
   readBalance.mockResolvedValue(10_000_000n);
-  readAllowance.mockResolvedValue(0n);
+  readAllowance.mockImplementation(async () => {
+    calls.push("allowance");
+    return 0n;
+  });
   get.mockRejectedValue(new ApiError("notFound", 404));
   resolve.mockResolvedValue({ recipient: true });
   seal.mockReturnValue(TEXT);
@@ -102,7 +105,7 @@ test("placeOrder seals, posts, opens the window, approves and buys, in that orde
   const seen: PlaceOrderProgress[] = [];
   const result = await placeOrder(session, business, 0, "0xabc", (p) => seen.push(p));
   expect(result).toEqual({ orderId: "7", buyTx: "0xbuy" });
-  expect(calls).toEqual(["post", "window", "approve", "buy"]);
+  expect(calls).toEqual(["post", "window", "allowance", "approve", "buy"]);
   expect(seen).toEqual(["sealing", "posting", "window", "approving", "buying", "placed"]);
   expect(resolve).toHaveBeenCalledWith(SPENDER);
   expect(seal.mock.calls[0]![0]).toMatchObject({ body: { v: 1, serviceId: 0, input: "0xabc" }, vault: VAULT, chainId: "qorechain-diana" });
@@ -113,10 +116,13 @@ test("placeOrder seals, posts, opens the window, approves and buys, in that orde
 });
 
 test("the approval is skipped when the allowance already covers the price", async () => {
-  readAllowance.mockResolvedValue(PRICE);
+  readAllowance.mockImplementation(async () => {
+    calls.push("allowance");
+    return PRICE;
+  });
   const seen: PlaceOrderProgress[] = [];
   await placeOrder(session, business, 0, "0xabc", (p) => seen.push(p));
-  expect(calls).toEqual(["post", "window", "buy"]);
+  expect(calls).toEqual(["post", "window", "allowance", "buy"]);
   expect(seen).not.toContain("approving");
 });
 
@@ -167,4 +173,35 @@ test("fetchCard returns the stored card, null for an unknown address, and rethro
   expect(await fetchCard("qor1x")).toBeNull();
   get.mockRejectedValueOnce(new ApiError("server", 500));
   await expect(fetchCard("qor1x")).rejects.toBeInstanceOf(ApiError);
+});
+
+const NOTHING_PAID = expect.stringContaining("Nothing was paid");
+
+test.each([
+  ["the price read", () => readVault.mockRejectedValue(new Error("rpc down"))],
+  ["the balance read", () => readBalance.mockRejectedValue(new Error("rpc down"))],
+  ["the recipient lookup", () => resolve.mockRejectedValue(new Error("rest down"))],
+])("a failed %s before the payment is a sentence that says nothing was paid", async (_name, fail) => {
+  fail();
+  await expect(placeOrder(session, business, 0, "0xabc", () => {})).rejects.toMatchObject({ name: "TxFailed", hash: null, reason: NOTHING_PAID });
+  expect(send).not.toHaveBeenCalled();
+});
+
+test("a failed window or allowance read says nothing was paid", async () => {
+  readAllowance.mockRejectedValue(new Error("rpc down"));
+  await expect(placeOrder(session, business, 0, "0xabc", () => {})).rejects.toMatchObject({ name: "TxFailed", reason: NOTHING_PAID });
+  expect(send).not.toHaveBeenCalled();
+});
+
+test("a buy that reverts keeps its hash and stays a revert, so the order can be tried again", async () => {
+  send.mockImplementation(async (to: string) => {
+    if (to === FUSD_ADDRESS) return "0xapprove";
+    throw new TxReverted("0xbuy", "The vault refused this order.");
+  });
+  await expect(placeOrder(session, business, 0, "0xabc", () => {})).rejects.toMatchObject({ name: "TxReverted", hash: "0xbuy" });
+});
+
+test("a receipt that cannot be read after the buy keeps the buy hash and says funds may have moved", async () => {
+  getReceipt.mockRejectedValue(new Error("rpc down"));
+  await expect(placeOrder(session, business, 0, "0xabc", () => {})).rejects.toMatchObject({ name: "TxFailed", hash: "0xbuy" });
 });

@@ -30,6 +30,8 @@ type Props = {
   onBusyChange: (busy: boolean) => void;
 };
 
+const LEND_NEXT_STEP = { text: "Check My lending before lending again.", label: "Open My lending", href: "/lend" };
+
 const Line = ({ label, children }: { label: string; children: React.ReactNode }) => (
   <div className="flex items-center justify-between gap-4 py-1.5 text-sm">
     <span className="text-text-secondary">{label}</span>
@@ -168,22 +170,23 @@ export function LendForm({ business, vault, evm, onClose, onBusyChange }: Props)
             {RAISE_FULL_SENTENCE}
           </Notice>
         ) : (
-          <ChainActionStatus phase="refused" reason={action.reason} hash={action.hash} />
+          <ChainActionStatus phase="refused" reason={action.reason} hash={action.hash} maySpend={action.maySpend} nextStep={LEND_NEXT_STEP} />
         ))}
 
       {busy ? (
         <ChainActionStatus phase={action.phase as "wallet" | "chain"} pendingLabel={`Lending ${units !== null ? formatFusd(units) : ""}`.trim()} slow={action.slow} asButton />
       ) : (
         <div className="flex flex-col gap-2.5">
-          {full ? (
-            <Button size="lg" className="h-11 w-full" render={<Link href="/" />} nativeButton={false} role="link">
-              Back to the market
-            </Button>
-          ) : (
+          {full || action.maySpend ? null : (
             <Button type="submit" size="lg" className="h-11 w-full" disabled={!valid}>
               {action.phase === "refused" ? "Try again" : label}
             </Button>
           )}
+          {full ? (
+            <Button size="lg" className="h-11 w-full" render={<Link href="/" />} nativeButton={false} role="link">
+              Back to the market
+            </Button>
+          ) : null}
           <Button type="button" variant="ghost" size="lg" className="h-11 w-full" onClick={onClose}>
             Cancel
           </Button>

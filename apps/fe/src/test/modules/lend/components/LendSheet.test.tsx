@@ -38,7 +38,7 @@ vi.mock("@/modules/lend/api/useLend", () => ({
 
 import { RAISE_FULL_SENTENCE } from "@/modules/lend/api/lend.api";
 import { LendSheet } from "@/modules/lend/components/LendSheet";
-import { TxReverted } from "@/modules/wallet/signer";
+import { TxFailed, TxReverted } from "@/modules/wallet/signer";
 
 const fusd = (n: number) => BigInt(n) * 1_000_000n;
 const business = { slug: "contract-auditor", name: "Contract Auditor", vault: "0x1111111111111111111111111111111111111111" } as unknown as Business;
@@ -173,6 +173,27 @@ test("another refusal shows its reason and a way to try again", async () => {
   await user.click(screen.getByRole("button", { name: "Lend 500.00 fUSD" }));
   expect(await screen.findByText("The fUSD balance is too low for this transaction.")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+});
+
+test("a deposit that may have been sent offers no retry, only My lending", async () => {
+  const user = userEvent.setup();
+  lendFn.mockRejectedValue(new TxFailed("0x2222222222222222222222222222222222222222222222222222222222222222", "The transaction was sent but was not confirmed in time."));
+  open();
+  await user.type(screen.getByLabelText("Amount"), "500");
+  await user.click(screen.getByRole("button", { name: "Lend 500.00 fUSD" }));
+  expect(await screen.findByText("Check My lending before lending again.")).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Open My lending" })).toHaveAttribute("href", "/lend");
+  expect(screen.queryByRole("button", { name: "Try again" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /^Lend 500/ })).not.toBeInTheDocument();
+});
+
+test("a reverted deposit can be tried again", async () => {
+  const user = userEvent.setup();
+  lendFn.mockRejectedValue(new TxReverted("0x2222222222222222222222222222222222222222222222222222222222222222", "The fUSD balance is too low for this transaction."));
+  open();
+  await user.type(screen.getByLabelText("Amount"), "500");
+  await user.click(screen.getByRole("button", { name: "Lend 500.00 fUSD" }));
+  expect(await screen.findByRole("button", { name: "Try again" })).toBeInTheDocument();
 });
 
 test("not connected: no amount field, a connect button instead", () => {

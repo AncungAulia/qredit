@@ -36,11 +36,19 @@ type Placed = { orderId: string; buyTx: string };
 // A business sells only once its loan is funded (the same states the business page offers a purchase for).
 const SELLING = ["Active", "Trapped", "Repaid"];
 
+const ORDER_NEXT_STEP = { text: "Check your inbox before ordering again.", label: "Open the inbox", href: "/inbox" };
+
 const Line = ({ label, children }: { label: string; children: React.ReactNode }) => (
   <div className="flex items-center justify-between gap-4 py-1.5 text-sm">
     <span className="text-text-secondary">{label}</span>
     <span className="text-right font-medium text-text-primary tabular-nums">{children}</span>
   </div>
+);
+
+const RetryButton = ({ onClick }: { onClick: () => void }) => (
+  <Button type="button" variant="outline" size="sm" className="mt-2 block" onClick={onClick}>
+    Try again
+  </Button>
 );
 
 const FlowStep = ({ icon: Icon, children }: { icon: typeof Lock; children: React.ReactNode }) => (
@@ -62,6 +70,9 @@ export function OrderForm({ business }: { business: Business }) {
   const vault = useVaultQuery(business.vault);
   const actions = useOrderActions();
   const [step, setStep] = useState<Running | null>(null);
+  const [reached, setReached] = useState<Running[]>([]);
+  // Set at once on the first press, so a second press can never start a second order.
+  const sending = useRef(false);
   const [placed, setPlaced] = useState<Placed | null>(null);
 
   const schema = useMemo(() => orderFormSchema(business.slug), [business.slug]);
@@ -89,7 +100,10 @@ export function OrderForm({ business }: { business: Business }) {
     async (control: { sent(): void }) => {
       const result = await actions.place(business, serviceId, orderInput(business.slug, value), (p) => {
         if (p === "window") control.sent();
-        if (p !== "placed") setStep(p);
+        if (p !== "placed") {
+          setStep(p);
+          setReached((r) => [...r, p]);
+        }
       });
       setPlaced(result);
       return result.buyTx;
@@ -101,6 +115,7 @@ export function OrderForm({ business }: { business: Business }) {
 
   const submit = handleSubmit(async () => {
     setStep("sealing");
+    setReached(["sealing"]);
     const result = await action.start();
     setStep(null);
     if (!result) return;
@@ -110,12 +125,21 @@ export function OrderForm({ business }: { business: Business }) {
   const error = errors.input?.message;
   const ttl = quote?.data ? formatDuration(quote.data.ttlSeconds) : null;
   const priceText = price !== null ? formatFusd(price) : null;
-  const locked = busy || placed !== null;
+  const locked = busy || placed !== null || action.maySpend === true;
   const canBuy = isValid && price !== null && sellable === true && !locked;
   const InputControl = rule.kind === "one" ? Input : Textarea;
 
   return (
-    <form onSubmit={submit} noValidate className="grid gap-4 lg:grid-cols-[1fr_380px] lg:gap-6">
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (sending.current) return;
+        sending.current = true;
+        void submit(e).finally(() => {
+          sending.current = false;
+        });
+      }}
+      noValidate className="grid gap-4 lg:grid-cols-[1fr_380px] lg:gap-6">
       <div className="flex flex-col gap-6 rounded-3xl bg-surface p-5 md:p-7">
         <div className="flex flex-col gap-2.5" role="radiogroup" aria-label="Service">
           <span className="text-sm font-medium text-text-primary">Service</span>
@@ -240,7 +264,7 @@ export function OrderForm({ business }: { business: Business }) {
             <ul className="flex flex-col gap-2.5">
               <FlowStep icon={Lock}>Held in escrow now</FlowStep>
               <FlowStep icon={Wallet}>Released when the report is delivered</FlowStep>
-              <FlowStep icon={Undo2}>{ttl ? `Refunded if it is not delivered in ${ttl}` : "Refunded if it is not delivered in time"}</FlowStep>
+              <FlowStep icon={Undo2}>{ttl ? `You can take a refund if it is not delivered within ${ttl}.` : "You can take a refund if it is not delivered in time."}</FlowStep>
             </ul>
             <p className="text-[13px] text-text-secondary">
               <InlineWordmark /> never sees your request: it is sealed in this browser.
@@ -248,11 +272,14 @@ export function OrderForm({ business }: { business: Business }) {
 
             {quote?.isError && (
               <Notice tone="danger" title="The price could not be read">
-                The chain did not respond. Please{" "}
-                <button type="button" className={cn("underline", focusRing)} onClick={() => void quote.refetch()}>
-                  try again
-                </button>
-                .
+                The chain did not respond.
+                <RetryButton onClick={() => void quote.refetch()} />
+              </Notice>
+            )}
+            {vault.isError && !vault.data && (
+              <Notice tone="danger" title="The state of this business could not be read">
+                The chain did not respond.
+                <RetryButton onClick={() => void vault.refetch()} />
               </Notice>
             )}
             {sellable === false && (
@@ -262,7 +289,14 @@ export function OrderForm({ business }: { business: Business }) {
             )}
 
             {action.phase === "refused" && (
-              <ChainActionStatus phase="refused" reason={action.reason} hash={action.hash} refusedTitle="This order was not completed" />
+              <ChainActionStatus
+                phase="refused"
+                reason={action.reason}
+                hash={action.hash}
+                maySpend={action.maySpend}
+                nextStep={ORDER_NEXT_STEP}
+                refusedTitle="This order was not completed"
+              />
             )}
 
             {!wallet ? (
@@ -270,11 +304,13 @@ export function OrderForm({ business }: { business: Business }) {
             ) : (
               <RequireReadyWallet>
                 {busy && step ? (
-                  <OrderProgress step={step} slow={action.slow} />
+                  <OrderProgress step={step} reached={reached} slow={action.slow} />
                 ) : (
+                  action.maySpend ? null : (
                   <Button type="submit" size="lg" className="h-11 w-full" disabled={!canBuy}>
                     {action.phase === "refused" ? "Try again" : priceText ? `Seal and buy for ${priceText}` : "Seal and buy"}
                   </Button>
+                  )
                 )}
               </RequireReadyWallet>
             )}
