@@ -1,5 +1,3 @@
-import { evmWindowStatus } from "@qorechain/evm";
-import { fetchAuthenticators, fetchPqcStatus, fetchSpendingRules } from "@qorechain/sdk";
 import {
   ERC20_ABI,
   FACTORY_ADDRESS,
@@ -71,19 +69,23 @@ export function runChecks(
     factory,
     guard("ownerKey", async () => {
       const ownerPq = await readVault(vault, "ownerPq");
+      // The SDK is large; it loads when the checks run, so the pages that only show a verdict stay light.
+      const { fetchPqcStatus } = await import("@qorechain/sdk");
       return judgeOwnerKey(await fetchPqcStatus({ rest, address: hexToQor(ownerPq) }));
     }),
     guard("spenderRule", async () => {
       const address = hexToQor(b.spender);
+      const { fetchAuthenticators, fetchSpendingRules } = await import("@qorechain/sdk");
       const [keys, stored] = await Promise.all([
         fetchAuthenticators({ rest, address }),
         fetchSpendingRules({ rest, address }),
       ]);
       return judgeSpenderRule({ keys, ...stored }, vault, PAY_SUPPLIER_SELECTOR);
     }),
-    guard("operatorWindow", async () =>
-      judgeOperatorWindow(await evmWindowStatus({ rest, address: hexToQor(b.operator) }), vault),
-    ),
+    guard("operatorWindow", async () => {
+      const { evmWindowStatus } = await import("@qorechain/evm");
+      return judgeOperatorWindow(await evmWindowStatus({ rest, address: hexToQor(b.operator) }), vault);
+    }),
     guard("books", async () => {
       const [books, balance] = await Promise.all([
         readVault(vault, "books"),

@@ -1,8 +1,8 @@
 // Wallet session store. A factory (never a module-level create()) so each provider owns its store.
 // Keys live only in this store's memory while unlocked; the phrase is dropped right after derivation.
 import { createStore, type StoreApi } from "zustand/vanilla";
-import { deriveUnifiedAccount, validateMnemonic, type UnifiedAccount } from "@qorechain/sdk";
-import { deriveSealKeys, type SealKeyPair } from "@qorechain/qoreseal";
+import type { UnifiedAccount } from "@qorechain/sdk";
+import type { SealKeyPair } from "@qorechain/qoreseal";
 import {
   decryptPhrase,
   encryptPhrase,
@@ -63,7 +63,9 @@ export type WalletDeps = { storage?: Storage; qorex?: QorexClient };
 const withTestWallet = (current: WalletSession, test: TestSession): WalletSession =>
   current.kind === "qorex" ? { ...current, testWallet: test } : test;
 
+// The post-quantum key code is large, so it is loaded only when a wallet is unlocked or created, never with a page.
 async function deriveSession(phrase: string): Promise<TestSession> {
+  const [{ deriveUnifiedAccount }, { deriveSealKeys }] = await Promise.all([import("@qorechain/sdk"), import("@qorechain/qoreseal")]);
   const derived = await deriveUnifiedAccount(phrase, 0);
   const sealKeys = await deriveSealKeys({ mnemonic: phrase });
   // The SDK keeps the phrase on the account; remove it so only the keys stay in memory.
@@ -108,9 +110,11 @@ export const createWalletStore = (deps: WalletDeps = {}): StoreApi<WalletStore> 
     },
     async create(phrase, password) {
       const clean = phrase.trim().replace(/\s+/g, " ");
-      if (!validateMnemonic(clean)) throw new Error("The recovery phrase is not valid.");
       passwordSchema.parse(password);
+      // Claimed before the first await, so a forget or lock during the loading below still cancels this create.
       const mine = ++token;
+      const { validateMnemonic } = await import("@qorechain/sdk");
+      if (!validateMnemonic(clean)) throw new Error("The recovery phrase is not valid.");
       const session = await deriveSession(clean);
       const record = await encryptPhrase(clean, password, session.address);
       if (mine !== token) throw new Cancelled();

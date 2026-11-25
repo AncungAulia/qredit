@@ -1,7 +1,6 @@
 import { ERC20_ABI, FUSD_ADDRESS, FUSD_DENOM } from "@qredit/qore";
-import { recipientCardFields, toHex, type RecipientCard, type SealKeyPair } from "@qorechain/qoreseal";
-import { fetchKemKey } from "@qorechain/qoreseal/network";
-import { fetchPqcStatus, type UnifiedAccount } from "@qorechain/sdk";
+import type { RecipientCard, SealKeyPair } from "@qorechain/qoreseal";
+import type { UnifiedAccount } from "@qorechain/sdk";
 import { api, ApiError, parseResponse } from "@/lib/apiClient";
 import { publicClient, restUrl } from "@/lib/chain";
 import { env } from "@/lib/env";
@@ -45,6 +44,8 @@ export async function hasCard(qor: string, keys?: SealKeyPair): Promise<boolean>
     if (!keys) return true;
     const card = cardObject((parsed.data as { card: unknown }).card);
     if (!card) return false;
+    // The seal and key code is large; it loads here, when a wallet is checked, not with the page.
+    const { recipientCardFields } = await import("@qorechain/qoreseal");
     const want = recipientCardFields({ chainId: env.chainId, address: qor, keys });
     return card.mlkemKeySha3 === want.mlkemKeySha3 && card.x25519PublicKey === want.x25519PublicKey;
   } catch (e) {
@@ -60,6 +61,11 @@ export async function putCard(qor: string, card: unknown): Promise<void> {
 
 /** Everything the setup steps need to know about the wallet, read from the chain and the backend. */
 export async function readWalletStatus(acc: UnifiedAccount, sealKeys: SealKeyPair): Promise<WalletChainStatus> {
+  const [{ fetchPqcStatus }, { fetchKemKey }, { toHex }] = await Promise.all([
+    import("@qorechain/sdk"),
+    import("@qorechain/qoreseal/network"),
+    import("@qorechain/qoreseal"),
+  ]);
   const [balances, pqc, kem, card, fusd] = await Promise.all([
     bankBalances(acc.cosmos),
     fetchPqcStatus({ rest: restUrl(), address: acc.cosmos }),

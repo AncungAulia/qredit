@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { validateMnemonic } from "@qorechain/sdk";
 import { passwordSchema } from "@/modules/wallet/keystore";
 
 const normalizePhrase = (value: string) => value.trim().replace(/\s+/g, " ").toLowerCase();
@@ -16,7 +15,8 @@ export const createWalletSchema = z
 export type CreateWalletValues = z.infer<typeof createWalletSchema>;
 
 export const importWalletSchema = z.object({
-  phrase: z.string().refine((v) => validateMnemonic(normalizePhrase(v)), "This is not a valid recovery phrase."),
+  // The phrase list is part of the SDK; it is loaded when the phrase is first checked, not with the page.
+  phrase: z.string().refine(async (v) => (await import("@qorechain/sdk")).validateMnemonic(normalizePhrase(v)), "This is not a valid recovery phrase."),
   password: passwordSchema,
 });
 export type ImportWalletValues = z.infer<typeof importWalletSchema>;

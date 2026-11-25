@@ -1,4 +1,4 @@
-import { convertFusd, defaultSleep, registerKemKey, registerPqcKey, signedCard, type Net } from "@qredit/qore";
+import type { Net } from "@qredit/qore";
 import type { SealKeyPair } from "@qorechain/qoreseal";
 import type { UnifiedAccount } from "@qorechain/sdk";
 import { putCard, readBankFusd } from "@/modules/wallet/api/wallet.api";
@@ -42,6 +42,8 @@ export type StepContext = { acc: UnifiedAccount; sealKeys: SealKeyPair; net: Net
 /** Runs one step and waits until its transaction is in a block. Returns the transaction hash, or null when nothing was sent. */
 export async function runStep(step: SetupStep, ctx: StepContext): Promise<string | null> {
   const { acc, sealKeys, net } = ctx;
+  // The transaction code is large; it loads when a step runs, not with the page.
+  const { convertFusd, defaultSleep, registerKemKey, registerPqcKey, signedCard } = await import("@qredit/qore");
   switch (step) {
     case "fund":
       // The faucet is claimed through claimFaucet; the transaction is the backend's, not this wallet's.

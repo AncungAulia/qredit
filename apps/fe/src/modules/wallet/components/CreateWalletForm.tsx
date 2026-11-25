@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { generateMnemonic } from "@qorechain/sdk";
 import { CircleAlert, LoaderCircle } from "lucide-react";
 import { fieldErrorClass } from "@/components/shared/formStyles";
 import { Notice } from "@/components/shared/Notice";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { useWallet } from "@/modules/wallet/WalletProvider";
@@ -21,8 +21,17 @@ const CREATE_FAILED = "The test wallet could not be created. Please try again.";
 
 /** A new throwaway wallet: the phrase is shown once, then the password encrypts it in this browser. */
 export function CreateWalletForm({ onCreated }: { onCreated: () => void }) {
-  // Made on the first render in the browser; the dialog only mounts this form after a click.
-  const [phrase] = useState(() => generateMnemonic(256));
+  // Made in the browser once the key code has loaded; the dialog only mounts this form after a click.
+  const [phrase, setPhrase] = useState<string | null>(null);
+  useEffect(() => {
+    let current = true;
+    void import("@qorechain/sdk").then(({ generateMnemonic }) => {
+      if (current) setPhrase(generateMnemonic(256));
+    });
+    return () => {
+      current = false;
+    };
+  }, []);
   const create = useWallet((s) => s.create);
   const [failure, setFailure] = useState<string | null>(null);
   const {
@@ -37,6 +46,7 @@ export function CreateWalletForm({ onCreated }: { onCreated: () => void }) {
   });
 
   const submit = handleSubmit(async ({ password }) => {
+    if (!phrase) return;
     setFailure(null);
     try {
       await create(phrase, password);
@@ -53,7 +63,7 @@ export function CreateWalletForm({ onCreated }: { onCreated: () => void }) {
         It is shown only once. Anyone who has it can use this test wallet. It is a throwaway testnet wallet, so never
         keep real funds in it.
       </Notice>
-      <BackupPhrase phrase={phrase} />
+      {phrase ? <BackupPhrase phrase={phrase} /> : <Skeleton className="h-[132px] w-full" aria-busy="true" />}
       <Field data-invalid={errors.saved ? true : undefined}>
         <div className="flex items-center gap-3">
           <Controller
@@ -99,7 +109,7 @@ export function CreateWalletForm({ onCreated }: { onCreated: () => void }) {
         {...register("confirm")}
       />
       {failure && <Notice tone="danger">{failure}</Notice>}
-      <Button type="submit" size="lg" className="h-11" disabled={isSubmitting}>
+      <Button type="submit" size="lg" className="h-11" disabled={isSubmitting || !phrase}>
         {isSubmitting ? (
           <>
             <LoaderCircle className="animate-spin motion-reduce:animate-none" aria-hidden />

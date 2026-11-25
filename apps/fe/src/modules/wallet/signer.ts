@@ -1,6 +1,5 @@
 // The one interface pages use to act on chain. It hides which wallet acts: QoreX cannot send EVM
 // transactions, so every EVM send comes from the test wallet (also when QoreX is connected).
-import { BUYER_WINDOW, ensureWindow, walletFor } from "@qredit/qore";
 import { keccak256, type TransactionReceipt } from "viem";
 import { revertSentence } from "@/components/shared/vaultErrors";
 import { publicClient } from "@/lib/chain";
@@ -88,6 +87,7 @@ export function evmSignerFor(session: WalletSession): EvmSigner | null {
     } catch (e) {
       throw new TxReverted(null, revertSentence(e));
     }
+    const { walletFor } = await import("@qredit/qore");
     const client = walletFor(wallet.account.privateKey as Hex, env.evmUrl);
     const account = client.account!;
     // Prepare and sign first: until the signature exists nothing can have left the browser.
@@ -130,5 +130,7 @@ export function evmSignerFor(session: WalletSession): EvmSigner | null {
 export async function ensureWindowFor(session: WalletSession, targets: string[]): Promise<string | null> {
   const wallet = testWalletOf(session);
   if (!wallet) return null;
+  // The transaction code is large; it loads when a window is opened, not with the page.
+  const { BUYER_WINDOW, ensureWindow } = await import("@qredit/qore");
   return ensureWindow(browserNet(), wallet.account, targets, BUYER_WINDOW);
 }
