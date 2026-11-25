@@ -65,7 +65,7 @@ export function BusinessKpis({
           typeof delivered === "number"
             ? formatCount(delivered)
             : delivered === "loading"
-              ? "Loading"
+              ? undefined
               : "Unavailable"
         }
         className="col-span-2 md:col-span-1"

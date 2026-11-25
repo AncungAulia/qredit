@@ -35,7 +35,7 @@ Follows the `motion-rules` skill. Tokens in `globals.css`: `--ease-out` cubic-be
 | Proof check finishing                      | Sometimes        | Status badge crossfade, 200 ms         |
 | Business state changing (Raising → Active) | Rare             | Badge crossfade, no spring             |
 
-Skeletons shimmer (slow linear sweep, `animate-shimmer` in `globals.css`), never pulse; always use the `Skeleton` component. Reduced motion shows them static.
+Skeletons shimmer (slow linear sweep, `animate-shimmer` in `globals.css`), never pulse; always use the `Skeleton` component. Reduced motion shows them static. A loading figure is never a word: `KpiTile` takes `value={undefined}` and shows a skeleton the size of the figure. `KpiTile` art scales with the tile (feature art hangs from the right edge and fades on its own left side; soft art fills the tile), and `AppShell` keeps 32 px under the page area from tablet up so page states reach the bottom of the screen. `PasswordField` has the show or hide eye button for every password field.
 
 ## Notes
 

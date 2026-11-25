@@ -23,7 +23,7 @@ export function AppShell({ children, pathname }: { children: ReactNode; pathname
       <MobileHeader className="flex md:hidden" />
       <main
         className={cn(
-          "mx-auto flex w-full max-w-[1200px] flex-1 flex-col px-4 pt-4 md:px-8 md:pt-8 md:pb-20 xl:px-0 xl:pb-24",
+          "mx-auto flex w-full max-w-[1200px] flex-1 flex-col px-4 pt-4 md:px-8 md:pt-8 md:pb-8 xl:px-0",
           // Room for the floating tab bar, which shows on top-level pages only.
           tabBar ? "pb-[120px]" : "pb-8",
         )}
