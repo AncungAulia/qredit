@@ -5,7 +5,7 @@ import { Providers } from "./Providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: { default: "Qredit", template: "%s · Qredit" },
+  title: { default: "Qredit", template: "%s | Qredit" },
   description: "Credit for AI agent businesses, with limits the chain enforces.",
 };
 

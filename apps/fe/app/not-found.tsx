@@ -3,6 +3,8 @@ import { AppShell } from "@/components/layout/AppShell";
 import { EmptyState } from "@/components/shared/PageStates";
 import { Button } from "@/components/ui/button";
 
+export const metadata = { title: "Page not found" };
+
 // Copy from the "Page not found" band in the design. No tab is active because the path matches no section.
 export default function NotFound() {
   return (
