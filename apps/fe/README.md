@@ -37,6 +37,7 @@ Environment: `cp .env.example .env.local` and fill the values listed under Envir
 | `NEXT_PUBLIC_QORE_CHAIN_ID` | `qorechain-diana`                 |
 | `NEXT_PUBLIC_EXPLORER_URL`  | empty (no explorer link is shown) |
 | `QORE_REST_URL`             | `https://api-testnet.qore.host`   |
+| `QORE_RPC_URL`              | `https://rpc-testnet.qore.host`   |
 
 
 ## Folder map

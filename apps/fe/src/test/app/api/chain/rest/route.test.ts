@@ -7,6 +7,10 @@ test("allowlist", () => {
   expect(isAllowedPath("qorechain/pqc/v1/account/qor1abc")).toBe(true);
   expect(isAllowedPath("cosmos/bank/v1beta1/balances/qor1abc")).toBe(true);
   expect(isAllowedPath("cosmos/tx/v1beta1/txs")).toBe(false);
+  expect(isAllowedPath("cosmos/tx/v1beta1/txs/ABCDEF")).toBe(true);
+  expect(isAllowedPath("qorechain/pqc/v1/protocol_features")).toBe(true);
+  expect(isAllowedPath("cosmos/upgrade/v1beta1/applied_plan/v3.2.0")).toBe(true);
+  expect(isAllowedPath("cosmos/upgrade/v1beta1/current_plan")).toBe(false);
   expect(isAllowedPath("../etc/passwd")).toBe(false);
 });
 

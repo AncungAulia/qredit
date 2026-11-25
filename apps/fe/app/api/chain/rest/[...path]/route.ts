@@ -1,6 +1,6 @@
 const REST = (process.env.QORE_REST_URL ?? "https://api-testnet.qore.host").replace(/\/$/, "");
 
-/** Read-only paths the SDK helpers request: fetchPqcStatus, fetchKemKey, evmWindowStatus, fetchSpendingRules, fetchAuthenticators, plus balances and accounts. */
+/** Read-only paths the SDK helpers request: fetchPqcStatus, fetchKemKey, evmWindowStatus, fetchSpendingRules, fetchAuthenticators, plus balances and accounts, and what the hybrid signer reads (sign-bytes upgrade height, protocol features) and a transaction by hash. */
 export const ALLOWED_PREFIXES = [
   "qorechain/pqc/v1/account/",
   "qorechain/pqc/v1/kem/",
@@ -8,6 +8,9 @@ export const ALLOWED_PREFIXES = [
   "qorechain/abstractaccount/v1/accounts/",
   "cosmos/bank/v1beta1/balances/",
   "cosmos/auth/v1beta1/accounts/",
+  "cosmos/tx/v1beta1/txs/",
+  "qorechain/pqc/v1/protocol_features",
+  "cosmos/upgrade/v1beta1/applied_plan/",
 ] as const;
 
 export const isAllowedPath = (p: string) => !p.includes("..") && ALLOWED_PREFIXES.some((x) => p.startsWith(x));
