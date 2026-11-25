@@ -6,12 +6,23 @@ import { z } from "zod";
 export const KEYSTORE_KEY = "qredit.testWallet.v1";
 const ITERATIONS = 600_000;
 
+function base64Bytes(length?: number) {
+  return z.string().refine((s) => {
+    try {
+      const n = base64.decode(s).length;
+      return length === undefined ? n > 0 : n === length;
+    } catch {
+      return false;
+    }
+  }, "Invalid base64 field.");
+}
+
 export const storedWalletSchema = z.object({
   v: z.literal(1),
-  address: z.string().min(1),
-  salt: z.string().min(1),
-  iv: z.string().min(1),
-  ct: z.string().min(1),
+  address: z.string().startsWith("qor1"),
+  salt: base64Bytes(16),
+  iv: base64Bytes(12),
+  ct: base64Bytes(),
   createdAt: z.string().min(1),
 });
 export type StoredWallet = z.infer<typeof storedWalletSchema>;
@@ -25,10 +36,17 @@ export class WrongPassword extends Error {
   }
 }
 
+export class StorageUnavailable extends Error {
+  constructor() {
+    super("The browser blocked saving the wallet. Check the storage settings and try again.");
+    this.name = "StorageUnavailable";
+  }
+}
+
 const enc = new TextEncoder();
 
 async function deriveKey(password: string, salt: Uint8Array): Promise<CryptoKey> {
-  const base = await crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, ["deriveKey"]);
+  const base = await crypto.subtle.importKey("raw", enc.encode(password.normalize("NFKC")), "PBKDF2", false, ["deriveKey"]);
   return crypto.subtle.deriveKey(
     { name: "PBKDF2", hash: "SHA-256", salt: salt as BufferSource, iterations: ITERATIONS },
     base,
@@ -97,7 +115,12 @@ export function readStored(storage: Storage | null = defaultStorage()): StoredWa
 }
 
 export function writeStored(w: StoredWallet, storage: Storage | null = defaultStorage()): void {
-  storage?.setItem(KEYSTORE_KEY, JSON.stringify(w));
+  if (!storage) throw new StorageUnavailable();
+  try {
+    storage.setItem(KEYSTORE_KEY, JSON.stringify(w));
+  } catch {
+    throw new StorageUnavailable();
+  }
 }
 
 export function forgetStored(storage: Storage | null = defaultStorage()): void {

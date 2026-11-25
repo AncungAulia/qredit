@@ -46,8 +46,10 @@ async function deriveSession(phrase: string): Promise<TestSession> {
   return { kind: "test", address: account.cosmos, evm: account.evm as `0x${string}`, account, sealKeys };
 }
 
-export const createWalletStore = (deps: WalletDeps = {}): StoreApi<WalletStore> =>
-  createStore<WalletStore>()((set, get) => ({
+export const createWalletStore = (deps: WalletDeps = {}): StoreApi<WalletStore> => {
+  // Bumped by every operation; an async unlock or create applies its result only while it is still the latest.
+  let token = 0;
+  return createStore<WalletStore>()((set, get) => ({
     session: { kind: "none" },
     hydrate() {
       if (get().session.kind !== "none") return;
@@ -57,23 +59,31 @@ export const createWalletStore = (deps: WalletDeps = {}): StoreApi<WalletStore> 
     async unlock(password) {
       const stored = readStored(deps.storage);
       if (!stored) throw new Error("There is no saved test wallet.");
+      const mine = ++token;
       const phrase = await decryptPhrase(stored, password);
-      set({ session: await deriveSession(phrase) });
+      const session = await deriveSession(phrase);
+      if (mine === token) set({ session });
     },
     async create(phrase, password) {
       const clean = phrase.trim().replace(/\s+/g, " ");
       if (!validateMnemonic(clean)) throw new Error("The recovery phrase is not valid.");
       passwordSchema.parse(password);
+      const mine = ++token;
       const session = await deriveSession(clean);
-      writeStored(await encryptPhrase(clean, password, session.address), deps.storage);
+      const record = await encryptPhrase(clean, password, session.address);
+      if (mine !== token) return;
+      writeStored(record, deps.storage);
       set({ session });
     },
     lock() {
+      token++;
       const { session } = get();
       if (session.kind === "test") set({ session: { kind: "locked", address: session.address } });
     },
     forget() {
+      token++;
       forgetStored(deps.storage);
       set({ session: { kind: "none" } });
     },
   }));
+};
