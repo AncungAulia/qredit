@@ -1,4 +1,4 @@
-import { bech32 } from "@scure/base";
+import { bech32, hex } from "@scure/base";
 
 export const QOR_PREFIX = "qor";
 
@@ -11,12 +11,12 @@ export function qorToHex(address: string): string | null {
     const { prefix, words } = bech32.decode(address as `${string}1${string}`);
     if (prefix !== QOR_PREFIX) return null;
     const bytes = bech32.fromWords(words);
-    return bytes.length === 20 ? `0x${Buffer.from(bytes).toString("hex")}` : null;
+    return bytes.length === 20 ? `0x${hex.encode(bytes)}` : null;
   } catch {
     return null;
   }
 }
 
-export function hexToQor(hex: string): string {
-  return bech32.encode(QOR_PREFIX, bech32.toWords(Uint8Array.from(Buffer.from(hex.slice(2), "hex"))));
+export function hexToQor(value: string): string {
+  return bech32.encode(QOR_PREFIX, bech32.toWords(hex.decode(value.slice(2).toLowerCase())));
 }

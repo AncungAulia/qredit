@@ -1,3 +1,4 @@
+import { base64, hex } from "@scure/base";
 import { decodeFunctionData, type Hex } from "viem";
 import { VAULT_ABI } from "./abi.ts";
 import { EXECUTE_EVM_TYPE_URL } from "./relay-types.ts";
@@ -18,7 +19,7 @@ const MAX_PAGES = 200;
 
 function decodePay(data: string): { supplier: string; amount: bigint; orderId: bigint } | null {
   try {
-    const d = decodeFunctionData({ abi: VAULT_ABI, data: `0x${Buffer.from(data, "base64").toString("hex")}` as Hex });
+    const d = decodeFunctionData({ abi: VAULT_ABI, data: `0x${hex.encode(base64.decode(data))}` as Hex });
     if (d.functionName !== "paySupplier") return null;
     const [supplier, amount, orderId] = d.args as readonly [string, bigint, bigint];
     return { supplier: supplier.toLowerCase(), amount, orderId };
