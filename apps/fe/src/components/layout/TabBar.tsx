@@ -6,8 +6,9 @@ import { NAV, isActive, isTopLevel } from "@/config/nav";
 import { cn, focusRing } from "@/lib/utils";
 
 /** Phone navigation: a floating glass pill above the home indicator, on top-level pages only. */
-export function TabBar({ className }: { className?: string }) {
-  const pathname = usePathname();
+export function TabBar({ className, pathname: given }: { className?: string; pathname?: string }) {
+  const detected = usePathname();
+  const pathname = given ?? detected;
   if (!isTopLevel(pathname)) return null;
   return (
     <nav

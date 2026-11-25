@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 // Copy from the "Page not found" band in the design. No tab is active because the path matches no section.
 export default function NotFound() {
   return (
-    <AppShell>
+    <AppShell pathname="">
+      {/* Empty pathname: the server cannot know the address here, so no section is active and no tab bar shows. */}
       <EmptyState
         art="notfound"
         title="This page does not exist"

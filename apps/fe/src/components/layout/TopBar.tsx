@@ -9,8 +9,9 @@ import { ProgressiveBlur } from "./ProgressiveBlur";
 import { ThemeButton } from "./ThemeButton";
 
 /** Top bar on tablet and desktop: logo left, page pills centre, theme right. Sticky. */
-export function TopBar({ className }: { className?: string }) {
-  const pathname = usePathname();
+export function TopBar({ className, pathname: given }: { className?: string; pathname?: string }) {
+  const detected = usePathname();
+  const pathname = given ?? detected;
   return (
     <header
       className={cn("sticky top-0 z-30 h-[76px] items-center justify-between px-8", className)}

@@ -8,12 +8,18 @@ import { MobileHeader } from "./MobileHeader";
 import { TabBar } from "./TabBar";
 import { TopBar } from "./TopBar";
 
-/** Header, page area and tab bar. The page area is a flex column so page states can fill it. */
-export function AppShell({ children }: { children: ReactNode }) {
-  const tabBar = isTopLevel(usePathname());
+/**
+ * Header, page area and tab bar. The page area is a flex column so page states can fill it.
+ * `pathname` overrides the address for the navigation: the not-found page passes "" because the
+ * server cannot know the address of a path that matches no route, and no section is active there.
+ */
+export function AppShell({ children, pathname }: { children: ReactNode; pathname?: string }) {
+  const detected = usePathname();
+  const current = pathname ?? detected;
+  const tabBar = isTopLevel(current);
   return (
     <div className="flex min-h-dvh flex-col">
-      <TopBar className="hidden md:flex" />
+      <TopBar className="hidden md:flex" pathname={current} />
       <MobileHeader className="flex md:hidden" />
       <main
         className={cn(
@@ -24,7 +30,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       >
         {children}
       </main>
-      <TabBar className="md:hidden" />
+      <TabBar className="md:hidden" pathname={current} />
     </div>
   );
 }

@@ -50,6 +50,7 @@ function FeatureArt() {
           alt=""
           width={500}
           height={380}
+          loading="eager"
           className="size-full object-cover"
         />
       </div>
@@ -62,6 +63,7 @@ function FeatureArt() {
           alt=""
           width={500}
           height={380}
+          loading="eager"
           className="size-full object-cover"
         />
       </div>

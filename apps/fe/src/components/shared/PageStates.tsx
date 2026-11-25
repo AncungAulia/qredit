@@ -53,6 +53,7 @@ export function EmptyState({
           alt=""
           width={256}
           height={256}
+          loading="eager"
           className="size-full object-cover dark:hidden"
         />
         <Image
@@ -60,6 +61,7 @@ export function EmptyState({
           alt=""
           width={256}
           height={256}
+          loading="eager"
           className="hidden size-full object-cover dark:block"
         />
       </span>
