@@ -122,6 +122,43 @@ test("backing up the phrase asks first, then the password, then shows the phrase
   expect(document.body).not.toHaveTextContent(PHRASE);
 }, 90_000);
 
+test("on a phone the menu is a bottom sheet with the same content, closed by Escape, focus back on the trigger", async () => {
+  const user = userEvent.setup();
+  useDesktopViewport(false);
+  withTestWallet();
+  const trigger = await screen.findByRole("button", { name: /Account menu/ }, { timeout: 20_000 });
+  await user.click(trigger);
+  const sheet = await screen.findByRole("dialog", { name: "Account menu" });
+  expect(sheet.getAttribute("data-slot")).toBe("drawer-popup");
+  expect(document.querySelector('[data-slot="popover-content"]')).toBeNull();
+  expect(within(sheet).getByRole("button", { name: "Copy address" })).toBeInTheDocument();
+  expect(within(sheet).getByRole("button", { name: "Lock" })).toBeInTheDocument();
+  await user.click(within(within(sheet).getByRole("group", { name: "Appearance" })).getByRole("button", { name: "Dark" }));
+  expect(theme.setTheme).toHaveBeenCalledWith("dark");
+
+  await user.keyboard("{Escape}");
+  await waitFor(() => expect(screen.queryByRole("dialog", { name: "Account menu" })).not.toBeInTheDocument());
+  await waitFor(() => expect(screen.getByRole("button", { name: /Account menu/ })).toHaveFocus());
+}, 30_000);
+
+test("on a phone an action closes the sheet before it opens its own dialog", async () => {
+  const user = userEvent.setup();
+  useDesktopViewport(false);
+  withTestWallet();
+  await user.click(await screen.findByRole("button", { name: /Account menu/ }, { timeout: 20_000 }));
+  await user.click(await screen.findByRole("button", { name: "Back up phrase" }));
+  expect(await screen.findByRole("alertdialog")).toBeInTheDocument();
+  await waitFor(() => expect(screen.queryByRole("dialog", { name: "Account menu" })).not.toBeInTheDocument());
+}, 30_000);
+
+test("on a desktop the menu is a popover", async () => {
+  const user = userEvent.setup();
+  withTestWallet();
+  await user.click(await screen.findByRole("button", { name: /Account menu/ }, { timeout: 20_000 }));
+  const menu = await screen.findByRole("dialog", { name: "Account menu" });
+  expect(menu.getAttribute("data-slot")).toBe("popover-content");
+}, 30_000);
+
 test("the appearance switch is reachable by keyboard and chooses with Enter", async () => {
   const user = userEvent.setup();
   withTestWallet();

@@ -9,8 +9,10 @@ import { notifySuccess } from "@/components/shared/notify";
 import { Orb } from "@/components/shared/Orb";
 import { ThemeSwitch } from "@/components/shared/ThemeSwitch";
 import { Button } from "@/components/ui/button";
-import { PopoverContent } from "@/components/ui/popover";
+import { Drawer, DrawerContent, DrawerDescription, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { env } from "@/lib/env";
 import { shortAddress } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -73,11 +75,58 @@ function Balances({ wallet }: { wallet: NonNullable<ReturnType<typeof testWallet
   );
 }
 
+// Tablet breakpoint from the UI profile: a popover from tablet up, a bottom sheet on a phone.
+const TABLET_UP = "(min-width: 768px)";
+
+type MenuProps = Omit<Props, "onClose"> & {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** The class of the trigger button. */
+  triggerClassName?: string;
+  /** What the trigger button shows. */
+  children: ReactNode;
+};
+
 /**
- * The account menu: address, balances, actions, appearance and the way out. It is a popover of buttons, so Tab
- * reaches every control, the appearance switch included.
+ * The account menu with its trigger: a popover from tablet up, a bottom sheet on a phone. Both show the same
+ * content; every action closes the menu first.
  */
-export function AccountMenu({ session, onClose, onBackup, onSetup, onLock }: Props) {
+export function AccountMenu({ open, onOpenChange, triggerClassName, children, ...actions }: MenuProps) {
+  const wide = useMediaQuery(TABLET_UP);
+  const body = <AccountMenuBody {...actions} onClose={() => onOpenChange(false)} />;
+  const trigger = <Button type="button" variant="outline" aria-label="Account menu" className={triggerClassName} />;
+
+  if (wide) {
+    return (
+      <Popover open={open} onOpenChange={onOpenChange}>
+        <PopoverTrigger render={trigger}>{children}</PopoverTrigger>
+        <PopoverContent
+          align="end"
+          sideOffset={10}
+          aria-label="Account menu"
+          className="max-h-(--available-height) w-72 gap-1 overflow-y-auto rounded-[24px] bg-glass-strong p-2 shadow-[0_8px_32px_var(--shadow)] ring-1 ring-glass-edge backdrop-blur-xl"
+        >
+          {body}
+        </PopoverContent>
+      </Popover>
+    );
+  }
+
+  return (
+    <Drawer open={open} onOpenChange={onOpenChange} showSwipeHandle>
+      <DrawerTrigger render={trigger}>{children}</DrawerTrigger>
+      <DrawerContent aria-label="Account menu" className="rounded-t-[24px] bg-surface">
+        <DrawerTitle className="sr-only">Account menu</DrawerTitle>
+        <DrawerDescription className="sr-only">Your wallet, balances, appearance and the way to lock it.</DrawerDescription>
+        <div className="flex min-h-0 flex-col gap-1 overflow-y-auto px-3 pt-3 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+          {body}
+        </div>
+      </DrawerContent>
+    </Drawer>
+  );
+}
+
+function AccountMenuBody({ session, onClose, onBackup, onSetup, onLock }: Props) {
   const lock = useWallet((s) => s.lock);
   const disconnectQorex = useWallet((s) => s.disconnectQorex);
   const wallet = testWalletOf(session);
@@ -97,12 +146,7 @@ export function AccountMenu({ session, onClose, onBackup, onSetup, onLock }: Pro
   };
 
   return (
-    <PopoverContent
-      align="end"
-      sideOffset={10}
-      aria-label="Account menu"
-      className="max-h-(--available-height) w-72 gap-1 overflow-y-auto rounded-[24px] bg-glass-strong p-2 shadow-[0_8px_32px_var(--shadow)] ring-1 ring-glass-edge backdrop-blur-xl"
-    >
+    <>
       <div className="flex items-center gap-3 px-2.5 pt-2.5 pb-3.5">
         <Orb className="size-10" />
         <div className="flex min-w-0 flex-col gap-0.5">
@@ -166,6 +210,6 @@ export function AccountMenu({ session, onClose, onBackup, onSetup, onLock }: Pro
           Disconnect QoreX
         </Row>
       )}
-    </PopoverContent>
+    </>
   );
 }

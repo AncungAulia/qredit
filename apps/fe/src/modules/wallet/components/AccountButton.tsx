@@ -4,7 +4,6 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ChevronDown, Lock } from "lucide-react";
 import { Orb } from "@/components/shared/Orb";
 import { Button } from "@/components/ui/button";
-import { Popover, PopoverTrigger } from "@/components/ui/popover";
 import { shortAddress } from "@/lib/format";
 import { cn, focusRing } from "@/lib/utils";
 import { useWallet } from "@/modules/wallet/WalletProvider";
@@ -81,35 +80,25 @@ export function AccountButton({ compact = false, className }: { compact?: boolea
     );
   } else {
     trigger = (
-      <Popover open={menuOpen} onOpenChange={setMenuOpen}>
-        <PopoverTrigger
-          render={
-            <Button
-              type="button"
-              variant="outline"
-              aria-label="Account menu"
-              className={cn(pill, compact && "size-11 justify-center p-0", focusRing, className)}
-            />
-          }
-        >
-          <Orb />
-          {!compact && (
-            <>
-              <span className="font-mono">{shortAddress(session.address)}</span>
-              <ChevronDown className="size-4 text-text-tertiary" aria-hidden />
-            </>
-          )}
-        </PopoverTrigger>
-        <AccountMenu
-          session={session}
-          onClose={() => setMenuOpen(false)}
-          onBackup={() => setBackupOpen(true)}
-          onSetup={() => openConnect("setup")}
-          onLock={() => {
-            focusLocked.current = true;
-          }}
-        />
-      </Popover>
+      <AccountMenu
+        session={session}
+        open={menuOpen}
+        onOpenChange={setMenuOpen}
+        triggerClassName={cn(pill, compact && "size-11 justify-center p-0", focusRing, className)}
+        onBackup={() => setBackupOpen(true)}
+        onSetup={() => openConnect("setup")}
+        onLock={() => {
+          focusLocked.current = true;
+        }}
+      >
+        <Orb />
+        {!compact && (
+          <>
+            <span className="font-mono">{shortAddress(session.address)}</span>
+            <ChevronDown className="size-4 text-text-tertiary" aria-hidden />
+          </>
+        )}
+      </AccountMenu>
     );
   }
 
