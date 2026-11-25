@@ -1,13 +1,13 @@
 import { LOAN_VAULT_ABI } from "@qredit/qore";
 import { encodeFunctionData, hexToString, toHex } from "viem";
-import { revertSentence } from "@/components/shared/vaultErrors";
+import { revertSentence, VAULT_ERROR_SENTENCES } from "@/components/shared/vaultErrors";
 import { publicClient, readVault } from "@/lib/chain";
 import type { Business } from "@/lib/schemas";
 import type { VaultStateName } from "@/lib/vaultState";
 import { readVaultSnapshot } from "@/modules/market/api/market.api";
 import type { OrderInput, PolicyOrder } from "@/modules/owner/schemas/policyOrder.schema";
 import type { WalletSession } from "@/modules/wallet/session";
-import { ensureWindowFor, evmSignerFor, TxFailed } from "@/modules/wallet/signer";
+import { ensureWindowFor, evmSignerFor, TxFailed, TxReverted } from "@/modules/wallet/signer";
 
 type Hex = `0x${string}`;
 
@@ -50,24 +50,29 @@ export async function readRules(vault: Hex): Promise<Rules> {
 
 /**
  * Turns the owner's choice into an order: the nonce is the vault's own `policyNonce` and the text to sign is the one the
- * vault returns for exactly this order, so what is signed is what the vault will check.
+ * vault returns for exactly this order, so what is signed is what the vault will check. The expiry counts from the
+ * timestamp of the latest block, the clock the vault compares it with, not from the clock of the browser.
  */
-export async function buildOrder(
-  vault: Hex,
-  input: OrderInput,
-  now: number = Date.now(),
-): Promise<{ order: PolicyOrder; text: string }> {
-  const nonce = await readVault(vault, "policyNonce");
+export async function buildOrder(vault: Hex, input: OrderInput): Promise<{ order: PolicyOrder; text: string }> {
+  const [nonce, block] = await Promise.all([readVault(vault, "policyNonce"), publicClient.getBlock()]);
   const order: PolicyOrder = {
     kind: input.kind,
     target: input.target,
     value: input.value,
     nonce,
-    expiry: BigInt(Math.floor(now / 1000) + input.expiryMinutes * 60),
+    expiry: block.timestamp + BigInt(input.expiryMinutes * 60),
   };
   const text = hexToString(await readVault(vault, "orderText", [order]));
   return { order, text };
 }
+
+export const REBUILD_HINT = "Go back and sign a new order.";
+
+/** A stale nonce or an expired order cannot be fixed by trying again: the owner has to sign a new one. */
+const withHint = (reason: string): string =>
+  reason === VAULT_ERROR_SENTENCES.BadNonce || reason === VAULT_ERROR_SENTENCES.OrderExpiredSig
+    ? `${reason} ${REBUILD_HINT}`
+    : reason;
 
 const applyData = (order: PolicyOrder, sig: Uint8Array): Hex =>
   encodeFunctionData({ abi: LOAN_VAULT_ABI, functionName: "applyOrder", args: [order, toHex(sig)] });
@@ -83,7 +88,7 @@ export async function simulateApply(
     await publicClient.call({ account: from, to: vault, data: applyData(order, sig) });
     return { ok: true };
   } catch (e) {
-    return { ok: false, reason: revertSentence(e) };
+    return { ok: false, reason: withHint(revertSentence(e)) };
   }
 }
 
@@ -92,5 +97,10 @@ export async function applyOrder(session: WalletSession, vault: Hex, order: Poli
   const signer = evmSignerFor(session);
   if (!signer) throw new TxFailed(null, NO_TEST_WALLET_SENTENCE);
   await ensureWindowFor(session, [vault]);
-  return signer.send(vault, applyData(order, sig));
+  try {
+    return await signer.send(vault, applyData(order, sig));
+  } catch (e) {
+    if (e instanceof TxReverted) throw new TxReverted(e.hash, withHint(e.reason));
+    throw e;
+  }
 }

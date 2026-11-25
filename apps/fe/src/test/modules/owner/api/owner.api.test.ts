@@ -2,6 +2,7 @@ import { beforeEach, expect, test, vi } from "vitest";
 
 const readVault = vi.fn();
 const call = vi.fn();
+const getBlock = vi.fn();
 const snapshot = vi.fn();
 const send = vi.fn();
 const ensureWindowFor = vi.fn();
@@ -9,7 +10,7 @@ const signerFor = vi.fn();
 
 vi.mock("@/lib/chain", () => ({
   readVault: (...a: unknown[]) => readVault(...a),
-  publicClient: { call: (a: unknown) => call(a) },
+  publicClient: { call: (a: unknown) => call(a), getBlock: () => getBlock() },
 }));
 vi.mock("@/modules/market/api/market.api", () => ({ readVaultSnapshot: (v: string) => snapshot(v) }));
 vi.mock("@/modules/wallet/signer", async (orig) => ({
@@ -80,11 +81,9 @@ test("buildOrder reads the nonce and the text the vault wants signed", async () 
     expect((args?.[0] as PolicyOrder).nonce).toBe(7n);
     return stringToHex("qredit-order-v1:0xabc");
   });
-  const built = await buildOrder(
-    V1,
-    { kind: 2, target: ZERO, value: 40_000_000n, expiryMinutes: 30 },
-    Date.UTC(2026, 10, 26, 12, 0, 0),
-  );
+  // the clock of the chain, not the one of the browser
+  getBlock.mockResolvedValue({ timestamp: BigInt(Date.UTC(2026, 10, 26, 12, 0, 0) / 1000) });
+  const built = await buildOrder(V1, { kind: 2, target: ZERO, value: 40_000_000n, expiryMinutes: 30 });
   expect(built.text).toBe("qredit-order-v1:0xabc");
   expect(built.order).toEqual({
     kind: 2,
@@ -135,4 +134,23 @@ test("applyOrder without a test wallet sends nothing", async () => {
 test("applyOrder passes a refusal of the send on as TxReverted", async () => {
   send.mockRejectedValue(new TxReverted(null, "no"));
   await expect(applyOrder(session, V1, order, sig)).rejects.toBeInstanceOf(TxReverted);
+});
+
+test("a stale nonce or an expired order tells the owner to sign a new one", async () => {
+  for (const name of ["BadNonce", "OrderExpiredSig"] as const) {
+    const data = encodeErrorResult({ abi: LOAN_VAULT_ABI, errorName: name });
+    call.mockRejectedValue(Object.assign(new Error("execution reverted"), { data }));
+    expect(await simulateApply(V1, order, sig)).toEqual({
+      ok: false,
+      reason: `${VAULT_ERROR_SENTENCES[name]} Go back and sign a new order.`,
+    });
+  }
+});
+
+test("a send that reverts with a stale nonce carries the same hint", async () => {
+  send.mockRejectedValue(new TxReverted("0xdead", VAULT_ERROR_SENTENCES.BadNonce));
+  const error = await applyOrder(session, V1, order, sig).catch((e) => e);
+  expect(error).toBeInstanceOf(TxReverted);
+  expect(error.reason).toBe(`${VAULT_ERROR_SENTENCES.BadNonce} Go back and sign a new order.`);
+  expect(error.hash).toBe("0xdead");
 });

@@ -3,6 +3,7 @@ import {
   KIND_INFO,
   POLICY_KINDS,
   orderInput,
+  isBareHex,
   parseSignature,
   policyOrderSchema,
 } from "@/modules/owner/schemas/policyOrder.schema";
@@ -96,4 +97,16 @@ test("parseSignature reads hex and base64 and refuses anything else", () => {
   expect(parseSignature("0xabc")).toBeNull(); // odd length
   expect(parseSignature("0xzz")).toBeNull();
   expect(parseSignature("not a signature!")).toBeNull();
+  // hex without 0x is never read as base64
+  expect(parseSignature("0a0b0c0d")).toBeNull();
+  expect(parseSignature("abcd")).toBeNull();
+});
+
+test("isBareHex spots hex without 0x so the form can ask for the prefix", () => {
+  expect(isBareHex("0a0b0c0d")).toBe(true);
+  expect(isBareHex(" ABCD  ")).toBe(true);
+  expect(isBareHex("0x0a0b")).toBe(false);
+  expect(isBareHex("abc")).toBe(false); // odd length
+  expect(isBareHex("CgsM")).toBe(false);
+  expect(isBareHex("")).toBe(false);
 });

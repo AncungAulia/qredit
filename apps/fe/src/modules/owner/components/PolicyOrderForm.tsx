@@ -19,9 +19,10 @@ import { Notice } from "@/components/shared/Notice";
 import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { formatFusd } from "@/lib/format";
+import { formatFusd, parseFusd } from "@/lib/format";
 import { cn, focusRing } from "@/lib/utils";
 import type { Rules } from "@/modules/owner/api/owner.api";
+import { LOCKED_SENTENCE, precheck } from "@/modules/owner/lib/precheck";
 import {
   EXPIRY_MAX,
   EXPIRY_MIN,
@@ -71,7 +72,9 @@ export function PolicyOrderForm({ rules, locked, onSubmit, flow }: Props) {
   const values = useWatch({ control });
   const kind = values.kind;
   const info = kind ? KIND_INFO[kind] : null;
-  const valid = policyOrderSchema.safeParse(values).success;
+  const units = parseFusd((values.value ?? "").replace(/\.$/, ""));
+  const blocked = kind && rules ? precheck(kind, units, rules) : null;
+  const valid = policyOrderSchema.safeParse(values).success && blocked === null;
   const submit = (via: SignVia) => handleSubmit((v) => onSubmit(v, via))();
 
   const valueHelp =
@@ -123,9 +126,9 @@ export function PolicyOrderForm({ rules, locked, onSubmit, flow }: Props) {
         })}
       </div>
 
-      {info?.widening && (
-        <Notice tone="warning" title="Locked until the loan is repaid">
-          The vault refuses this change until the loan is repaid. You can still sign it to see the refusal; nothing is sent.
+      {blocked && (
+        <Notice tone="warning" title={blocked === LOCKED_SENTENCE ? "Locked until the loan is repaid" : "This change would be refused"}>
+          {blocked === LOCKED_SENTENCE ? "The vault refuses this change until then." : blocked}
         </Notice>
       )}
 

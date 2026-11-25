@@ -162,6 +162,8 @@ type Props = {
   summary?: ReactNode;
   /** Where to look when a failure may have moved funds; such a failure is never offered again. */
   nextStep: NextStep;
+  /** False when a refused run must not be offered again as it is (for example a stale signed order). */
+  retryable?: boolean;
 };
 
 /** A confirmation dialog that carries one chain action from the confirmation to its ending. */
@@ -177,6 +179,7 @@ export function ChainAction({
   onDone,
   summary,
   nextStep,
+  retryable = true,
 }: Props) {
   const action = useChainAction(run);
   const { phase, reset } = action;
@@ -218,7 +221,7 @@ export function ChainAction({
             <Button variant="ghost" size="lg" className="h-11 px-4 max-md:w-full" onClick={() => onOpenChange(false)}>
               Close
             </Button>
-            {!action.maySpend && (
+            {!action.maySpend && retryable && (
               <Button size="lg" className="h-11 px-4 max-md:w-full" onClick={() => void confirm()}>
                 Try again
               </Button>

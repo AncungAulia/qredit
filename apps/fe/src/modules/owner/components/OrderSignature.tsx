@@ -14,6 +14,7 @@ import { useOwnerActions } from "@/modules/owner/api/useOwner";
 import { appliedTitle, orderSentence } from "@/modules/owner/lib/describe";
 import type { SignVia } from "@/modules/owner/components/PolicyOrderForm";
 import {
+  isBareHex,
   orderInput,
   parseSignature,
   type PolicyOrder,
@@ -21,6 +22,7 @@ import {
 } from "@/modules/owner/schemas/policyOrder.schema";
 import { NeedsWallet } from "@/modules/wallet/components/NeedsWallet";
 import { SetupGate, useWalletReadiness } from "@/modules/wallet/components/RequireReadyWallet";
+import { TxReverted } from "@/modules/wallet/signer";
 
 type Built = { order: PolicyOrder; text: string };
 
@@ -31,7 +33,7 @@ type Step =
   | { name: "signFailed"; built: Built }
   | { name: "paste"; built: Built; error?: string }
   | { name: "checking"; built: Built }
-  | { name: "refused"; built: Built; reason: string }
+  | { name: "refused"; built: Built; reason: string; afterSend?: boolean }
   | { name: "ready"; built: Built; sig: Uint8Array };
 
 export type AppliedOrder = { title: string; hash: string | null };
@@ -79,6 +81,8 @@ export function OrderSignature({ business, qorexAddress, values, via, onCancel, 
   const [pasted, setPasted] = useState("");
   const alive = useRef(true);
   const started = useRef(false);
+  // The reason of a send the chain refused; it ends the attempt, because the same order cannot succeed again.
+  const sendRefusal = useRef<string | null>(null);
   const vault = business.vault;
 
   useEffect(() => {
@@ -214,7 +218,13 @@ export function OrderSignature({ business, qorexAddress, values, via, onCancel, 
           onClick={() => {
             const sig = parseSignature(pasted);
             if (!sig) {
-              setStep({ name: "paste", built, error: "This text could not be read as a signature. Paste it as hex or base64." });
+              setStep({
+                name: "paste",
+                built,
+                error: isBareHex(pasted)
+                  ? "Add 0x before a hex signature."
+                  : "This text could not be read as a signature. Paste it as hex or base64.",
+              });
               return;
             }
             void check(built, sig);
@@ -231,7 +241,7 @@ export function OrderSignature({ business, qorexAddress, values, via, onCancel, 
     return (
       <div className="flex flex-col gap-3">
         <Notice tone="danger" title="The vault refused this order">
-          {step.reason} Nothing was sent, and the rules did not change.
+          {step.afterSend ? `${step.reason} The rules did not change.` : `${step.reason} Nothing was sent, and the rules did not change.`}
         </Notice>
         <Button type="button" size="lg" className="h-11 w-full" onClick={onCancel}>
           Back to the form
@@ -266,7 +276,15 @@ export function OrderSignature({ business, qorexAddress, values, via, onCancel, 
       {cancel}
       <ChainAction
         open={apply}
-        onOpenChange={setApply}
+        retryable={false}
+        onOpenChange={(open) => {
+          setApply(open);
+          if (!open && sendRefusal.current !== null) {
+            const reason = sendRefusal.current;
+            sendRefusal.current = null;
+            setStep({ name: "refused", built, reason, afterSend: true });
+          }
+        }}
         title="Apply this policy order"
         body="The vault checks your signature and then changes its rules. This sends one transaction from your test wallet, and the network fee is paid in QOR by that wallet."
         confirmLabel="Apply order"
@@ -274,7 +292,15 @@ export function OrderSignature({ business, qorexAddress, values, via, onCancel, 
         successTitle={appliedTitle(built.order)}
         nextStep={NEXT_STEP}
         summary={<p className="rounded-lg bg-surface-muted p-3 text-sm text-text-primary">{orderSentence(built.order)}</p>}
-        run={() => actions.apply(vault, built.order, sig)}
+        run={async () => {
+          sendRefusal.current = null;
+          try {
+            return await actions.apply(vault, built.order, sig);
+          } catch (e) {
+            if (e instanceof TxReverted) sendRefusal.current = e.reason;
+            throw e;
+          }
+        }}
         onDone={(hash) => onApplied({ title: appliedTitle(built.order), hash })}
       />
     </div>

@@ -172,10 +172,13 @@ export function orderInput(values: PolicyOrderValues): OrderInput {
   };
 }
 
-/** A signature pasted as hex (0x…) or base64; null when it is empty or cannot be decoded. */
+/** Hex digits only, even length, no 0x: such text is never read as base64, the owner is asked to add 0x. */
+export const isBareHex = (text: string): boolean => /^(?:[0-9a-fA-F]{2})+$/.test(text.trim());
+
+/** A signature pasted as hex (0x…) or base64; null when it is empty, bare hex, or cannot be decoded. */
 export function parseSignature(text: string): Uint8Array | null {
   const t = text.trim();
-  if (t === "") return null;
+  if (t === "" || isBareHex(t)) return null;
   if (/^0x/i.test(t)) {
     const hex = t.slice(2);
     if (hex.length === 0 || hex.length % 2 !== 0 || !/^[0-9a-fA-F]+$/.test(hex)) return null;

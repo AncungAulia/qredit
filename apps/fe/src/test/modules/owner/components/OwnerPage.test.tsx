@@ -2,6 +2,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, test, vi } from "vitest";
 import type { Business } from "@/lib/schemas";
+import { TxReverted } from "@/modules/wallet/signer";
 import { useDesktopViewport } from "@/test/helpers/wallet";
 
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
@@ -151,10 +152,41 @@ test("the signing buttons stay off until the order is complete", async () => {
   expect(screen.getByRole("button", { name: "Sign with QoreX" })).toBeEnabled();
 });
 
-test("a widening kind says it is refused until the loan is repaid", async () => {
+test("a widening kind during the loan says it is locked and cannot be signed", async () => {
+  const user = userEvent.setup();
   render(<OwnerPage />);
-  await userEvent.click(screen.getByRole("radio", { name: /Raise the daily spending cap/ }));
-  expect(screen.getByText(/refuses this change until the loan is repaid/)).toBeInTheDocument();
+  await user.click(screen.getByRole("radio", { name: /Raise the daily spending cap/ }));
+  await user.type(screen.getByLabelText("New daily cap"), "80");
+  expect(screen.getByText(/refuses this change until then/)).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Sign with QoreX" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Paste a CLI signature" })).toBeDisabled();
+});
+
+test("once the loan is repaid a widening kind carries no lock note and can be signed", async () => {
+  rules.data = { ...(rules.data as object), state: "Repaid" };
+  const user = userEvent.setup();
+  render(<OwnerPage />);
+  await user.click(screen.getByRole("radio", { name: /Raise the daily spending cap/ }));
+  await user.type(screen.getByLabelText("New daily cap"), "80");
+  expect(screen.queryByText(/refuses this change until then/)).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Sign with QoreX" })).toBeEnabled();
+});
+
+test("a change the vault would refuse anyway is stopped before signing, with a plain message", async () => {
+  rules.data = { ...(rules.data as object), paused: true };
+  const user = userEvent.setup();
+  render(<OwnerPage />);
+  await user.click(screen.getByRole("radio", { name: /Pause the agent/ }));
+  expect(screen.getByText("The agent is already paused.")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Sign with QoreX" })).toBeDisabled();
+});
+
+test("a lower cap that is not lower is stopped before signing", async () => {
+  const user = userEvent.setup();
+  render(<OwnerPage />);
+  await fillLowerCap(user, "50");
+  expect(screen.getByText("Enter an amount below the current daily cap of 50.00 fUSD.")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Sign with QoreX" })).toBeDisabled();
 });
 
 test("signing builds the order, signs its text and checks it with the vault before anything is sent", async () => {
@@ -173,8 +205,7 @@ test("a refusal by the simulation shows the refused state and sends nothing", as
   actions.simulate.mockResolvedValue({ ok: false, reason: "The vault refuses to widen its rules until the loan is repaid." });
   const user = userEvent.setup();
   render(<OwnerPage />);
-  await user.click(screen.getByRole("radio", { name: /Raise the daily spending cap/ }));
-  await user.type(screen.getByLabelText("New daily cap"), "80");
+  await fillLowerCap(user);
   await user.click(screen.getByRole("button", { name: "Sign with QoreX" }));
   expect(await screen.findByText("The vault refused this order")).toBeInTheDocument();
   expect(screen.getByText(/refuses to widen its rules until the loan is repaid/)).toBeInTheDocument();
@@ -242,4 +273,32 @@ test("the CLI path accepts a hex signature and checks it with the vault", async 
   await user.click(screen.getByRole("button", { name: "Check signature" }));
   await screen.findByText("The vault accepts this order");
   expect(actions.simulate).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ nonce: 4n }), SIG);
+});
+
+test("hex without 0x asks for the prefix instead of being read as base64", async () => {
+  const user = userEvent.setup();
+  render(<OwnerPage />);
+  await fillLowerCap(user);
+  await user.click(screen.getByRole("button", { name: "Paste a CLI signature" }));
+  await user.type(await screen.findByLabelText("Signature"), "0a0b0c0d");
+  await user.click(screen.getByRole("button", { name: "Check signature" }));
+  expect(await screen.findByText("Add 0x before a hex signature.")).toBeInTheDocument();
+  expect(actions.simulate).not.toHaveBeenCalled();
+});
+
+test("a send that the chain refuses returns to the form with the reason and offers no retry of the stale order", async () => {
+  wallet.session = { kind: "qorex", address: "qor1owner", evm: OWNER, testWallet: testWallet };
+  actions.apply.mockRejectedValue(new TxReverted(null, "The nonce is stale. Go back and sign a new order."));
+  const user = userEvent.setup();
+  render(<OwnerPage />);
+  await fillLowerCap(user);
+  await user.click(screen.getByRole("button", { name: "Sign with QoreX" }));
+  await user.click(await screen.findByRole("button", { name: "Apply order" }));
+  const dialog = await screen.findByRole("alertdialog");
+  await user.click(within(dialog).getByRole("button", { name: "Apply order" }));
+  expect(await within(dialog).findByText(/The nonce is stale/)).toBeInTheDocument();
+  expect(within(dialog).queryByRole("button", { name: "Try again" })).not.toBeInTheDocument();
+  await user.click(within(dialog).getByRole("button", { name: "Close" }));
+  expect(await screen.findByText("The vault refused this order")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Back to the form" })).toBeInTheDocument();
 });

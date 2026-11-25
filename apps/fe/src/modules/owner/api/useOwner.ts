@@ -11,6 +11,7 @@ import { useWallet } from "@/modules/wallet/WalletProvider";
 
 type Hex = `0x${string}`;
 const REFRESH_MS = 15_000;
+const BUSINESS_KEYS = ["business"] as const;
 
 /** The vaults the connected QoreX account owns; waits for the account and the business list. */
 export const useOwnedVaultsQuery = (evm: Hex | null, businesses: Business[] | undefined) =>
@@ -46,6 +47,8 @@ export function useOwnerActions() {
         const hash = await applyOrder(session, vault, order, sig);
         void client.invalidateQueries({ queryKey: ownerKeys.all });
         void client.invalidateQueries({ queryKey: marketKeys.all });
+        // The business page shows the same rules and the supplier list.
+        void client.invalidateQueries({ queryKey: BUSINESS_KEYS });
         return hash;
       },
     };
