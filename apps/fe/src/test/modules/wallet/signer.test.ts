@@ -19,9 +19,12 @@ const walletFor = vi.fn(
 const ensureWindow = vi.fn();
 
 vi.mock("@/lib/chain", () => ({ restUrl: () => "http://localhost/api/chain/rest", publicClient: { call: (a: unknown) => call(a), waitForTransactionReceipt: (a: unknown) => waitForTransactionReceipt(a) } }));
-vi.mock("@qredit/qore", async (orig) => ({
-  ...(await orig<typeof import("@qredit/qore")>()),
+vi.mock("@qredit/qore/net", async (orig) => ({
+  ...(await orig<typeof import("@qredit/qore/net")>()),
   walletFor: (pk: string, url: string) => walletFor(pk, url),
+}));
+vi.mock("@qredit/qore/buyer", async (orig) => ({
+  ...(await orig<typeof import("@qredit/qore/buyer")>()),
   ensureWindow: (...a: unknown[]) => ensureWindow(...a),
 }));
 
@@ -146,6 +149,43 @@ test("any other failure after signing also keeps the hash", async () => {
   const err = await evmSignerFor(test_)!.send(TO, "0x1234").catch((e: unknown) => e);
   expect((err as TxFailed).hash).toBe(HASH);
   expect(mayHaveSpent(err)).toBe(true);
+});
+
+const rpcError = (message: string, code = -32000) =>
+  Object.assign(new Error(message), { name: "RpcRequestError", code });
+
+test.each([
+  ["insufficient funds", "insufficient funds for gas * price + value", "The wallet has too little QOR to pay the network fee."],
+  ["nonce too low", "nonce too low", "The transaction could not be sent."],
+])("a JSON-RPC answer that rejects the transaction (%s) means nothing entered the mempool: no hash", async (_n, message, reason) => {
+  call.mockResolvedValue({ data: "0x" });
+  sendRawTransaction.mockRejectedValue(rpcError(message));
+  const err = await evmSignerFor(test_)!.send(TO, "0x1234").catch((e: unknown) => e);
+  expect(err).toBeInstanceOf(TxFailed);
+  expect((err as TxFailed).hash).toBeNull();
+  expect((err as TxFailed).reason).toBe(reason);
+  expect(mayHaveSpent(err)).toBe(false);
+});
+
+test("a rejection that wraps the JSON-RPC error in its cause is still a rejection", async () => {
+  call.mockResolvedValue({ data: "0x" });
+  sendRawTransaction.mockRejectedValue(Object.assign(new Error("Nonce provided is too low."), { name: "NonceTooLowError", cause: rpcError("nonce too low") }));
+  const err = await evmSignerFor(test_)!.send(TO, "0x1234").catch((e: unknown) => e);
+  expect((err as TxFailed).hash).toBeNull();
+});
+
+test("an answer that says the transaction is already known keeps the hash: it is in the mempool", async () => {
+  call.mockResolvedValue({ data: "0x" });
+  sendRawTransaction.mockRejectedValue(rpcError("already known"));
+  const err = await evmSignerFor(test_)!.send(TO, "0x1234").catch((e: unknown) => e);
+  expect((err as TxFailed).hash).toBe(HASH);
+});
+
+test("a transport failure after signing keeps the hash", async () => {
+  call.mockResolvedValue({ data: "0x" });
+  sendRawTransaction.mockRejectedValue(Object.assign(new Error("HTTP request failed."), { name: "HttpRequestError" }));
+  const err = await evmSignerFor(test_)!.send(TO, "0x1234").catch((e: unknown) => e);
+  expect((err as TxFailed).hash).toBe(HASH);
 });
 
 test("a signing failure has no hash: nothing left the browser", async () => {

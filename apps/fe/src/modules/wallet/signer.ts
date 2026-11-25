@@ -1,5 +1,6 @@
 // The one interface pages use to act on chain. It hides which wallet acts: QoreX cannot send EVM
 // transactions, so every EVM send comes from the test wallet (also when QoreX is connected).
+import { walletFor } from "@qredit/qore/net";
 import { keccak256, type TransactionReceipt } from "viem";
 import { revertSentence } from "@/components/shared/vaultErrors";
 import { publicClient } from "@/lib/chain";
@@ -56,6 +57,20 @@ function sendSentence(e: unknown): string {
   return SEND_FAILED;
 }
 
+/**
+ * The node answered the raw send with a JSON-RPC error (insufficient funds, nonce too low): it refused the transaction,
+ * so nothing entered the mempool. Transport and timeout errors carry no JSON-RPC code, so they stay "may have been sent".
+ * "Already known" is also an answer, but it means the transaction is in the mempool.
+ */
+function nodeRefusedSend(e: unknown): boolean {
+  let answered = false;
+  for (let c: unknown = e; c instanceof Error; c = c.cause) {
+    if (/already known|known transaction|already exists|already in/i.test(c.message)) return false;
+    if (typeof (c as { code?: unknown }).code === "number") answered = true;
+  }
+  return answered;
+}
+
 const isTimeout = (e: unknown) => e instanceof Error && /Timeout/i.test(e.name);
 
 // One queue per address: two jobs of the same account never run together, so they never read the same nonce or sequence.
@@ -87,7 +102,6 @@ export function evmSignerFor(session: WalletSession): EvmSigner | null {
     } catch (e) {
       throw new TxReverted(null, revertSentence(e));
     }
-    const { walletFor } = await import("@qredit/qore");
     const client = walletFor(wallet.account.privateKey as Hex, env.evmUrl);
     const account = client.account!;
     // Prepare and sign first: until the signature exists nothing can have left the browser.
@@ -103,6 +117,7 @@ export function evmSignerFor(session: WalletSession): EvmSigner | null {
     try {
       await client.sendRawTransaction({ serializedTransaction: serialized });
     } catch (e) {
+      if (nodeRefusedSend(e)) throw new TxFailed(null, sendSentence(e));
       throw new TxFailed(hash, isTimeout(e) ? SENT_UNKNOWN : sendSentence(e));
     }
     let receipt: TransactionReceipt;
@@ -131,6 +146,6 @@ export async function ensureWindowFor(session: WalletSession, targets: string[])
   const wallet = testWalletOf(session);
   if (!wallet) return null;
   // The transaction code is large; it loads when a window is opened, not with the page.
-  const { BUYER_WINDOW, ensureWindow } = await import("@qredit/qore");
+  const { BUYER_WINDOW, ensureWindow } = await import("@qredit/qore/buyer");
   return ensureWindow(browserNet(), wallet.account, targets, BUYER_WINDOW);
 }
