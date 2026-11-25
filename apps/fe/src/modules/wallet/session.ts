@@ -42,6 +42,10 @@ export type WalletStore = {
   /** Reads the browser storage: a stored wallet means locked, none means none. Called from an effect. */
   hydrate(): void;
   unlock(password: string): Promise<void>;
+  /** Whether this browser holds a saved test wallet (locked or not). */
+  hasSavedWallet(): boolean;
+  /** The recovery phrase of the saved wallet, decrypted again for a backup. Throws WrongPassword for a wrong password. */
+  reveal(password: string): Promise<string>;
   create(phrase: string, password: string): Promise<void>;
   lock(): void;
   forget(): void;
@@ -88,6 +92,14 @@ export const createWalletStore = (deps: WalletDeps = {}): StoreApi<WalletStore> 
       const phrase = await decryptPhrase(stored, password);
       const session = await deriveSession(phrase);
       if (mine === token) set({ session: withTestWallet(get().session, session) });
+    },
+    hasSavedWallet() {
+      return readStored(deps.storage) !== null;
+    },
+    async reveal(password) {
+      const stored = readStored(deps.storage);
+      if (!stored) throw new Error("There is no saved test wallet.");
+      return decryptPhrase(stored, password);
     },
     async create(phrase, password) {
       const clean = phrase.trim().replace(/\s+/g, " ");

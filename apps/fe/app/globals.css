@@ -120,6 +120,9 @@
   --color-warning-soft: var(--warning-soft);
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
+  --color-danger-fill: var(--danger-fill);
+  --color-on-danger: var(--on-danger);
+  --color-danger-hover: var(--danger-hover);
   --color-info: var(--info);
   --color-info-soft: var(--info-soft);
   --color-focus: var(--focus);

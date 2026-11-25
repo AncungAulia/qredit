@@ -8,7 +8,7 @@ import { env } from "@/lib/env";
 export type QorexState = "notInstalled" | "unavailable" | "ready";
 
 export const QOREX_UNAVAILABLE_SENTENCE =
-  "QoreX could not connect to the QoreChain testnet. Switch QoreX to Testnet (tap the version text seven times in its settings) and try again.";
+  "QoreX could not connect to the QoreChain testnet. Switch QoreX to Testnet (tap the version text seven times in its settings), or approve the request in QoreX, and try again.";
 
 export type QorexClient = {
   /** Whether QoreX is present in this page. */

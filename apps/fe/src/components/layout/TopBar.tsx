@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { NAV, isActive } from "@/config/nav";
 import { cn, focusRing } from "@/lib/utils";
+import { AccountButton } from "@/modules/wallet";
 import { Logo } from "./Logo";
 import { ProgressiveBlur } from "./ProgressiveBlur";
 import { ThemeButton } from "./ThemeButton";
@@ -44,8 +45,9 @@ export function TopBar({ className, pathname: given }: { className?: string; pat
           );
         })}
       </nav>
-      <div className="flex justify-end xl:w-[280px]">
+      <div className="flex items-center justify-end gap-2.5 xl:w-[280px]">
         <ThemeButton />
+        <AccountButton />
       </div>
     </header>
   );

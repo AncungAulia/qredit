@@ -1,0 +1,106 @@
+"use client";
+
+import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { generateMnemonic } from "@qorechain/sdk";
+import { LoaderCircle } from "lucide-react";
+import { FormField } from "@/components/shared/FormField";
+import { Notice } from "@/components/shared/Notice";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { useWallet } from "@/modules/wallet/WalletProvider";
+import { BackupPhrase } from "@/modules/wallet/components/BackupPhrase";
+import { PasswordField } from "@/modules/wallet/components/PasswordField";
+import { StorageUnavailable } from "@/modules/wallet/keystore";
+import { Cancelled } from "@/modules/wallet/session";
+import { createWalletSchema, type CreateWalletValues } from "@/modules/wallet/schemas/walletForms.schema";
+
+const CREATE_FAILED = "The test wallet could not be created. Please try again.";
+
+/** A new throwaway wallet: the phrase is shown once, then the password encrypts it in this browser. */
+export function CreateWalletForm({ onCreated }: { onCreated: () => void }) {
+  // Made on the first render in the browser; the dialog only mounts this form after a click.
+  const [phrase] = useState(() => generateMnemonic(256));
+  const create = useWallet((s) => s.create);
+  const [failure, setFailure] = useState<string | null>(null);
+  const {
+    register,
+    control,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<CreateWalletValues>({
+    resolver: zodResolver(createWalletSchema),
+    mode: "onTouched",
+    defaultValues: { saved: false, password: "", confirm: "" },
+  });
+
+  const submit = handleSubmit(async ({ password }) => {
+    setFailure(null);
+    try {
+      await create(phrase, password);
+      onCreated();
+    } catch (e) {
+      if (e instanceof Cancelled) return;
+      setFailure(e instanceof StorageUnavailable ? e.message : CREATE_FAILED);
+    }
+  });
+
+  return (
+    <form onSubmit={submit} noValidate className="flex flex-col gap-5">
+      <Notice tone="warning" title="Write down your recovery phrase">
+        It is shown only once. Anyone who has it can use this test wallet. It is a throwaway testnet wallet, so never
+        keep real funds in it.
+      </Notice>
+      <BackupPhrase phrase={phrase} />
+      <FormField id="saved" label="" error={errors.saved?.message}>
+        <div className="flex items-center gap-3">
+          <Controller
+            control={control}
+            name="saved"
+            render={({ field }) => (
+              <Checkbox
+                aria-labelledby="saved-label"
+                checked={field.value}
+                onCheckedChange={(checked) => field.onChange(checked)}
+                onBlur={field.onBlur}
+                name={field.name}
+                aria-invalid={errors.saved ? true : undefined}
+              />
+            )}
+          />
+          <Label id="saved-label" className="font-normal">
+            I saved the recovery phrase
+          </Label>
+        </div>
+      </FormField>
+      <PasswordField
+        id="password"
+        label="Password"
+        autoComplete="new-password"
+        help="At least 8 characters. It protects the wallet in this browser and cannot be reset."
+        error={errors.password?.message}
+        {...register("password")}
+      />
+      <PasswordField
+        id="confirm"
+        label="Repeat the password"
+        autoComplete="new-password"
+        error={errors.confirm?.message}
+        {...register("confirm")}
+      />
+      {failure && <Notice tone="danger">{failure}</Notice>}
+      <Button type="submit" size="lg" className="h-11" disabled={isSubmitting}>
+        {isSubmitting ? (
+          <>
+            <LoaderCircle className="animate-spin motion-reduce:animate-none" aria-hidden />
+            Encrypting
+          </>
+        ) : (
+          "Create test wallet"
+        )}
+      </Button>
+    </form>
+  );
+}
