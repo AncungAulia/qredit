@@ -5,6 +5,7 @@
   "main": "src/index.ts",
   "types": "src/index.ts",
   "scripts": {
+    "export-abi": "bun scripts/export-abi.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
   },

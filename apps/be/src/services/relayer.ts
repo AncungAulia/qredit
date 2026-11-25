@@ -1,20 +1,7 @@
 import type { EncodeObject } from "@cosmjs/proto-signing";
-import { executionFailure, PAY_SUPPLIER_SELECTOR, qorToHex, type RestEvent, type Sent, serial, TxFailedOnChain } from "@qredit/qore";
-
-export const EXECUTE_EVM_TYPE_URL = "/qorechain.abstractaccount.v1.MsgExecuteEVM";
-
-export type RelayRequest = {
-  typeUrl: string;
-  value: {
-    relayer: string; account: string; scheme: string;
-    pubkey: string; signature: string; // base64
-    to: string; value: string;
-    data: string; // base64 calldata
-    gasLimit: string; nonce: string;
-  };
-};
-export type RelayFailureCode = "not_broadcast" | "refused" | "unconfirmed" | "execution_failed";
-export type RelayResult = { txHash: string; success: true } | { txHash: string; success: false; code: RelayFailureCode; reason: string };
+import {
+  EXECUTE_EVM_TYPE_URL, executionFailure, PAY_SUPPLIER_SELECTOR, qorToHex, type RelayRequest, type RelayResult, type RestEvent, type Sent, serial, TxFailedOnChain,
+} from "@qredit/qore";
 
 export class RelayRejected extends Error {}
 

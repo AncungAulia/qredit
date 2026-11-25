@@ -1,6 +1,7 @@
 import type { Hono } from "hono";
 import { z } from "zod";
-import { type RelayRequest, RelayRejected, type RelayResult } from "../../services/relayer.ts";
+import type { RelayRequest, RelayResult } from "@qredit/qore";
+import { RelayRejected } from "../../services/relayer.ts";
 import type { EngineAuth } from "../middleware/engine-auth.ts";
 import { bad, parseBody } from "../validation.ts";
 

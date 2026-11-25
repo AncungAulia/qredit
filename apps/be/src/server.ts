@@ -46,6 +46,7 @@ const app = createApp({
   faucet,
   verifyCard: chainCardVerifier(net),
   trustedProxyHops: cfg.TRUSTED_PROXY_HOPS,
+  clientIpHeader: cfg.CLIENT_IP_HEADER,
   rateLimits: { envelopes: cfg.RATE_ENVELOPES_PER_MIN, cards: cfg.RATE_CARDS_PER_MIN, faucet: cfg.RATE_FAUCET_PER_MIN },
 });
 
@@ -85,5 +86,5 @@ loop("windows", cfg.WINDOW_CHECK_INTERVAL_MS, async () => {
 });
 
 // Hono reads the socket peer from env.server (used when there is no trusted proxy header).
-Bun.serve({ port: cfg.PORT, maxRequestBodySize: 512 * 1024, fetch: (req, server) => app.fetch(req, { server }) });
+Bun.serve({ hostname: "::", port: cfg.PORT, maxRequestBodySize: 512 * 1024, fetch: (req, server) => app.fetch(req, { server }) });
 console.log(`[http] listening on :${cfg.PORT}; relayer ${relayer.cosmos}; treasury ${treasury.cosmos}; operators ${operators.length}`);

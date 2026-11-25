@@ -1,13 +1,18 @@
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fetchPqcStatus } from "@qorechain/sdk";
 import { FACTORY_ADDRESS, FUSD_ADDRESS, TESTNET } from "@qredit/qore";
 import { keysDir, loadEngineConfig } from "../config.ts";
 import { keystore } from "../keystore.ts";
 import { accountNames, agentKey, ensureAccounts, fundedFirst, loadAccount, SUPPLIER_ACCOUNTS } from "../setup/accounts.ts";
+import { loadSealKeys } from "../agent/seal.ts";
 import { loadBusinesses, vaultInit } from "../setup/businesses.ts";
 import { convertFusd, createVault, ensureWindow, findExistingVault, lend, linkAgent, openWindow, registerBusiness, registerKey, sendQor, TREASURY_WINDOW } from "../setup/chain.ts";
+import { ensureSealSeed, publishCard, registerSealKey } from "../setup/seal.ts";
 import { readDeployments, writeDeployment } from "../setup/deployments.ts";
+import { RUNTIME_KEY_FIELDS, SUPPLIERS_PATH } from "../runtime-keys.ts";
 import { upsertEnv } from "../setup/env.ts";
+import { initDemoBuyer, placeDemoOrder, readDemoReport } from "../setup/demo-buyer.ts";
 
 const ks = keystore(keysDir());
 const businesses = loadBusinesses();
@@ -130,6 +135,55 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
     if (r.skipped) console.log(`${slug}: ${r.skipped}`);
     else console.log(`${slug}: deposited ${r.amount} units (${r.approveTx ? `approve ${r.approveTx}, ` : "allowance sufficient, "}deposit ${r.depositTx})`);
   },
+  async "seal-keys"([which]) {
+    if (!which) throw new Error("usage: seal-keys <slug>|all");
+    const targets = which === "all" ? businesses : businesses.filter((b) => b.slug === which);
+    if (targets.length === 0) throw new Error(`unknown business "${which}"`);
+    const cfg = loadEngineConfig();
+    for (const b of targets) {
+      const spender = await loadAccount(ks, `${b.slug}-spender`);
+      ensureSealSeed(ks, b.slug);
+      const keys = loadSealKeys(ks, b.slug);
+      const tx = await registerSealKey(spender, keys.mlkemPublicKey);
+      if (tx) await Bun.sleep(10_000);
+      await publishCard(cfg.API_URL, spender, keys);
+      console.log(`${b.slug}: ${spender.cosmos} seal key ${tx ?? "already registered"}, card uploaded`);
+    }
+  },
+  async "demo-buyer"([sub]) {
+    if (sub !== "init") throw new Error("usage: demo-buyer init");
+    await initDemoBuyer(ks, loadEngineConfig().API_URL, (l) => console.log(l));
+  },
+  async "demo-order"([slug, input]) {
+    const d = slug ? readDeployments()[slug] : undefined;
+    if (!d || !input) throw new Error('usage: demo-order <slug> "<input>"');
+    const r = await placeDemoOrder(ks, loadEngineConfig().API_URL, { vault: d.vault, spender: d.spender, input }, (l) => console.log(l));
+    console.log(`order id ${r.orderId}`);
+  },
+  async "demo-report"([slug, orderId]) {
+    const d = slug ? readDeployments()[slug] : undefined;
+    if (!d || !orderId) throw new Error("usage: demo-report <slug> <orderId>");
+    console.log(JSON.stringify(await readDemoReport(ks, loadEngineConfig().API_URL, { vault: d.vault, orderId }), null, 2));
+  },
+  async "suppliers-json"() {
+    const out = Object.fromEntries(
+      await Promise.all(Object.entries(SUPPLIER_ACCOUNTS).map(async ([role, name]) => [role, (await loadAccount(ks, name)).evm.toLowerCase()])),
+    );
+    writeFileSync(SUPPLIERS_PATH, `${JSON.stringify(out, null, 2)}
+`);
+    console.log(`wrote ${SUPPLIERS_PATH} (public supplier addresses)`);
+  },
+  async "runtime-keys"([sub]) {
+    if (sub !== "check") throw new Error("usage: runtime-keys check");
+    for (const b of businesses) {
+      const parts = Object.entries(RUNTIME_KEY_FIELDS).map(([kind, fields]) => {
+        const name = `${b.slug}-${kind}`;
+        const rec = ks.has(name) ? ks.read(name) : {};
+        return `${name}: ${fields.map((f) => `${f} ${rec[f] ? "yes" : "MISSING"}`).join(", ")}`;
+      });
+      console.log(`${b.slug.padEnd(20)} ${parts.join(" | ")}`);
+    }
+  },
   async "be-env"() {
     const spec = (n: string) => JSON.stringify(ks.read(n));
     const operators = businesses.map((b) => ks.read(`${b.slug}-operator`));
@@ -145,7 +199,7 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
 const [cmd, ...args] = process.argv.slice(2);
 const run = commands[cmd ?? ""];
 if (!run) {
-  console.log("usage: owner accounts init|show|register | fund <from> <qor> <fusd> <name...> | convert <name> <fusd> | be-env | business create <slug>|all | lend <slug> <fusd> | windows");
+  console.log("usage: owner accounts init|show|register | fund <from> <qor> <fusd> <name...> | convert <name> <fusd> | be-env | suppliers-json | runtime-keys check | business create <slug>|all | lend <slug> <fusd> | windows | seal-keys <slug>|all | demo-buyer init | demo-order <slug> <input> | demo-report <slug> <orderId>");
   process.exit(1);
 }
 run(args).catch((e) => {

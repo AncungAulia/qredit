@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import type { Db } from "../db/client.ts";
 import type { CardVerdict } from "../services/cards.ts";
-import type { RelayRequest, RelayResult } from "../services/relayer.ts";
+import type { RelayRequest, RelayResult } from "@qredit/qore";
 import { bodyLimits } from "./middleware/body-limit.ts";
 import { clientIpResolver } from "./middleware/client-ip.ts";
 import { engineAuth } from "./middleware/engine-auth.ts";
@@ -28,6 +28,8 @@ export type AppDeps = {
   verifyCard: (address: string, card: unknown) => Promise<CardVerdict>;
   /** Reverse proxies in front of the server (0 = ignore x-forwarded-for). */
   trustedProxyHops: number;
+  /** Header the edge sets to the client ip (for example x-real-ip); preferred over x-forwarded-for when valid. */
+  clientIpHeader?: string;
   /** Requests per minute per client ip; in memory, per instance. */
   rateLimits: { envelopes: number; cards: number; faucet: number };
   now?: () => number;
@@ -39,7 +41,7 @@ export function createApp(deps: AppDeps): Hono {
   app.use("*", bodyLimits());
 
   const auth = engineAuth(deps.engineToken);
-  const clientIp = clientIpResolver(deps.trustedProxyHops);
+  const clientIp = clientIpResolver(deps.trustedProxyHops, deps.clientIpHeader);
   const rateLimit = rateLimiter(clientIp, deps.now);
 
   healthRoutes(app, deps);

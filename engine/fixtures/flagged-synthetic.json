@@ -1,0 +1,8 @@
+{
+  "list": "qredit-synthetic-flags-v1",
+  "notice": "Synthetic test data for the Qredit demo. Not a real flag list.",
+  "entries": [
+    { "address": "0x000000000000000000000000000000000000dead", "entry": "SYNTHETIC: burn address used in demo fraud scenario" },
+    { "address": "0x00000000000000000000000000000000000bad01", "entry": "SYNTHETIC: demo phishing collector" }
+  ]
+}

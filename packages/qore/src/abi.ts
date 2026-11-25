@@ -32,6 +32,14 @@ export const VAULT_ABI = parseAbi([
   "function spender() view returns (address)",
   "function operator() view returns (address)",
   "function ownerPq() view returns (address)",
+  "function paused() view returns (bool)",
+  "function dailyCap() view returns (uint256)",
+  "function spentToday() view returns (uint256)",
+  "function dayIndex() view returns (uint64)",
+  "function suppliers(address) view returns (bool allowed, uint256 perTxCap)",
+  "error OrderNotOpen()",
+  "error OrderExpired()",
+  "error NotOperator()",
 ]);
 
 export const FACTORY_ABI = parseAbi([

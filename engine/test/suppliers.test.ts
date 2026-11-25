@@ -24,6 +24,14 @@ function app(paid: bigint | Error) {
 }
 
 describe("suppliers", () => {
+  test("GET /health answers ok without a payment check", async () => {
+    const { a, calls } = app(new Error("must not be called"));
+    const res = await a.request("/health");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+    expect(calls).toEqual([]);
+  });
+
   test("402 with the price until paid", async () => {
     const { a } = app(10_000n);
     const res = await a.request(`/v1/dataIndexer?vault=${V}&orderId=7&address=qor1x`);
@@ -81,5 +89,34 @@ describe("chainPayments", () => {
     const paid = await chainPayments(client as never).paid(V, "7", catalog.dataIndexer.address, 1_000);
     expect(ranges).toEqual([[1000n, 2999n], [3000n, 4999n], [5000n, 5500n]]);
     expect(paid).toBe(30n);
+  });
+});
+
+describe("chainPayments with relayed payments", () => {
+  test("adds payments the relayer forwarded for this vault, order and supplier", async () => {
+    const { encodeFunctionData } = await import("viem");
+    const { VAULT_ABI } = await import("@qredit/qore");
+    const data = (o: bigint) => Buffer.from(encodeFunctionData({ abi: VAULT_ABI, functionName: "paySupplier", args: [catalog.dataIndexer.address as `0x${string}`, 40n, o] }).slice(2), "hex").toString("base64");
+    const msg = (o: bigint) => ({ "@type": "/qorechain.abstractaccount.v1.MsgExecuteEVM", to: V, data: data(o) });
+    const body = { txs: [{ body: { messages: [msg(7n)] } }, { body: { messages: [msg(8n)] } }], tx_responses: [{ txhash: "A", height: "2000", code: 0, events: [] }, { txhash: "B", height: "2000", code: 0, events: [] }] };
+    const client = { getBlockNumber: async () => 1_000n, getLogs: async () => [{ args: { amount: 10n } }] };
+    const f = (async () => new Response(JSON.stringify(body))) as unknown as typeof fetch;
+    const paid = await chainPayments(client as never, { rest: "http://x", relayer: "qor1r", fetch: f }).paid(V, "7", catalog.dataIndexer.address, 1_000);
+    expect(paid).toBe(50n);
+  });
+});
+
+describe("data function errors", () => {
+  const failing = (msg: string) => {
+    const payments: PaymentSource = { paid: async () => 10_000_000n };
+    const boom = async () => { throw new Error(msg); };
+    return createSupplierApp({ payments, vaults, catalog, data: { dataIndexer: boom, listOracle: boom, computeBasic: boom, computeDeep: boom } });
+  };
+  test("an invalid or required error is HTTP 400", async () => {
+    expect((await failing("invalid address").request(`/v1/dataIndexer?vault=${V}&orderId=7`)).status).toBe(400);
+    expect((await failing("address required").request(`/v1/dataIndexer?vault=${V}&orderId=7`)).status).toBe(400);
+  });
+  test("any other error is HTTP 503", async () => {
+    expect((await failing("mcp timeout").request(`/v1/dataIndexer?vault=${V}&orderId=7`)).status).toBe(503);
   });
 });

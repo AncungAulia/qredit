@@ -19,6 +19,8 @@ const schema = z.object({
   FAUCET_DAILY_CAP: z.coerce.number().int().positive().default(200),
   /** Reverse proxies in front of this process; the client is the x-forwarded-for entry they appended. 0 ignores the header. */
   TRUSTED_PROXY_HOPS: z.coerce.number().int().min(0).max(10).default(1),
+  /** Optional header the edge overwrites with the client ip (for example x-real-ip on Railway); used when it holds a valid ip. */
+  CLIENT_IP_HEADER: z.string().trim().toLowerCase().optional().transform((v) => v || undefined),
   RATE_ENVELOPES_PER_MIN: z.coerce.number().int().positive().default(30),
   RATE_CARDS_PER_MIN: z.coerce.number().int().positive().default(10),
   RATE_FAUCET_PER_MIN: z.coerce.number().int().positive().default(5),

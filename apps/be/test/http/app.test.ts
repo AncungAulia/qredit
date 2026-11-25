@@ -48,9 +48,9 @@ const mkApp = (over: Partial<Parameters<typeof createApp>[0]> = {}) =>
   });
 
 describe("client ip", () => {
-  const ipOf = async (hops: number, headers: Record<string, string>, env?: unknown) => {
+  const ipOf = async (hops: number, headers: Record<string, string>, env?: unknown, clientIpHeader?: string) => {
     const seen: string[] = [];
-    const a = mkApp({ trustedProxyHops: hops, faucet: async (_a, ip) => { seen.push(ip); return { tx: "F" }; } });
+    const a = mkApp({ trustedProxyHops: hops, clientIpHeader, faucet: async (_a, ip) => { seen.push(ip); return { tx: "F" }; } });
     await a.request("/v1/faucet", { method: "POST", headers: { ...json, ...headers }, body: JSON.stringify({ address: ADDR }) }, env);
     return seen[0];
   };
@@ -68,6 +68,27 @@ describe("client ip", () => {
   test("a non-ip entry falls back to the peer; no peer at all is unknown", async () => {
     expect(await ipOf(1, { "x-forwarded-for": "not-an-ip" }, peer("198.51.100.4"))).toBe("198.51.100.4");
     expect(await ipOf(1, {})).toBe("unknown");
+  });
+});
+
+describe("client ip header", () => {
+  const ipOf = async (headers: Record<string, string>, clientIpHeader: string | undefined, env?: unknown) => {
+    const seen: string[] = [];
+    const a = mkApp({ clientIpHeader, faucet: async (_a, ip) => { seen.push(ip); return { tx: "F" }; } });
+    await a.request("/v1/faucet", { method: "POST", headers: { ...json, ...headers }, body: JSON.stringify({ address: ADDR }) }, env);
+    return seen[0];
+  };
+  test("a valid ip in the configured header wins over x-forwarded-for and the peer", async () => {
+    expect(await ipOf({ "x-real-ip": "203.0.113.7", "x-forwarded-for": "6.6.6.6, 9.9.9.9" }, "x-real-ip", peer("10.0.0.1"))).toBe("203.0.113.7");
+    expect(await ipOf({ "x-real-ip": "2001:db8::1" }, "x-real-ip", peer("10.0.0.1"))).toBe("2001:db8::1");
+  });
+  test("a missing or invalid value falls back to the x-forwarded-for logic", async () => {
+    expect(await ipOf({ "x-forwarded-for": "6.6.6.6, 203.0.113.9" }, "x-real-ip", peer("10.0.0.1"))).toBe("203.0.113.9");
+    expect(await ipOf({ "x-real-ip": "nope", "x-forwarded-for": "6.6.6.6, 203.0.113.9" }, "x-real-ip", peer("10.0.0.1"))).toBe("203.0.113.9");
+    expect(await ipOf({ "x-real-ip": "nope" }, "x-real-ip", peer("198.51.100.4"))).toBe("198.51.100.4");
+  });
+  test("when not configured the header is ignored", async () => {
+    expect(await ipOf({ "x-real-ip": "203.0.113.7" }, undefined, peer("198.51.100.4"))).toBe("198.51.100.4");
   });
 });
 

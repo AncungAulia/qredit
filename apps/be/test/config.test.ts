@@ -24,6 +24,12 @@ describe("loadConfig", () => {
     expect([c.RATE_ENVELOPES_PER_MIN, c.RATE_CARDS_PER_MIN, c.RATE_FAUCET_PER_MIN]).toEqual([30, 10, 5]);
   });
 
+  test("CLIENT_IP_HEADER is optional, lowercased, and empty means unset", () => {
+    expect(loadConfig(base).CLIENT_IP_HEADER).toBeUndefined();
+    expect(loadConfig({ ...base, CLIENT_IP_HEADER: "X-Real-IP" }).CLIENT_IP_HEADER).toBe("x-real-ip");
+    expect(loadConfig({ ...base, CLIENT_IP_HEADER: "" }).CLIENT_IP_HEADER).toBeUndefined();
+  });
+
   test("rejects a short engine token", () => {
     expect(() => loadConfig({ ...base, ENGINE_TOKEN: "short" })).toThrow();
   });

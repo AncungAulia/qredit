@@ -1,0 +1,29 @@
+import { expect, test } from "vitest";
+import { marketTotals } from "@/modules/market/lib/marketTotals";
+
+const entry = (state: string, raised: bigint, repaid: bigint, delivered: number) =>
+  ({ vault: { state, raised, repaid }, ordersDelivered: delivered, deliveredCapped: false }) as never;
+
+test("adds up lent, repaid, reports and businesses still raising", () => {
+  const t = marketTotals([
+    entry("Active", 50_000_000n, 11_000_000n, 18),
+    entry("Raising", 8_000_000n, 0n, 0),
+    entry("Repaid", 5_000_000n, 5_500_000n, 64),
+  ]);
+  expect(t).toEqual({ lent: 55_000_000n, repaid: 16_500_000n, delivered: 82, deliveredCapped: false, raising: 1 });
+});
+
+test("a refunded raise is not counted as lent", () => {
+  expect(marketTotals([entry("Refunded", 9_000_000n, 0n, 0)]).lent).toBe(0n);
+});
+
+test("a raising vault holds deposits and does not add to total lent", () => {
+  expect(marketTotals([entry("Raising", 8_000_000n, 0n, 0)]).lent).toBe(0n);
+  expect(marketTotals([entry("Trapped", 4_000_000n, 0n, 0)]).lent).toBe(4_000_000n);
+});
+
+test("the delivered figure is capped when any business is capped", () => {
+  const capped = { ...(entry("Active", 1n, 0n, 100) as object), deliveredCapped: true } as never;
+  expect(marketTotals([entry("Active", 1n, 0n, 3), capped]).deliveredCapped).toBe(true);
+  expect(marketTotals([entry("Active", 1n, 0n, 3)]).deliveredCapped).toBe(false);
+});

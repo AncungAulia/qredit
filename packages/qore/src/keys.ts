@@ -1,3 +1,4 @@
+import { hex } from "@scure/base";
 import { deriveUnifiedAccount, isValidRecoveryCode, unifiedAccountFromSeed, type UnifiedAccount } from "@qorechain/sdk";
 
 export type KeySpec = { mnemonic: string } | { privateKey: `0x${string}`; recoveryCode: string };
@@ -31,5 +32,5 @@ export function parseKeyList(raw: string, label = "key list"): KeySpec[] {
 export async function accountFrom(spec: KeySpec): Promise<UnifiedAccount> {
   if ("mnemonic" in spec) return deriveUnifiedAccount(spec.mnemonic, 0);
   if (!isValidRecoveryCode(spec.recoveryCode)) throw new Error("invalid QRC1 recovery code");
-  return unifiedAccountFromSeed(Uint8Array.from(Buffer.from(spec.privateKey.slice(2), "hex")), { recoveryCode: spec.recoveryCode });
+  return unifiedAccountFromSeed(hex.decode(spec.privateKey.slice(2).toLowerCase()), { recoveryCode: spec.recoveryCode });
 }

@@ -1,7 +1,7 @@
 {
   "name": "qredit",
   "private": true,
-  "workspaces": ["apps/be", "engine", "packages/*"],
+  "workspaces": ["apps/be", "apps/fe", "engine", "packages/*"],
   "scripts": {
     "test": "bun --filter '*' test",
     "typecheck": "bun --filter '*' typecheck"
