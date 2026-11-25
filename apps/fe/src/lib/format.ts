@@ -30,6 +30,9 @@ export function parseFusd(text: string): bigint | null {
   return BigInt(m[1]) * SCALE + BigInt((m[2] ?? "").padEnd(6, "0") || "0");
 }
 
+/** A whole count with thousands separators. */
+export const formatCount = (n: number) => n.toLocaleString(LOCALE);
+
 export const formatBps = (bps: number) => `${(bps / 100).toLocaleString(LOCALE, { maximumFractionDigits: 2 })}%`;
 
 const dateFmt = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: TIME_ZONE });

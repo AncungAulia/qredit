@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { formatBps, formatDateTime, formatFusd, formatRelative, parseFusd, shortAddress, shortHash } from "@/lib/format";
+import { formatBps, formatCount, formatDateTime, formatFusd, formatRelative, parseFusd, shortAddress, shortHash } from "@/lib/format";
 
 describe("fUSD", () => {
   test("formats 6-decimal units with two decimals", () => {
@@ -51,4 +51,8 @@ describe("other formats", () => {
     expect(shortAddress("qor1abcdefghijklmnopqrstuvwxyz0123456789ab")).toBe("qor1ab…89ab");
     expect(shortHash("0x2b65030eba743f8980aef7bde0b48dc4056b81a5d080a5b76ee03c34792ed85f")).toBe("0x2b65…d85f");
   });
+});
+
+test("counts get thousands separators", () => {
+  expect(formatCount(1234)).toBe("1,234");
 });

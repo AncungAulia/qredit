@@ -24,3 +24,11 @@ test("shows the short hash as text without an explorer URL", async () => {
   expect(screen.queryByRole("link")).not.toBeInTheDocument();
   expect(screen.getByTitle(hash)).toBeInTheDocument();
 });
+
+test("compact shows the short hash with an accessible name", async () => {
+  const TxLink = await load("https://explorer.example");
+  render(<TxLink hash={hash} compact />);
+  const link = screen.getByRole("link", { name: "View transaction on the explorer" });
+  expect(link).toHaveTextContent("0xabcd…6789");
+  expect(link).toHaveAttribute("href", `https://explorer.example/tx/${hash}`);
+});
