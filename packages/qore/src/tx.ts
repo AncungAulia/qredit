@@ -85,7 +85,7 @@ export async function broadcastHybrid(
 
 export async function txEvents(rest: string, hash: string, tries = 20, delayMs = 1500): Promise<RestEvent[]> {
   for (let i = 0; i < tries; i++) {
-    if (i > 0) await Bun.sleep(delayMs);
+    if (i > 0) await new Promise((r) => setTimeout(r, delayMs));
     const res = await restGet(`${rest}/cosmos/tx/v1beta1/txs/${hash}`);
     if (!res.ok) continue;
     const body = (await res.json()) as { tx_response?: { code: number; raw_log?: string; events: RestEvent[] } };
