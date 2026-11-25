@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ChevronDown, Lock } from "lucide-react";
 import { Orb } from "@/components/shared/Orb";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,16 @@ export function AccountButton({ compact = false, className }: { compact?: boolea
   const [connectView, setConnectView] = useState<ConnectView>("choose");
   const [backupOpen, setBackupOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  // After Lock the menu and its trigger are gone; focus moves to the locked button that replaces them.
+  const focusLocked = useRef(false);
+  const lockedButton = useRef<HTMLButtonElement>(null);
+  const kind = session.kind;
+  useEffect(() => {
+    if (kind === "locked" && focusLocked.current) {
+      focusLocked.current = false;
+      lockedButton.current?.focus();
+    }
+  }, [kind, hydrated]);
 
   const openConnect = (view: ConnectView) => {
     setConnectView(view);
@@ -51,6 +61,7 @@ export function AccountButton({ compact = false, className }: { compact?: boolea
     trigger = (
       <Button
         type="button"
+        ref={lockedButton}
         variant="outline"
         aria-label="Unlock wallet"
         title={session.address}
@@ -94,6 +105,9 @@ export function AccountButton({ compact = false, className }: { compact?: boolea
           onClose={() => setMenuOpen(false)}
           onBackup={() => setBackupOpen(true)}
           onSetup={() => openConnect("setup")}
+          onLock={() => {
+            focusLocked.current = true;
+          }}
         />
       </Popover>
     );

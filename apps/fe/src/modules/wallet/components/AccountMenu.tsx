@@ -25,6 +25,8 @@ type Props = {
   onClose: () => void;
   onBackup: () => void;
   onSetup: () => void;
+  /** Called just before the wallet is locked, so the caller can place the focus on what replaces the menu. */
+  onLock: () => void;
 };
 
 const rowClass =
@@ -74,7 +76,7 @@ function Balances({ wallet }: { wallet: NonNullable<ReturnType<typeof testWallet
  * The account menu: address, balances, actions, appearance and the way out. It is a popover of buttons, so Tab
  * reaches every control, the appearance switch included.
  */
-export function AccountMenu({ session, onClose, onBackup, onSetup }: Props) {
+export function AccountMenu({ session, onClose, onBackup, onSetup, onLock }: Props) {
   const lock = useWallet((s) => s.lock);
   const disconnectQorex = useWallet((s) => s.disconnectQorex);
   const wallet = testWalletOf(session);
@@ -98,7 +100,7 @@ export function AccountMenu({ session, onClose, onBackup, onSetup }: Props) {
       align="end"
       sideOffset={10}
       aria-label="Account menu"
-      className="w-72 gap-1 rounded-[24px] bg-glass-strong p-2 shadow-[0_8px_32px_var(--shadow)] ring-1 ring-glass-edge backdrop-blur-xl"
+      className="max-h-(--available-height) w-72 gap-1 overflow-y-auto rounded-[24px] bg-glass-strong p-2 shadow-[0_8px_32px_var(--shadow)] ring-1 ring-glass-edge backdrop-blur-xl"
     >
       <div className="flex items-center gap-3 px-2.5 pt-2.5 pb-3.5">
         <Orb className="size-10" />
@@ -148,7 +150,13 @@ export function AccountMenu({ session, onClose, onBackup, onSetup }: Props) {
         <ThemeSwitch />
       </div>
       {wallet && (
-        <Row Icon={Lock} onClick={run(lock)}>
+        <Row
+          Icon={Lock}
+          onClick={run(() => {
+            onLock();
+            lock();
+          })}
+        >
           Lock
         </Row>
       )}

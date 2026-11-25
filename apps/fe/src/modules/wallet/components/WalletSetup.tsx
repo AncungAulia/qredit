@@ -165,6 +165,15 @@ function SetupList({ wallet }: { wallet: TestSession }) {
     writeRetryAt(wallet.address, at);
   };
   const [claimed, setClaimed] = useState(false);
+  // The faucet button waits while the time shown is still ahead; it wakes up when that time passes.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!retryAt) return;
+    const wait = retryAt.getTime() - Date.now();
+    if (wait <= 0) return;
+    const id = setTimeout(() => setNow(Date.now()), Math.min(wait + 50, 2_000_000_000));
+    return () => clearTimeout(id);
+  }, [retryAt]);
   const status = query.data;
   const raw = useMemo(() => (status ? setupStatus(status) : null), [status]);
   const fundDone = raw?.fund === "done";
@@ -228,7 +237,7 @@ function SetupList({ wallet }: { wallet: TestSession }) {
             step={step}
             display={display[step]}
             run={runFor(step)}
-            disabled={step === "fund" && claimed}
+            disabled={step === "fund" && (claimed || (retryAt !== null && retryAt.getTime() > now))}
             notes={
               step === "fund" && next === "fund" ? (
                 <FaucetNotes status={status} address={wallet.address} retryAt={retryAt} claimed={claimed} />

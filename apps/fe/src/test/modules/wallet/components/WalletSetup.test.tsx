@@ -147,4 +147,6 @@ test("the faucet limit message survives a reload of the page", async () => {
   renderSetup();
   expect(await screen.findByText(`You can ask for test funds again at ${formatDateTime(retryAt)}.`)).toBeInTheDocument();
   expect(claimFaucet).toHaveBeenCalledTimes(1);
+  // Asking again is pointless until the time shown has passed.
+  expect(screen.getByRole("button", { name: "Get test funds" })).toBeDisabled();
 }, 40_000);

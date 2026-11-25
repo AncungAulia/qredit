@@ -3,8 +3,7 @@
 import { Monitor, Moon, Sun, type LucideIcon } from "lucide-react";
 import { useTheme } from "next-themes";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { focusRing } from "@/lib/utils";
-import { cn } from "@/lib/utils";
+import { cn, focusRing } from "@/lib/utils";
 
 const OPTIONS: { value: "light" | "dark" | "system"; label: string; Icon: LucideIcon }[] = [
   { value: "light", label: "Light", Icon: Sun },

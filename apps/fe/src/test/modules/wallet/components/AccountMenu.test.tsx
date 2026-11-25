@@ -84,6 +84,8 @@ test("lock leaves a locked button that opens the unlock form", async () => {
   await user.click(await screen.findByRole("button", { name: /Account menu/ }, { timeout: 20_000 }));
   await user.click(await screen.findByRole("button", { name: "Lock" }));
   const locked = await screen.findByRole("button", { name: /Unlock wallet/ });
+  // Focus moves to the button that replaced the menu, so the keyboard user does not lose their place.
+  await waitFor(() => expect(locked).toHaveFocus());
   await user.click(locked);
   expect(await screen.findByLabelText("Password")).toBeInTheDocument();
 }, 30_000);

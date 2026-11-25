@@ -68,7 +68,7 @@ export function CreateWalletForm({ onCreated }: { onCreated: () => void }) {
                 name={field.name}
                 aria-invalid={errors.saved ? true : undefined}
                 aria-describedby={errors.saved ? "saved-error" : undefined}
-                className="size-5 rounded-[6px] border-border-strong bg-surface pointer-coarse:size-6"
+                className="size-5 rounded-[6px] border-border-strong bg-surface dark:bg-surface pointer-coarse:size-6"
               />
             )}
           />
