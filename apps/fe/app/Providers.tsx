@@ -8,6 +8,7 @@ import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/sonner";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { getQueryClient } from "@/lib/queryClient";
+import { WalletProvider } from "@/modules/wallet";
 
 // Tablet breakpoint from the UI profile: toasts sit top-center on a phone, bottom-right from tablet up.
 const TABLET_UP = "(min-width: 768px)";
@@ -18,7 +19,7 @@ export function Providers({ children }: { children: ReactNode }) {
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
       <QueryClientProvider client={queryClient}>
-        {children}
+        <WalletProvider>{children}</WalletProvider>
         <Toaster position={isTabletUp ? "bottom-right" : "top-center"} />
         <ReactQueryDevtools initialIsOpen={false} />
       </QueryClientProvider>
