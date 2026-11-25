@@ -14,7 +14,7 @@ import { formatCount, formatDateTime, formatFusd, shortHash } from "@/lib/format
 import type { Business, Order } from "@/lib/schemas";
 import { serviceName } from "@/lib/serviceName";
 import { cn, focusRing } from "@/lib/utils";
-import { ReportDoesNotMatch, type Delivery, type OpenedReport } from "@/modules/inbox/api/inbox.api";
+import { DeliveryNotFound, ReportDoesNotMatch, type Delivery, type OpenedReport } from "@/modules/inbox/api/inbox.api";
 import { useDeliveryQuery, useOpenReport, useReportContextQuery } from "@/modules/inbox/api/useInbox";
 import { ReclaimButton } from "@/modules/inbox/components/ReclaimButton";
 import { ReportView } from "@/modules/inbox/components/ReportView";
@@ -205,11 +205,14 @@ export function ReportPage({ vault, orderId }: { vault: Hex; orderId: string }) 
   const loaded = ctx.data as Loaded | undefined;
   const order = loaded?.order;
   const delivered = order?.status === "delivered";
-  const delivery = useDeliveryQuery(vault, orderId, order?.placedBlock ?? 0, Boolean(delivered));
+  const delivery = useDeliveryQuery(vault, orderId, order?.placedBlock ?? 0, order?.deadline ?? new Date(0), Boolean(delivered));
   const open = useOpenReport();
   const wallet = useWallet((s) => testWalletOf(s.session));
   const kind = useWallet((s) => s.session.kind);
-  const [phase, setPhase] = useState<Phase>({ kind: "sealed" });
+  // The opened report belongs to the wallet that opened it: when the test wallet locks, is forgotten or changes, it is dropped.
+  const [held, setHeld] = useState<{ phase: Phase; owner: typeof wallet }>({ phase: { kind: "sealed" }, owner: null });
+  const phase: Phase = held.owner === wallet ? held.phase : { kind: "sealed" };
+  const setPhase = (next: Phase) => setHeld({ phase: next, owner: wallet });
 
   if (!loaded || !order) {
     if (ctx.isError) {
@@ -257,11 +260,21 @@ export function ReportPage({ vault, orderId }: { vault: Hex; orderId: string }) 
     );
   }
   if (failure) {
+    const notFound = failure instanceof DeliveryNotFound;
     return (
       <div className={FRAME}>
         <Breadcrumb />
         <Head title={title} description={`${from}.`} icon={Mail} tone="accent" action={<OpenedHeadAction opened={null} vault={vault} orderId={orderId} />} />
-        <ErrorState layout="section" title="The delivery could not be checked." message="The chain or the service did not respond. Nothing was opened. Please try again shortly." onRetry={() => void delivery.refetch()} />
+        <ErrorState
+          layout="section"
+          title={notFound ? "No delivery record was found on chain yet." : "The delivery could not be checked."}
+          message={
+            notFound
+              ? "The order is marked as delivered, but the chain shows no delivery record for it yet. Nothing was opened. Please try again shortly."
+              : "The chain or the service did not respond. Nothing was opened. Please try again shortly."
+          }
+          onRetry={() => void delivery.refetch()}
+        />
       </div>
     );
   }

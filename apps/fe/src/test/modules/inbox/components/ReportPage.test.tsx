@@ -21,17 +21,21 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const ctx = vi.hoisted(() => ({ data: undefined as unknown, isError: false, error: null as unknown, refetch: vi.fn() }));
 const delivery = vi.hoisted(() => ({ data: undefined as unknown, isError: false, error: null as unknown, refetch: vi.fn() }));
+const deliveryArgs = vi.hoisted(() => vi.fn());
 const openFn = vi.hoisted(() => vi.fn());
 const reclaimFn = vi.hoisted(() => vi.fn());
 vi.mock("@/modules/inbox/api/useInbox", () => ({
   useReportContextQuery: () => ctx,
-  useDeliveryQuery: () => delivery,
+  useDeliveryQuery: (...args: unknown[]) => {
+    deliveryArgs(...args);
+    return delivery;
+  },
   useOpenReport: () => openFn,
   useInboxActions: () => ({ reclaim: reclaimFn }),
 }));
 
 import { ReportUnreadable } from "@qredit/qore";
-import { ReportDoesNotMatch } from "@/modules/inbox/api/inbox.api";
+import { DeliveryNotFound, ReportDoesNotMatch } from "@/modules/inbox/api/inbox.api";
 import { ReportPage } from "@/modules/inbox/components/ReportPage";
 
 const ME = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
@@ -232,6 +236,49 @@ test("a delivery that cannot be read is a load error with a retry, not a mismatc
   expect(screen.getByRole("alert")).toHaveTextContent("The delivery could not be checked.");
   await userEvent.click(screen.getByRole("button", { name: "Try again" }));
   expect(delivery.refetch).toHaveBeenCalled();
+});
+
+test("the delivery lookup starts at the block the order was placed in and ends by its deadline", () => {
+  stateOf("delivered");
+  render(<ReportPage vault={VAULT} orderId="5" />);
+  expect(deliveryArgs).toHaveBeenLastCalledWith(VAULT, "5", 100, FUTURE, true);
+});
+
+test("a delivery lookup is not started for an order that is not delivered", () => {
+  stateOf("open");
+  render(<ReportPage vault={VAULT} orderId="5" />);
+  expect(deliveryArgs).toHaveBeenLastCalledWith(VAULT, "5", 100, FUTURE, false);
+});
+
+test("no delivery record yet has its own sentence, not a service failure", async () => {
+  stateOf("delivered");
+  delivery.isError = true;
+  delivery.error = new DeliveryNotFound();
+  render(<ReportPage vault={VAULT} orderId="5" />);
+  expect(screen.getByRole("alert")).toHaveTextContent("No delivery record was found on chain yet.");
+  expect(screen.getByRole("alert")).not.toHaveTextContent("did not respond");
+  await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+  expect(delivery.refetch).toHaveBeenCalled();
+});
+
+test("an opened report is dropped when the test wallet locks, and not shown to the next one", async () => {
+  stateOf("delivered");
+  delivery.data = DELIVERY;
+  openFn.mockReturnValue({ report: REPORT, envelopeHash: HASH, deliveredTx: TX });
+  const { rerender } = render(<ReportPage vault={VAULT} orderId="5" />);
+  await userEvent.click(screen.getByRole("button", { name: "Open report" }));
+  await screen.findByText("A short summary of the account.");
+
+  wallet.session = { kind: "locked", address: "qor1x" };
+  rerender(<ReportPage vault={VAULT} orderId="5" />);
+  expect(screen.queryByText("A short summary of the account.")).not.toBeInTheDocument();
+  expect(screen.getByText("Your report is sealed")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Download report" })).toBeDisabled();
+
+  wallet.session = { kind: "test", evm: ME, address: "qor1x", sealKeys: {} };
+  rerender(<ReportPage vault={VAULT} orderId="5" />);
+  expect(screen.queryByText("A short summary of the account.")).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Open report" })).toBeInTheDocument();
 });
 
 test("the checks stay inside the page and never show a key", async () => {

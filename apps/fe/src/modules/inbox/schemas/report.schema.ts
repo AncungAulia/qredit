@@ -23,7 +23,7 @@ export const reportSchema = z.object({
   notice: z.string().optional(),
   generatedBy: z.string(),
   suppliers: z.array(z.object({ role: z.string(), amount: z.string() })).default([]),
-  createdAt: z.string().transform((s) => new Date(s)),
+  createdAt: z.iso.datetime().transform((s) => new Date(s)),
 });
 export type Report = z.infer<typeof reportSchema>;
 

@@ -154,6 +154,14 @@ test("a report without a verdict or findings is not a report", () => {
   expect(parseReport(null)).toBeNull();
 });
 
+test("createdAt must be an ISO date and time, so a report with another value is not read", () => {
+  const ok = base("counterparty-check", { label: "A", rule: "otherwise" }, counterpartyFacts);
+  expect(parseReport({ ...ok, createdAt: "yesterday" })).toBeNull();
+  expect(parseReport({ ...ok, createdAt: "2026-13-45" })).toBeNull();
+  expect(parseReport({ ...ok, createdAt: "2026-11-25T14:32:00+02:00" })).toBeNull();
+  expect(parseReport(ok)!.report.createdAt.toISOString()).toBe("2026-11-25T14:32:00.000Z");
+});
+
 test("the report carries its model name and time only as readable values", () => {
   const parsed = parseReport(base("counterparty-check", { label: "A", rule: "otherwise" }, counterpartyFacts))!;
   expect(parsed.report.summary).toBe("A short summary.");

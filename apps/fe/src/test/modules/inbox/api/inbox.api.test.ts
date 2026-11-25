@@ -1,7 +1,7 @@
 // @vitest-environment node
 // The seal library checks `instanceof Uint8Array`; under jsdom the global Uint8Array and the bytes of TextEncoder
 // come from different realms and fail that check, so this file runs in the node environment, as a browser's bytes are consistent.
-import { beforeEach, expect, test, vi } from "vitest";
+import { beforeEach, describe, expect, test, vi } from "vitest";
 
 const getLogs = vi.fn();
 const getBlock = vi.fn();
@@ -153,6 +153,46 @@ test("readDelivery walks forward in windows of at most 10,000 blocks, which is a
     [10_000_000n, 10_009_999n],
     [10_010_000n, 10_019_999n],
   ]);
+});
+
+describe("search end from the deadline", () => {
+  const PLACED = 10_000_000n;
+  const PLACED_TS = 1_795_000_000n;
+  // Two seconds per block: the head is 700,000 blocks on.
+  const stamp = ({ blockNumber }: { blockNumber: bigint }) => ({ timestamp: PLACED_TS + (blockNumber - PLACED) * 2n });
+  const searched = () => getLogs.mock.calls.map((c) => [(c[0] as { fromBlock: bigint }).fromBlock, (c[0] as { toBlock: bigint }).toBlock]);
+
+  beforeEach(() => {
+    getBlock.mockImplementation(async (a: { blockNumber: bigint }) => stamp(a));
+    getLogs.mockResolvedValue([]);
+  });
+
+  test("the search ends a margin after the block the deadline is estimated to fall in, not at the head", async () => {
+    const deadline = new Date(Number(PLACED_TS + 3600n) * 1000);
+    await expect(readDelivery(VAULT, "5", 10_000_000, deadline)).rejects.toBeInstanceOf(DeliveryNotFound);
+    // 3,600 seconds at two seconds per block is 1,800 blocks, plus a margin of 1,000.
+    expect(searched()).toEqual([[10_000_000n, 10_002_800n]]);
+  });
+
+  test("a deadline far away still walks the windows, up to the head", async () => {
+    const deadline = new Date(Number(PLACED_TS + 40_000n) * 1000);
+    await expect(readDelivery(VAULT, "5", 10_000_000, deadline)).rejects.toBeInstanceOf(DeliveryNotFound);
+    expect(searched()).toEqual([
+      [10_000_000n, 10_009_999n],
+      [10_010_000n, 10_019_999n],
+      [10_020_000n, 10_021_000n],
+    ]);
+  });
+
+  test("without a deadline, or when the block times cannot be read, the search goes to the head", async () => {
+    getBlockNumber.mockResolvedValue(10_005_000n);
+    await expect(readDelivery(VAULT, "5", 10_000_000)).rejects.toBeInstanceOf(DeliveryNotFound);
+    expect(searched()).toEqual([[10_000_000n, 10_005_000n]]);
+    getLogs.mockClear();
+    getBlock.mockRejectedValue(new Error("no block"));
+    await expect(readDelivery(VAULT, "5", 10_000_000, new Date(Number(PLACED_TS + 3600n) * 1000))).rejects.toBeInstanceOf(DeliveryNotFound);
+    expect(searched()).toEqual([[10_000_000n, 10_005_000n]]);
+  });
 });
 
 test("readDelivery stops at the newest block and ends as not found when no window holds the log", async () => {

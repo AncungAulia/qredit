@@ -9,6 +9,7 @@ import {
   readMyOrders,
   readReportContext,
   reclaim,
+  DeliveryNotFound,
   ReportDoesNotMatch,
   type Delivery,
 } from "@/modules/inbox/api/inbox.api";
@@ -49,13 +50,14 @@ export const useReportContextQuery = (vault: Hex, orderId: string) =>
  * The delivery of an order: the Delivered log, the stored envelope and the hash check. A delivery never changes,
  * and a mismatch is final, so neither is read again on its own.
  */
-export const useDeliveryQuery = (vault: Hex, orderId: string, fromBlock: number, enabled: boolean) =>
+export const useDeliveryQuery = (vault: Hex, orderId: string, fromBlock: number, deadline: Date, enabled: boolean) =>
   useQuery({
     queryKey: inboxKeys.delivery(vault, orderId),
-    queryFn: () => readDelivery(vault, orderId, fromBlock),
+    queryFn: () => readDelivery(vault, orderId, fromBlock, deadline),
     enabled,
     staleTime: Infinity,
-    retry: (count, error) => !(error instanceof ReportDoesNotMatch) && count < 2,
+    // A mismatch is final and a missing record is an answer, not a failure; only a failed read is tried again.
+    retry: (count, error) => !(error instanceof ReportDoesNotMatch || error instanceof DeliveryNotFound) && count < 2,
   });
 
 /** Opens a checked delivery with the keys of the current session. The keys never leave the session. */

@@ -78,10 +78,33 @@ const DELIVERED = getAbiItem({ abi: VAULT_EVENTS, name: "Delivered" });
 const LOG_WINDOW = 10_000n;
 const MAX_WINDOWS = 30;
 
-/** The Delivered log of one order, searched from `fromBlock` (default: the newest window) to the newest block. */
-async function findDeliveredLog(vault: Hex, orderId: string, fromBlock?: number) {
-  const latest = await publicClient.getBlockNumber();
-  let from = fromBlock === undefined ? (latest >= LOG_WINDOW ? latest - LOG_WINDOW + 1n : 0n) : BigInt(fromBlock);
+// The agent delivers before the deadline, so the search may stop a margin of blocks after the estimated deadline block.
+const DEADLINE_MARGIN = 1_000n;
+
+/**
+ * Where the log search ends: the newest block, or earlier when the block of the deadline can be estimated from the
+ * block times of the start and of the newest block. When the times cannot be read, the newest block is kept.
+ */
+async function searchEnd(latest: bigint, from: bigint, deadline: Date | undefined): Promise<bigint> {
+  if (!deadline || latest <= from) return latest;
+  try {
+    const [start, head] = await Promise.all([publicClient.getBlock({ blockNumber: from }), publicClient.getBlock({ blockNumber: latest })]);
+    const seconds = Number(head.timestamp - start.timestamp);
+    if (seconds <= 0) return latest;
+    const perBlock = seconds / Number(latest - from);
+    const ahead = Math.max(0, deadline.getTime() / 1000 - Number(start.timestamp));
+    const end = from + BigInt(Math.ceil(ahead / perBlock)) + DEADLINE_MARGIN;
+    return end < latest ? end : latest;
+  } catch {
+    return latest;
+  }
+}
+
+/** The Delivered log of one order, searched from `fromBlock` (default: the newest window) to the deadline block or the newest block. */
+async function findDeliveredLog(vault: Hex, orderId: string, fromBlock?: number, deadline?: Date) {
+  const head = await publicClient.getBlockNumber();
+  let from = fromBlock === undefined ? (head >= LOG_WINDOW ? head - LOG_WINDOW + 1n : 0n) : BigInt(fromBlock);
+  const latest = fromBlock === undefined ? head : await searchEnd(head, from, deadline);
   for (let i = 0; i < MAX_WINDOWS && from <= latest; i++) {
     const to = from + LOG_WINDOW - 1n < latest ? from + LOG_WINDOW - 1n : latest;
     const logs = await publicClient.getLogs({ address: vault, event: DELIVERED, args: { orderId: BigInt(orderId) }, fromBlock: from, toBlock: to });
@@ -94,10 +117,10 @@ async function findDeliveredLog(vault: Hex, orderId: string, fromBlock?: number)
 /**
  * Reads what the vault recorded as delivered for one order, fetches the envelope under that hash and checks
  * that the text hashes to it. The hash comes from the chain log, never from the backend. `fromBlock` is the
- * block the order was placed in, so the log search stays short.
+ * block the order was placed in and `deadline` its deadline, so the log search stays short.
  */
-export async function readDelivery(vault: Hex, orderId: string, fromBlock?: number): Promise<Delivery> {
-  const log = await findDeliveredLog(vault, orderId, fromBlock);
+export async function readDelivery(vault: Hex, orderId: string, fromBlock?: number, deadline?: Date): Promise<Delivery> {
+  const log = await findDeliveredLog(vault, orderId, fromBlock, deadline);
   if (!log) throw new DeliveryNotFound();
   const recorded = (log.args as { envelopeHash: Hex }).envelopeHash;
 
