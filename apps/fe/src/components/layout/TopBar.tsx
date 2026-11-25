@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { NAV, isActive } from "@/config/nav";
-import { cn } from "@/lib/utils";
+import { cn, focusRing } from "@/lib/utils";
 import { Logo } from "./Logo";
 import { ProgressiveBlur } from "./ProgressiveBlur";
 import { ThemeButton } from "./ThemeButton";
@@ -21,7 +21,7 @@ export function TopBar({ className }: { className?: string }) {
       </div>
       <nav
         aria-label="Main"
-        className="border-glass-edge flex gap-1 rounded-full border bg-glass-strong p-1"
+        className="flex gap-1 rounded-full border border-glass-edge bg-glass-strong p-1"
       >
         {NAV.map(({ href, label }) => {
           const active = isActive(href, pathname);
@@ -31,7 +31,8 @@ export function TopBar({ className }: { className?: string }) {
               href={href}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "rounded-full px-[18px] py-2.5 text-sm font-medium transition-colors duration-150",
+                "rounded-full px-[18px] py-2.5 text-sm font-medium transition-colors duration-150 pointer-coarse:py-3",
+                focusRing,
                 active
                   ? "bg-primary text-on-primary"
                   : "bg-surface text-text-secondary hover:bg-surface-hover",

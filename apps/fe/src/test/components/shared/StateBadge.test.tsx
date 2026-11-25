@@ -23,3 +23,8 @@ test.each([
   render(<StateBadge state={state} />);
   expect(screen.getByText(label)).toBeInTheDocument();
 });
+
+test("an unknown state number is an error, never a guess", () => {
+  expect(() => vaultStateName(7)).toThrow("Unknown vault state 7");
+  expect(() => vaultStateName(-1)).toThrow("Unknown vault state -1");
+});

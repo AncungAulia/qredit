@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { NAV, isActive, isTopLevel } from "@/config/nav";
-import { cn } from "@/lib/utils";
+import { cn, focusRing } from "@/lib/utils";
 
 /** Phone navigation: a floating glass pill above the home indicator, on top-level pages only. */
 export function TabBar({ className }: { className?: string }) {
@@ -13,7 +13,7 @@ export function TabBar({ className }: { className?: string }) {
     <nav
       aria-label="Main"
       className={cn(
-        "border-glass-edge fixed inset-x-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 flex justify-between rounded-full border bg-glass-strong p-1.5 shadow-[0_8px_24px_var(--shadow)] backdrop-blur-2xl",
+        "fixed inset-x-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 flex justify-between rounded-full border border-glass-edge bg-glass-strong p-1.5 shadow-[0_8px_24px_var(--shadow)] backdrop-blur-2xl",
         className,
       )}
     >
@@ -26,6 +26,7 @@ export function TabBar({ className }: { className?: string }) {
             aria-current={active ? "page" : undefined}
             className={cn(
               "flex min-h-11 flex-1 flex-col items-center gap-0.5 rounded-full py-1.5 text-xs font-medium transition-colors duration-150",
+              focusRing,
               active ? "bg-primary text-on-primary" : "text-text-secondary",
             )}
           >

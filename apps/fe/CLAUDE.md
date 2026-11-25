@@ -18,6 +18,8 @@ It follows the frontend-starter-kit shape: `app/` at the app root holds thin rou
 - **No secrets.** No key, mnemonic or Supabase key is ever imported, stored or read server-side in this app. Only `NEXT_PUBLIC_*` public URLs.
 - **Copy.** Formal English, complete sentences, no contractions, no slang or idioms, no abbreviations such as "min". No technical words such as "API" outside the Proof page. Mentions of Qredit use the inline wordmark.
 - **No dividers.** No thin divider lines in lists, cards or tables; separate with spacing. Cards in a grid share structure and height.
+- **Address inside a link: keep copyable off.** `Address` has no copy button by default so it can sit inside a link card without nesting a button in a link. Pages opt in with `copyable`.
+- **Touch and focus.** Interactive elements are 44 px on coarse pointers; every one uses `focusRing` from `src/lib/utils.ts`.
 - **Fonts.** Geist for all text; Geist Mono only for addresses and hashes; tabular numerals for every figure.
 
 ## Motion

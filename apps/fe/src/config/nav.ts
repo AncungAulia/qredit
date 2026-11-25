@@ -13,7 +13,9 @@ export const NAV: {
 ];
 
 export const isActive = (href: string, pathname: string) =>
-  href === "/" ? pathname === "/" || pathname.startsWith("/agents") : pathname.startsWith(href);
+  href === "/"
+    ? pathname === "/" || pathname.startsWith("/agents")
+    : pathname === href || pathname.startsWith(`${href}/`);
 
 /** The phone tab bar shows only on the top-level pages. */
 export const isTopLevel = (pathname: string) => NAV.some((item) => item.href === pathname);

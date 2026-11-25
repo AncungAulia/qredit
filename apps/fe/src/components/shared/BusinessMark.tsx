@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { Bot } from "lucide-react";
 import { AGENT_ART } from "@/config/businesses";
 import { cn } from "@/lib/utils";
 
@@ -8,11 +9,11 @@ export function BusinessMark({
   size = 44,
   className,
 }: {
-  slug: keyof typeof AGENT_ART;
+  slug: string;
   size?: number;
   className?: string;
 }) {
-  const art = AGENT_ART[slug];
+  const art = (AGENT_ART as Record<string, string | undefined>)[slug];
   return (
     <span
       className={cn(
@@ -21,20 +22,28 @@ export function BusinessMark({
       )}
       style={{ width: size, height: size }}
     >
-      <Image
-        src={`/agents/${art}-light.png`}
-        alt=""
-        width={size * 2}
-        height={size * 2}
-        className="size-full object-cover dark:hidden"
-      />
-      <Image
-        src={`/agents/${art}-dark.png`}
-        alt=""
-        width={size * 2}
-        height={size * 2}
-        className="hidden size-full object-cover dark:block"
-      />
+      {art ? (
+        <>
+          <Image
+            src={`/agents/${art}-light.png`}
+            alt=""
+            width={size * 2}
+            height={size * 2}
+            className="size-full object-cover dark:hidden"
+          />
+          <Image
+            src={`/agents/${art}-dark.png`}
+            alt=""
+            width={size * 2}
+            height={size * 2}
+            className="hidden size-full object-cover dark:block"
+          />
+        </>
+      ) : (
+        <span className="grid size-full place-items-center text-text-tertiary">
+          <Bot className="size-1/2" aria-hidden />
+        </span>
+      )}
     </span>
   );
 }

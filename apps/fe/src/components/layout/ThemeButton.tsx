@@ -3,7 +3,7 @@
 import { useSyncExternalStore } from "react";
 import { Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
-import { cn } from "@/lib/utils";
+import { cn, focusRing } from "@/lib/utils";
 
 const noopSubscribe = () => () => undefined;
 const useMounted = () =>
@@ -31,7 +31,8 @@ export function ThemeButton({ className }: { className?: string }) {
       onClick={() => setTheme(dark ? "light" : "dark")}
       aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
       className={cn(
-        "grid shrink-0 place-items-center rounded-full border border-border bg-surface text-text-secondary transition-[transform,background-color] duration-[120ms] ease-[var(--ease-out)] hover:bg-surface-hover focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none active:scale-[0.97]",
+        "grid shrink-0 place-items-center rounded-full border border-border bg-surface text-text-secondary transition-[transform,background-color] duration-[120ms] ease-[var(--ease-out)] hover:bg-surface-hover active:scale-[0.97]",
+        focusRing,
         size,
         className,
       )}

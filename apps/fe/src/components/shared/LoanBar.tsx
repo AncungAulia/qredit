@@ -19,7 +19,8 @@ export function LoanBar({ state, raised, target, repaid, totalOwed }: Props) {
   const value = raising ? raised : repaid;
   const whole = raising ? target : totalOwed;
   const p = pct(value, whole);
-  const filled = Math.round((p * TICKS) / 100);
+  // A value above zero always shows at least one tick.
+  const filled = value > 0n ? Math.max(1, Math.round((p * TICKS) / 100)) : 0;
   // Raising: accent ticks are raised. Repaying: ink ticks are repaid, accent ticks are still owed.
   const done = raising ? "bg-accent" : "bg-primary";
   const rest = raising ? "bg-border" : "bg-accent";
@@ -47,6 +48,7 @@ export function LoanBar({ state, raised, target, repaid, totalOwed }: Props) {
       </div>
       <div
         role="progressbar"
+        aria-label={raising ? "Raised" : "Repaid"}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={p}
