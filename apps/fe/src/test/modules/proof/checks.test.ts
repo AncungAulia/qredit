@@ -115,6 +115,24 @@ describe("checks", () => {
         }).status,
       ).toBe("failed");
     });
+    test("key ids match with or without a 0x prefix and in any case", () => {
+      expect(
+        judge({
+          keys: [key("0xAB")],
+          rules: [rule([VAULT])],
+          authenticatorRules: [{ pubkeyHex: "ab", rule: rule([ok]) }],
+        }).status,
+      ).toBe("proven");
+    });
+    test("a key that says it has its own rule but none is returned fails", () => {
+      const res = judge({
+        keys: [{ ...key("aa"), hasSpendRule: true }],
+        rules: [rule([ok])],
+        authenticatorRules: [],
+      });
+      expect(res.status).toBe("failed");
+      expect(res.detail).toMatch(/rule of its own/);
+    });
     test("a linked key bound by no enabled rule fails", () => {
       expect(judge({ keys: [key("aa")], rules: [], authenticatorRules: [] }).status).toBe("failed");
     });

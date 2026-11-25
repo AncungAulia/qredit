@@ -16,7 +16,7 @@ export const CHECK_IDS: CheckId[] = [
 export const CHECK_TITLES: Record<CheckId, string> = {
   factory: "The vault was created by the published Qredit factory.",
   ownerKey: "The owner's ML-DSA-87 key is registered and proven.",
-  spenderRule: "The agent key may only pay listed suppliers through this vault.",
+  spenderRule: "The agent key may call only paySupplier on this vault.",
   operatorWindow: "The operator key can reach only this vault.",
   books: "The vault's books equal its fUSD balance.",
   widening: "The rules cannot be widened while the loan runs.",
@@ -30,6 +30,7 @@ const r = (id: CheckId, status: CheckResult["status"], detail: string): CheckRes
   detail,
 });
 const lower = (s: string) => s.toLowerCase();
+const keyId = (hex: string) => lower(hex.replace(/^0x/i, ""));
 
 export const provenCount = (results: CheckResult[]) =>
   results.filter((c) => c.status === "proven").length;
@@ -65,7 +66,7 @@ export function judgeOwnerKey(s: { registered: boolean; possessionProven?: boole
 }
 
 type RuleView = { enabled: boolean; allowedEvmCalls: string[] };
-type LinkedKey = { pubkeyHex: string; revoked: boolean; expiryUnix: bigint };
+type LinkedKey = { pubkeyHex: string; revoked: boolean; expiryUnix: bigint; hasSpendRule?: boolean };
 export type SpenderInput = {
   /** Every key linked to the spender account, revoked ones included (as the chain returns them). */
   keys: LinkedKey[];
@@ -87,12 +88,16 @@ export function judgeSpenderRule(
   selector: string,
   nowUnix = Math.floor(Date.now() / 1000),
 ): CheckResult {
+  // Assumption: the SDK types do not say what expiryUnix 0 means; it is treated as "no expiry".
   const linked = s.keys.filter((k) => !k.revoked && (k.expiryUnix === 0n || k.expiryUnix > BigInt(nowUnix)));
   if (linked.length === 0) return r("spenderRule", "failed", "No agent key is linked to the spender account.");
   const expected = `${lower(vault)}/${lower(selector)}`;
   const accountWide = s.rules.find((x) => x.enabled);
   for (const key of linked) {
-    const own = s.authenticatorRules.find((a) => lower(a.pubkeyHex) === lower(key.pubkeyHex) && a.rule.enabled);
+    const ownRule = s.authenticatorRules.find((a) => keyId(a.pubkeyHex) === keyId(key.pubkeyHex));
+    if (key.hasSpendRule === true && !ownRule)
+      return r("spenderRule", "failed", "A linked agent key has a rule of its own that the chain did not return.");
+    const own = ownRule?.rule.enabled ? ownRule : undefined;
     const binding = own?.rule ?? accountWide;
     if (!binding) return r("spenderRule", "failed", "A linked agent key is bound by no enabled spending rule.");
     const calls = binding.allowedEvmCalls.map(lower);
@@ -101,7 +106,7 @@ export function judgeSpenderRule(
     if (!calls.every((c) => c === expected))
       return r("spenderRule", "failed", "The rule of a linked agent key allows a call other than paySupplier on this vault.");
   }
-  return r("spenderRule", "proven", "Every linked agent key is bound by a rule that allows only paySupplier on this vault.");
+  return r("spenderRule", "proven", "Every linked agent key may call only paySupplier on this vault.");
 }
 
 export function judgeOperatorWindow(
