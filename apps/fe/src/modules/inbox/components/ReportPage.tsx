@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { ArrowLeft, Box, Check, Hash, KeyRound, Lock, LoaderCircle, Mail, MailCheck, MailOpen, MailX, ShieldAlert, X, type LucideIcon } from "lucide-react";
-import { ReportUnreadable } from "@qredit/qore";
+import { ReportUnreadable } from "@qredit/qore/seal-shared";
 import { EmptyState, ErrorState } from "@/components/shared/PageStates";
 import { Notice } from "@/components/shared/Notice";
 import { Button } from "@/components/ui/button";
@@ -319,7 +319,7 @@ export function ReportPage({ vault, orderId }: { vault: Hex; orderId: string }) 
     // Let the opening state paint before the keys do their work.
     await new Promise((resolve) => setTimeout(resolve, 50));
     try {
-      setPhase({ kind: "opened", opened: open(vault, orderId, d) });
+      setPhase({ kind: "opened", opened: await open(vault, orderId, d) });
     } catch (e) {
       setPhase(e instanceof ReportUnreadable ? { kind: "unreadable" } : { kind: "failed" });
     }

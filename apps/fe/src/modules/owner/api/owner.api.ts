@@ -1,4 +1,4 @@
-import { LOAN_VAULT_ABI } from "@qredit/qore";
+import { LOAN_VAULT_ABI } from "@qredit/qore/abis";
 import { encodeFunctionData, hexToString, toHex } from "viem";
 import { revertSentence, VAULT_ERROR_SENTENCES } from "@/components/shared/vaultErrors";
 import { publicClient, readVault } from "@/lib/chain";

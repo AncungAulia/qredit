@@ -1,6 +1,6 @@
 // Turns a failed chain call into one formal sentence. Raw revert data never reaches the screen.
 import { decodeErrorResult, parseAbi } from "viem";
-import { LOAN_VAULT_ABI } from "@qredit/qore";
+import { LOAN_VAULT_ABI } from "@qredit/qore/abis";
 
 export const GENERIC_REFUSAL = "The transaction was refused.";
 

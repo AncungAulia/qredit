@@ -1,4 +1,5 @@
-import { LOAN_VAULT_ABI, publicClientFor } from "@qredit/qore";
+import { LOAN_VAULT_ABI } from "@qredit/qore/abis";
+import { publicClientFor } from "@qredit/qore/net";
 import type { Address, ContractFunctionArgs, ContractFunctionName, ReadContractReturnType } from "viem";
 import { env } from "./env";
 

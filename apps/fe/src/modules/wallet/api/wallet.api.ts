@@ -1,4 +1,4 @@
-import { ERC20_ABI, FUSD_ADDRESS, FUSD_DENOM } from "@qredit/qore";
+import { ERC20_ABI, FUSD_ADDRESS, FUSD_DENOM } from "@qredit/qore/abi";
 import type { RecipientCard, SealKeyPair } from "@qorechain/qoreseal";
 import type { UnifiedAccount } from "@qorechain/sdk";
 import { api, ApiError, parseResponse } from "@/lib/apiClient";

@@ -1,4 +1,4 @@
-import { ERC20_ABI, FUSD_ADDRESS } from "@qredit/qore";
+import { ERC20_ABI, FUSD_ADDRESS } from "@qredit/qore/abi";
 import { publicClient } from "@/lib/chain";
 
 type Hex = `0x${string}`;

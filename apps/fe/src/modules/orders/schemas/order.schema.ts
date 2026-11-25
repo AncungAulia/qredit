@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { MAX_INPUT, qorToHex } from "@qredit/qore";
+import { qorToHex } from "@qredit/qore/address";
+import { MAX_INPUT } from "@qredit/qore/seal-shared";
 
 /** The most addresses one sanctions screen takes (the agent refuses more). */
 export const MAX_ADDRESSES = 20;

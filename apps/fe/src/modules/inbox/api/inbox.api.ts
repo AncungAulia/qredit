@@ -1,4 +1,6 @@
-import { LOAN_VAULT_ABI, VAULT_EVENTS, envelopeHash, openReport } from "@qredit/qore";
+import { VAULT_EVENTS } from "@qredit/qore/abi";
+import { LOAN_VAULT_ABI } from "@qredit/qore/abis";
+import { envelopeHash } from "@qredit/qore/hash";
 import { encodeFunctionData, getAbiItem } from "viem";
 import { z } from "zod";
 import { api, ApiError, parseResponse } from "@/lib/apiClient";
@@ -139,9 +141,11 @@ export async function readDelivery(vault: Hex, orderId: string, fromBlock?: numb
 }
 
 /** Opens a checked delivery with the seal keys of the test wallet. Throws ReportUnreadable for a report sealed to another key. */
-export function openDelivery(session: WalletSession, vault: Hex, orderId: string, delivery: Delivery): OpenedReport {
+export async function openDelivery(session: WalletSession, vault: Hex, orderId: string, delivery: Delivery): Promise<OpenedReport> {
   const wallet = testWalletOf(session);
   if (!wallet) throw new NoSealKeys();
+  // The seal code is large; it loads when a report is opened, not with the page.
+  const { openReport } = await import("@qredit/qore/seal");
   const report = openReport({ text: delivery.text, vault, orderId, keys: wallet.sealKeys, chainId: env.chainId });
   return { report, envelopeHash: delivery.envelopeHash, deliveredTx: delivery.deliveredTx };
 }

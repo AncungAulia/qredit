@@ -1,7 +1,7 @@
 // QoreX adapter. Wraps window.qorex.native (the QoreChain lane) behind one small client.
 // QoreX cannot send EVM transactions; it supplies the address and the post-quantum order signature only.
 import "@qorechain/qorex-types"; // brings the global Window.qorex type
-import { qorToHex } from "@qredit/qore";
+import { qorToHex } from "@qredit/qore/address";
 import { env } from "@/lib/env";
 
 /** "unavailable" is set by the session store after QoreX rejected a connection (the cause is not told apart). */

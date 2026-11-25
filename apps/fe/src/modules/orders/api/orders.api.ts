@@ -1,4 +1,6 @@
-import { createRecipientResolver, envelopeHash, ERC20_ABI, FUSD_ADDRESS, LOAN_VAULT_ABI, sealRequest, VAULT_EVENTS } from "@qredit/qore";
+import { ERC20_ABI, FUSD_ADDRESS, VAULT_EVENTS } from "@qredit/qore/abi";
+import { LOAN_VAULT_ABI } from "@qredit/qore/abis";
+import { envelopeHash } from "@qredit/qore/hash";
 import { decodeEventLog, encodeFunctionData, type TransactionReceipt } from "viem";
 import { ERC20_ERROR_SENTENCES } from "@/components/shared/vaultErrors";
 import { api, ApiError, parseResponse } from "@/lib/apiClient";
@@ -84,6 +86,8 @@ export async function placeOrder(
   if (balance < price) throw new TxReverted(null, ERC20_ERROR_SENTENCES.ERC20InsufficientBalance);
 
   onProgress("sealing");
+  // The seal code is large; it loads when an order is placed, not with the page.
+  const { createRecipientResolver, sealRequest } = await beforePayment(() => import("@qredit/qore/seal"));
   const resolve = createRecipientResolver({ rest: restUrl(), chainId: env.chainId, card: fetchCard });
   const recipient = await beforePayment(() => resolve(business.spender));
   if (!recipient) throw new TxFailed(null, NOT_SEALABLE_SENTENCE);

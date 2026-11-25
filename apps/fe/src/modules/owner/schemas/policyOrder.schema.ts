@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { qorToHex } from "@qredit/qore";
+import { qorToHex } from "@qredit/qore/address";
 import { parseFusd } from "@/lib/format";
 
 /** The kinds of the vault's policy orders. The index of a name is the uint8 `kind` the vault takes. */

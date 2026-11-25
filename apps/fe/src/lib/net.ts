@@ -1,4 +1,4 @@
-import type { Net } from "@qredit/qore";
+import type { Net } from "@qredit/qore/net";
 import { restUrl } from "./chain";
 import { env } from "./env";
 

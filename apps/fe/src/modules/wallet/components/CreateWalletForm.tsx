@@ -23,15 +23,25 @@ const CREATE_FAILED = "The test wallet could not be created. Please try again.";
 export function CreateWalletForm({ onCreated }: { onCreated: () => void }) {
   // Made in the browser once the key code has loaded; the dialog only mounts this form after a click.
   const [phrase, setPhrase] = useState<string | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let current = true;
-    void import("@qorechain/sdk").then(({ generateMnemonic }) => {
-      if (current) setPhrase(generateMnemonic(256));
-    });
+    import("@qorechain/sdk")
+      .then(({ generateMnemonic }) => {
+        if (current) setPhrase(generateMnemonic(256));
+      })
+      .catch(() => {
+        if (current) setLoadFailed(true);
+      });
     return () => {
       current = false;
     };
-  }, []);
+  }, [attempt]);
+  const retryLoad = () => {
+    setLoadFailed(false);
+    setAttempt((n) => n + 1);
+  };
   const create = useWallet((s) => s.create);
   const [failure, setFailure] = useState<string | null>(null);
   const {
@@ -63,7 +73,18 @@ export function CreateWalletForm({ onCreated }: { onCreated: () => void }) {
         It is shown only once. Anyone who has it can use this test wallet. It is a throwaway testnet wallet, so never
         keep real funds in it.
       </Notice>
-      {phrase ? <BackupPhrase phrase={phrase} /> : <Skeleton className="h-[132px] w-full" aria-busy="true" />}
+      {phrase ? (
+        <BackupPhrase phrase={phrase} />
+      ) : loadFailed ? (
+        <div className="flex flex-col items-start gap-3">
+          <Notice tone="danger">The recovery phrase could not be prepared. Please try again.</Notice>
+          <Button type="button" variant="secondary" size="lg" className="h-10 px-3.5" onClick={retryLoad}>
+            Try again
+          </Button>
+        </div>
+      ) : (
+        <Skeleton className="h-[132px] w-full" aria-busy="true" />
+      )}
       <Field data-invalid={errors.saved ? true : undefined}>
         <div className="flex items-center gap-3">
           <Controller

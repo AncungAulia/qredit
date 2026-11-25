@@ -1,4 +1,4 @@
-import { SUPPLIER_NAMES, SUPPLIERS, type SupplierRole } from "@qredit/qore";
+import { SUPPLIER_NAMES, SUPPLIERS, type SupplierRole } from "@qredit/qore/suppliers";
 
 const NAME_BY_ADDRESS = new Map<string, string>(
   (Object.keys(SUPPLIERS) as SupplierRole[]).map((role) => [SUPPLIERS[role], SUPPLIER_NAMES[role]]),

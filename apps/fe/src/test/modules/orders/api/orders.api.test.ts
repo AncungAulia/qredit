@@ -32,8 +32,8 @@ vi.mock("@/modules/wallet/signer", async (orig) => ({
   evmSignerFor: (s: unknown) => signerFor(s),
   ensureWindowFor: (...a: unknown[]) => ensureWindowFor(...a),
 }));
-vi.mock("@qredit/qore", async (orig) => ({
-  ...(await orig<typeof import("@qredit/qore")>()),
+vi.mock("@qredit/qore/seal", async (orig) => ({
+  ...(await orig<typeof import("@qredit/qore/seal")>()),
   createRecipientResolver: () => (a: string) => resolve(a),
   sealRequest: (...a: unknown[]) => seal(...a),
 }));
