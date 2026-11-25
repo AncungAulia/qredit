@@ -225854,6 +225854,19 @@
                 },
                 {
                   "type": "frame",
+                  "id": "MZOzO",
+                  "name": "Art",
+                  "width": "fill_container",
+                  "height": 150,
+                  "fill": {
+                    "type": "image",
+                    "enabled": true,
+                    "url": "landing/glass/key.png",
+                    "mode": "contain"
+                  }
+                },
+                {
+                  "type": "frame",
                   "id": "VJkUj",
                   "name": "Fig",
                   "width": "fill_container",
@@ -226123,6 +226136,19 @@
                   "fontFamily": "$font-body",
                   "fontSize": 13,
                   "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "oVcSQ",
+                  "name": "Art",
+                  "width": "fill_container",
+                  "height": 92,
+                  "fill": {
+                    "type": "image",
+                    "enabled": true,
+                    "url": "landing/glass/shield.png",
+                    "mode": "contain"
+                  }
                 },
                 {
                   "type": "frame",
