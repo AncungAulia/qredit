@@ -1,4 +1,4 @@
-// src/app/Providers.tsx: theme, server-state and toast providers, wrapped around {children} in layout.tsx.
+// app/Providers.tsx: theme, server-state and toast providers, wrapped around {children} in layout.tsx.
 "use client";
 
 import type { ReactNode } from "react";

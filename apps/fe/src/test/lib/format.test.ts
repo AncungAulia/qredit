@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { formatBps, formatDateTime, formatFusd, formatRelative, parseFusd, shortAddress, shortHash } from "./format";
+import { formatBps, formatDateTime, formatFusd, formatRelative, parseFusd, shortAddress, shortHash } from "@/lib/format";
 
 describe("fUSD", () => {
   test("formats 6-decimal units with two decimals", () => {

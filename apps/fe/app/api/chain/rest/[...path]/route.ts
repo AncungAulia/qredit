@@ -16,7 +16,12 @@ export async function GET(req: Request, ctx: { params: Promise<{ path: string[] 
   const path = (await ctx.params).path.join("/");
   if (!isAllowedPath(path)) return Response.json({ error: "not found" }, { status: 404 });
   const query = new URL(req.url).search;
-  const upstream = await fetch(`${REST}/${path}${query}`, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(15_000) });
+  let upstream: Response;
+  try {
+    upstream = await fetch(`${REST}/${path}${query}`, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(15_000) });
+  } catch {
+    return Response.json({ error: "upstream unavailable" }, { status: 502 });
+  }
   return new Response(upstream.body, {
     status: upstream.status,
     headers: { "content-type": upstream.headers.get("content-type") ?? "application/json", "cache-control": "public, max-age=5" },

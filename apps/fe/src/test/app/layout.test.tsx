@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { expect, test } from "vitest";
-import { Providers } from "./Providers";
+import { Providers } from "../../../app/Providers";
 
 test("providers render children", () => {
   render(

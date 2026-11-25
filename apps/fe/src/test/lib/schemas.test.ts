@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { businessSchema, decisionSchema, orderSchema } from "./schemas";
+import { businessSchema, decisionSchema, orderSchema } from "@/lib/schemas";
 
 test("business with services as JSON text", () => {
   const b = businessSchema.parse({

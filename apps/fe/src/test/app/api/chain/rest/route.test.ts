@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from "vitest";
-import { GET, isAllowedPath } from "./[...path]/route";
+import { GET, isAllowedPath } from "../../../../../../app/api/chain/rest/[...path]/route";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -17,6 +17,15 @@ test("forwards an allowed GET", async () => {
   });
   expect(res.status).toBe(200);
   expect(spy.mock.calls[0][0]).toBe("https://api-testnet.qore.host/cosmos/bank/v1beta1/balances/qor1abc?denom=uqor");
+});
+
+test("returns 502 when the upstream is unreachable", async () => {
+  vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("fetch failed"));
+  const res = await GET(new Request("http://x/api/chain/rest/cosmos/bank/v1beta1/balances/qor1abc"), {
+    params: Promise.resolve({ path: ["cosmos", "bank", "v1beta1", "balances", "qor1abc"] }),
+  });
+  expect(res.status).toBe(502);
+  expect(await res.json()).toEqual({ error: "upstream unavailable" });
 });
 
 test("refuses a path outside the allowlist", async () => {

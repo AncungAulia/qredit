@@ -1,7 +1,7 @@
 ﻿import axios, { AxiosError, type AxiosResponse } from "axios";
 import { describe, expect, test } from "vitest";
 import { z } from "zod";
-import { ApiError, parseResponse, toApiError, type ApiErrorKind } from "./apiClient";
+import { ApiError, parseResponse, toApiError, type ApiErrorKind } from "@/lib/apiClient";
 
 const httpError = (status: number) =>
   new AxiosError("request failed", "ERR_BAD_RESPONSE", undefined, undefined, { status } as AxiosResponse);

@@ -29,12 +29,15 @@ Environment: `cp .env.example .env.local` and fill the values. `.env.local` is n
 ## Folder map
 
 ```
+app/            routes only (App Router root), Providers.tsx, globals.css (design tokens)
 src/
-  app/          routes only, Providers.tsx, globals.css (design tokens)
   components/   ui (shadcn), shared (page states), layout
   hooks/        app-wide hooks
   lib/          apiClient, queryClient, env, format, schemas, utils
   modules/      one folder per domain, added with each feature
+  test/         every unit and component test, mirroring the source tree
 ```
+
+Tests live in `src/test/`, mirroring the source tree: `src/lib/format.ts` is tested in `src/test/lib/format.test.ts`, and `app/layout.tsx` in `src/test/app/layout.test.tsx`.
 
 UI values: [docs/ui-profile.md](../../docs/ui-profile.md). Contributor rules: [CLAUDE.md](./CLAUDE.md).

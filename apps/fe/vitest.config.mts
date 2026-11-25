@@ -7,7 +7,7 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     setupFiles: ["./vitest.setup.ts"],
-    include: ["src/**/*.test.{ts,tsx}"],
+    include: ["src/test/**/*.test.{ts,tsx}"],
     // Vitest does not read .env.local; these public URLs match .env.example so tests never depend on it.
     env: {
       NEXT_PUBLIC_API_URL: "https://api.qredit.fun",

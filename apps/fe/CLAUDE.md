@@ -8,12 +8,13 @@ The Qredit web app (Next.js, App Router), served at app.qredit.fun. It reads the
 
 ## Structure
 
-It follows the frontend-starter-kit shape: `src/app` holds thin routes only; each business domain lives in `src/modules/<module>` with `api/`, `components/` and `schemas/`; app-wide pieces live in `components/shared`, `components/ui` (shadcn on Base UI), `hooks`, `lib` and `config`. Import with `@/` only. Components never call axios, fetch or viem directly: module api function, then hook, then component. Money and dates go only through `src/lib/format.ts`. Types come from zod (`z.infer`).
+It follows the frontend-starter-kit shape: `app/` at the app root holds thin routes only; everything else lives in `src/`, and each business domain lives in `src/modules/<module>` with `api/`, `components/` and `schemas/`; app-wide pieces live in `components/shared`, `components/ui` (shadcn on Base UI), `hooks`, `lib` and `config`. Import with `@/` only. Components never call axios, fetch or viem directly: module api function, then hook, then component. Money and dates go only through `src/lib/format.ts`. Types come from zod (`z.infer`).
 
 ## Rules
 
 - **Honest data.** A failed or empty load shows its state (error with retry, empty, skeleton). Never show sample or default values in place of real data. A claim that cannot be checked shows "Not proven yet".
 - **REST access.** The chain REST API sends no CORS headers, so the browser reaches it only through `/api/chain/rest`. The EVM RPC is called directly.
+- **Tests live in `src/test/`, mirroring the source tree.** `src/lib/format.ts` is tested in `src/test/lib/format.test.ts`; `app/layout.tsx` in `src/test/app/layout.test.tsx`. No `*.test.*` file lives anywhere else. Import code under test with `@/` when it sits in `src`, and with a relative path when it sits in `app/`.
 - **No secrets.** No key, mnemonic or Supabase key is ever imported, stored or read server-side in this app. Only `NEXT_PUBLIC_*` public URLs.
 - **Copy.** Formal English, complete sentences, no contractions, no slang or idioms, no abbreviations such as "min". No technical words such as "API" outside the Proof page. Mentions of Qredit use the inline wordmark.
 - **No dividers.** No thin divider lines in lists, cards or tables; separate with spacing. Cards in a grid share structure and height.
