@@ -1,19 +1,26 @@
 import { useQueries, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import type { Business } from "@/lib/schemas";
-import { readFactoryCodeHash, runChecks } from "@/modules/proof/api/proof.api";
+import { readFactoryCodeHash, readFactoryVaults, runChecks } from "@/modules/proof/api/proof.api";
 import { proofKeys } from "@/modules/proof/api/proof.keys";
 
-// The factory build never changes, so it is read once for every business and kept for good.
+// The factory build never changes, so it is read once and kept for good; the vault list is read once a minute for all businesses.
 const proofQueryOptions = (client: QueryClient, business: Business) => ({
   queryKey: proofKeys.business(business.slug),
   queryFn: () =>
-    runChecks(business, () =>
-      client.fetchQuery({
-        queryKey: proofKeys.factoryCodeHash,
-        queryFn: readFactoryCodeHash,
-        staleTime: Infinity,
-      }),
-    ),
+    runChecks(business, {
+      codeHash: () =>
+        client.fetchQuery({
+          queryKey: proofKeys.factoryCodeHash,
+          queryFn: readFactoryCodeHash,
+          staleTime: Infinity,
+        }),
+      vaults: () =>
+        client.fetchQuery({
+          queryKey: proofKeys.factoryVaults,
+          queryFn: readFactoryVaults,
+          staleTime: 60_000,
+        }),
+    }),
   staleTime: 60_000,
 });
 

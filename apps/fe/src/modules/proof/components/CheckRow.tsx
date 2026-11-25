@@ -7,6 +7,7 @@ const ICON: Record<CheckResult["status"], LucideIcon> = {
   proven: ShieldCheck,
   failed: ShieldX,
   unknown: ShieldQuestion,
+  na: ShieldQuestion,
 };
 
 /** Row/Proof in the design: one claim, what the chain showed, and its status. */

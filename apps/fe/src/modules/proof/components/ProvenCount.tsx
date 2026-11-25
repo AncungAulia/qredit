@@ -1,8 +1,8 @@
 import { ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { provenCount, type CheckResult } from "@/modules/proof/checks";
+import { applicableCount, provenCount, type CheckResult } from "@/modules/proof/checks";
 
-/** "N of 6 proven" (Badge/Proven in the design). The count is read from the results, never fixed in copy. */
+/** "N of M proven" (Badge/Proven in the design). The count is read from the results, never fixed in copy. */
 export function ProvenCount({
   results,
   className,
@@ -18,7 +18,7 @@ export function ProvenCount({
       )}
     >
       <ShieldCheck className="size-3.5 text-accent-strong" aria-hidden />
-      {provenCount(results)} of {results.length} proven
+      {provenCount(results)} of {applicableCount(results)} proven
     </span>
   );
 }

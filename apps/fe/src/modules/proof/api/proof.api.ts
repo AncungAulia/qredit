@@ -1,5 +1,5 @@
 import { evmWindowStatus } from "@qorechain/evm";
-import { fetchPqcStatus, fetchSpendingRules } from "@qorechain/sdk";
+import { fetchAuthenticators, fetchPqcStatus, fetchSpendingRules } from "@qorechain/sdk";
 import {
   ERC20_ABI,
   FACTORY_ADDRESS,
@@ -15,7 +15,6 @@ import { vaultStateName } from "@/components/shared/StateBadge";
 import { publicClient, restUrl } from "@/lib/chain";
 import type { Business } from "@/lib/schemas";
 import {
-  enabledRules,
   judgeBooks,
   judgeFactory,
   judgeOperatorWindow,
@@ -36,6 +35,21 @@ export async function readFactoryCodeHash(): Promise<string> {
   return keccak256(code);
 }
 
+/** The vaults the factory lists, lower-cased. Shared by every business. */
+export async function readFactoryVaults(): Promise<string[]> {
+  const all = (await publicClient.readContract({
+    address: FACTORY_ADDRESS,
+    abi: VAULT_FACTORY_ABI,
+    functionName: "all",
+  })) as readonly string[];
+  return all.map((v) => v.toLowerCase());
+}
+
+export type ProofReads = {
+  codeHash: () => Promise<string>;
+  vaults: () => Promise<string[]>;
+};
+
 /** A check that cannot run becomes "unknown"; it is never read as a pass. */
 const guard = async (id: CheckId, run: () => Promise<CheckResult>): Promise<CheckResult> => {
   try {
@@ -51,37 +65,27 @@ const readVault = <T>(address: Hex, functionName: string) =>
 /** Runs the six checks of one business against the chain. Each check is isolated; this never rejects. */
 export function runChecks(
   b: Business,
-  readCodeHash: () => Promise<string> = readFactoryCodeHash,
+  reads: ProofReads = { codeHash: readFactoryCodeHash, vaults: readFactoryVaults },
 ): Promise<CheckResult[]> {
   const vault = b.vault;
   const rest = restUrl();
   return Promise.all([
     guard("factory", async () => {
-      const [all, codeHash] = await Promise.all([
-        publicClient.readContract({
-          address: FACTORY_ADDRESS,
-          abi: VAULT_FACTORY_ABI,
-          functionName: "all",
-        }) as Promise<readonly string[]>,
-        readCodeHash(),
-      ]);
-      return judgeFactory(
-        all.some((v) => v.toLowerCase() === vault),
-        codeHash,
-        FACTORY_RUNTIME_CODEHASH,
-      );
+      const [vaults, codeHash] = await Promise.all([reads.vaults(), reads.codeHash()]);
+      return judgeFactory(vaults.includes(vault), codeHash, FACTORY_RUNTIME_CODEHASH);
     }),
     guard("ownerKey", async () => {
       const ownerPq = await readVault<Hex>(vault, "ownerPq");
       return judgeOwnerKey(await fetchPqcStatus({ rest, address: hexToQor(ownerPq) }));
     }),
-    guard("spenderRule", async () =>
-      judgeSpenderRule(
-        enabledRules(await fetchSpendingRules({ rest, address: hexToQor(b.spender) })),
-        vault,
-        PAY_SUPPLIER_SELECTOR,
-      ),
-    ),
+    guard("spenderRule", async () => {
+      const address = hexToQor(b.spender);
+      const [keys, stored] = await Promise.all([
+        fetchAuthenticators({ rest, address }),
+        fetchSpendingRules({ rest, address }),
+      ]);
+      return judgeSpenderRule({ keys, ...stored }, vault, PAY_SUPPLIER_SELECTOR);
+    }),
     guard("operatorWindow", async () =>
       judgeOperatorWindow(await evmWindowStatus({ rest, address: hexToQor(b.operator) }), vault),
     ),

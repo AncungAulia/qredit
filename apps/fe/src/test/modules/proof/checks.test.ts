@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import {
-  enabledRules,
+  applicableCount,
   judgeBooks,
   judgeFactory,
   judgeOperatorWindow,
@@ -8,6 +8,7 @@ import {
   judgeSpenderRule,
   judgeWidening,
   provenCount,
+  resultsOf,
 } from "@/modules/proof/checks";
 
 const VAULT = "0x37bbb37dd96a973a22ca64bc809a8bc4d54b03d4";
@@ -25,24 +26,109 @@ describe("checks", () => {
     expect(judgeOwnerKey({ registered: true }).status).toBe("unknown");
     expect(judgeOwnerKey({ registered: false }).status).toBe("failed");
   });
-  test("spender rule allows only paySupplier on this vault", () => {
-    expect(judgeSpenderRule([{ allowedEvmCalls: [`${VAULT}/${SEL}`] }], VAULT, SEL).status).toBe("proven");
-    expect(
-      judgeSpenderRule([{ allowedEvmCalls: [`${VAULT.toUpperCase().replace("0X", "0x")}/${SEL}`] }], VAULT, SEL).status,
-    ).toBe("proven");
-    expect(judgeSpenderRule([{ allowedEvmCalls: [`${VAULT}/${SEL}`, `${VAULT}/0x12345678`] }], VAULT, SEL).status).toBe("failed");
-    expect(judgeSpenderRule([{ allowedEvmCalls: [] }], VAULT, SEL).status).toBe("failed");
-    expect(judgeSpenderRule([], VAULT, SEL).status).toBe("failed");
-  });
-  test("the real SDK shape: account-wide and per-key rules, disabled rules ignored", () => {
-    const view = (enabled: boolean, calls: string[]) => ({ id: "x", enabled, allowedEvmCalls: calls });
-    const rules = enabledRules({
-      rules: [view(false, ["0xother/0x1"])],
-      authenticatorRules: [{ scheme: "ed25519", pubkeyHex: "ab", rule: view(true, [`${VAULT}/${SEL}`]) }],
+
+  describe("spender rule", () => {
+    const NOW = 1_800_000_000;
+    const key = (
+      pubkeyHex: string,
+      extra: Partial<{ revoked: boolean; expiryUnix: bigint }> = {},
+    ) => ({ pubkeyHex, revoked: false, expiryUnix: BigInt(NOW + 1000), ...extra });
+    const rule = (calls: string[], enabled = true) => ({ enabled, allowedEvmCalls: calls });
+    const ok = `${VAULT}/${SEL}`;
+    const judge = (s: Parameters<typeof judgeSpenderRule>[0]) =>
+      judgeSpenderRule(s, VAULT, SEL, NOW);
+
+    test("an account-wide rule that allows only paySupplier proves it, in any letter case", () => {
+      expect(judge({ keys: [key("aa")], rules: [rule([ok])], authenticatorRules: [] }).status).toBe(
+        "proven",
+      );
+      const upper = `${VAULT.toUpperCase().replace("0X", "0x")}/${SEL.toUpperCase().replace("0X", "0x")}`;
+      expect(
+        judge({ keys: [key("aa")], rules: [rule([upper])], authenticatorRules: [] }).status,
+      ).toBe("proven");
     });
-    expect(rules).toEqual([{ allowedEvmCalls: [`${VAULT}/${SEL}`] }]);
-    expect(judgeSpenderRule(rules, VAULT, SEL).status).toBe("proven");
+    test("an empty call list fails, because it limits no call to paySupplier", () => {
+      const res = judge({ keys: [key("aa")], rules: [rule([])], authenticatorRules: [] });
+      expect(res.status).toBe("failed");
+      expect(res.detail).toMatch(/lists no allowed call/);
+    });
+    test("an extra allowed call fails", () => {
+      expect(
+        judge({
+          keys: [key("aa")],
+          rules: [rule([ok, `${VAULT}/0x12345678`])],
+          authenticatorRules: [],
+        }).status,
+      ).toBe("failed");
+    });
+    test("a disabled rule is skipped for the next enabled one", () => {
+      expect(
+        judge({
+          keys: [key("aa")],
+          rules: [rule(["0xother"], false), rule([ok])],
+          authenticatorRules: [],
+        }).status,
+      ).toBe("proven");
+      expect(
+        judge({ keys: [key("aa")], rules: [rule([ok], false)], authenticatorRules: [] }).status,
+      ).toBe("failed");
+    });
+    test("a per-key rule overrides the account-wide rule", () => {
+      expect(
+        judge({
+          keys: [key("aa")],
+          rules: [rule([VAULT])],
+          authenticatorRules: [{ pubkeyHex: "AA", rule: rule([ok]) }],
+        }).status,
+      ).toBe("proven");
+      expect(
+        judge({
+          keys: [key("aa")],
+          rules: [rule([ok])],
+          authenticatorRules: [{ pubkeyHex: "aa", rule: rule([VAULT]) }],
+        }).status,
+      ).toBe("failed");
+    });
+    test("a stray rule for a key that is not linked is ignored", () => {
+      expect(
+        judge({
+          keys: [key("aa")],
+          rules: [rule([ok])],
+          authenticatorRules: [{ pubkeyHex: "probe", rule: rule(["0xany/0x1"]) }],
+        }).status,
+      ).toBe("proven");
+    });
+    test("no linked key fails; revoked and expired keys do not count", () => {
+      expect(judge({ keys: [], rules: [rule([ok])], authenticatorRules: [] })).toMatchObject({
+        status: "failed",
+        detail: "No agent key is linked to the spender account.",
+      });
+      expect(
+        judge({ keys: [key("aa", { revoked: true })], rules: [rule([ok])], authenticatorRules: [] })
+          .status,
+      ).toBe("failed");
+      expect(
+        judge({
+          keys: [key("aa", { expiryUnix: BigInt(NOW - 1) })],
+          rules: [rule([ok])],
+          authenticatorRules: [],
+        }).status,
+      ).toBe("failed");
+    });
+    test("a linked key bound by no enabled rule fails", () => {
+      expect(judge({ keys: [key("aa")], rules: [], authenticatorRules: [] }).status).toBe("failed");
+    });
+    test("every linked key must be bound correctly", () => {
+      expect(
+        judge({
+          keys: [key("aa"), key("bb")],
+          rules: [rule([ok])],
+          authenticatorRules: [{ pubkeyHex: "bb", rule: rule([]) }],
+        }).status,
+      ).toBe("failed");
+    });
   });
+
   test("operator window reaches only the vault", () => {
     expect(judgeOperatorWindow({ found: true, live: true, allowedTargets: [VAULT] }, VAULT).status).toBe("proven");
     expect(judgeOperatorWindow({ found: true, live: true, allowedTargets: [] }, VAULT).status).toBe("failed");
@@ -53,16 +139,26 @@ describe("checks", () => {
     expect(judgeBooks([1n, 2n, 3n, 4n, 5n], 15n).status).toBe("proven");
     expect(judgeBooks([1n, 2n, 3n, 4n, 5n], 16n).status).toBe("failed");
   });
-  test("widening", () => {
+  test("widening: proven while a loan runs, not applicable once repaid", () => {
     expect(judgeWidening("Active").status).toBe("proven");
     expect(judgeWidening("Trapped").status).toBe("proven");
     expect(judgeWidening("Repaid")).toMatchObject({
-      status: "proven",
+      status: "na",
       detail: "The loan is repaid, so the owner may widen the rules again.",
     });
   });
-  test("provenCount counts only proven checks", () => {
-    const r = (status: "proven" | "failed" | "unknown") => ({ id: "books" as const, status, detail: "" });
-    expect(provenCount([r("proven"), r("failed"), r("unknown"), r("proven")])).toBe(2);
+  test("counts: not applicable is neither proven nor part of the total", () => {
+    const r = (status: "proven" | "failed" | "unknown" | "na") => ({ id: "books" as const, status, detail: "" });
+    const all = [r("proven"), r("failed"), r("unknown"), r("proven"), r("na")];
+    expect(provenCount(all)).toBe(2);
+    expect(applicableCount(all)).toBe(4);
+  });
+  test("resultsOf: data as is, a failed query as six unknown checks, a pending query as nothing", () => {
+    const data = [{ id: "books" as const, status: "proven" as const, detail: "" }];
+    expect(resultsOf({ data, isError: false })).toBe(data);
+    expect(resultsOf({ isError: false })).toBeUndefined();
+    const failed = resultsOf({ isError: true });
+    expect(failed).toHaveLength(6);
+    expect(failed?.every((c) => c.status === "unknown")).toBe(true);
   });
 });

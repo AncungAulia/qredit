@@ -46,5 +46,5 @@ test("a Cosmos transaction shows as a short hash, not as a link", () => {
   renderPage("attacks");
   expect(screen.getByText("740D1C…1A6C")).toBeInTheDocument();
   expect(screen.getAllByText("Not recorded yet")).toHaveLength(1);
-  expect(screen.getByText("1", { selector: "span" })).toBeInTheDocument();
+  expect(screen.getByText("With a recorded transaction").parentElement).toHaveTextContent(/1\s*of 2/);
 });

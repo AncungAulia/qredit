@@ -7,19 +7,9 @@ import { formatCount } from "@/lib/format";
 import type { Business } from "@/lib/schemas";
 import { useMarketQuery } from "@/modules/market";
 import { useProofQueries } from "@/modules/proof/api/useProofQuery";
-import { CHECK_IDS, provenCount, UNKNOWN_DETAIL, type CheckResult } from "@/modules/proof/checks";
+import { applicableCount, CHECK_IDS, provenCount, resultsOf, type CheckResult } from "@/modules/proof/checks";
 import { CheckRow } from "@/modules/proof/components/CheckRow";
 import { ProvenCount } from "@/modules/proof/components/ProvenCount";
-
-type Query = { data?: CheckResult[]; isError: boolean };
-
-/** The checks to show for one query. A query that failed outright (it should not happen) shows every check as not proven. */
-export function resultsOf(q: Query): CheckResult[] | undefined {
-  if (q.data) return q.data;
-  return q.isError
-    ? CHECK_IDS.map((id) => ({ id, status: "unknown" as const, detail: UNKNOWN_DETAIL }))
-    : undefined;
-}
 
 function BusinessClaims({ business, results }: { business: Business; results?: CheckResult[] }) {
   return (
@@ -55,7 +45,7 @@ function Claims({ businesses }: { businesses: Business[] }) {
   const all = queries.map(resultsOf);
   const settled = all.every((r) => r !== undefined);
   const proven = all.reduce((n, r) => n + (r ? provenCount(r) : 0), 0);
-  const total = all.reduce((n, r) => n + (r ? r.length : 0), 0);
+  const total = all.reduce((n, r) => n + (r ? applicableCount(r) : 0), 0);
 
   return (
     <div className="flex animate-in flex-col gap-4 duration-200 fade-in md:gap-6">

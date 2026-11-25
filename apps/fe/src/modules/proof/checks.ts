@@ -2,7 +2,7 @@ import type { VaultStateName } from "@/components/shared/StateBadge";
 
 export type CheckId =
   "factory" | "ownerKey" | "spenderRule" | "operatorWindow" | "books" | "widening";
-export type CheckResult = { id: CheckId; status: "proven" | "failed" | "unknown"; detail: string };
+export type CheckResult = { id: CheckId; status: "proven" | "failed" | "unknown" | "na"; detail: string };
 
 export const CHECK_IDS: CheckId[] = [
   "factory",
@@ -34,6 +34,20 @@ const lower = (s: string) => s.toLowerCase();
 export const provenCount = (results: CheckResult[]) =>
   results.filter((c) => c.status === "proven").length;
 
+/** The checks that apply now. A check that is not applicable is neither proven nor failed, so it is left out of "N of M". */
+export const applicableCount = (results: CheckResult[]) =>
+  results.filter((c) => c.status !== "na").length;
+
+type Query = { data?: CheckResult[]; isError: boolean };
+
+/** The checks to show for one query. A query that failed outright shows every check as not proven; none is ever read as a pass. */
+export function resultsOf(q: Query): CheckResult[] | undefined {
+  if (q.data) return q.data;
+  return q.isError
+    ? CHECK_IDS.map((id) => ({ id, status: "unknown" as const, detail: UNKNOWN_DETAIL }))
+    : undefined;
+}
+
 export const judgeFactory = (inFactory: boolean, codeHash: string, expected: string) =>
   !inFactory
     ? r("factory", "failed", "The factory does not list this vault.")
@@ -50,30 +64,44 @@ export function judgeOwnerKey(s: { registered: boolean; possessionProven?: boole
     : r("ownerKey", "failed", "The key is registered without a proof of possession.");
 }
 
-type RuleView = { id?: string; enabled: boolean; allowedEvmCalls: string[] };
-type StoredRules = {
+type RuleView = { enabled: boolean; allowedEvmCalls: string[] };
+type LinkedKey = { pubkeyHex: string; revoked: boolean; expiryUnix: bigint };
+export type SpenderInput = {
+  /** Every key linked to the spender account, revoked ones included (as the chain returns them). */
+  keys: LinkedKey[];
+  /** Account-wide rules in stored order. */
   rules: RuleView[];
-  authenticatorRules: { scheme?: string; pubkeyHex?: string; rule: RuleView }[];
+  /** Per-key rules. */
+  authenticatorRules: { pubkeyHex: string; rule: RuleView }[];
 };
 
-/** The rules that bind the agent key: every enabled account-wide rule and every enabled per-key rule. */
-export const enabledRules = (stored: StoredRules): { allowedEvmCalls: string[] }[] =>
-  [...stored.rules, ...stored.authenticatorRules.map((a) => a.rule)]
-    .filter((x) => x.enabled)
-    .map((x) => ({ allowedEvmCalls: x.allowedEvmCalls }));
-
+/**
+ * The agent key may call only paySupplier on this vault. Chain rule (SDK docs): a linked key is bound by its
+ * own per-key rule, else by the first enabled account-wide rule; an empty allowed_evm_calls lets a bound key
+ * send no call data at all. Only keys that are still linked (not revoked, not expired) are judged, and a rule
+ * that binds no linked key is ignored.
+ */
 export function judgeSpenderRule(
-  rules: { allowedEvmCalls: string[] }[],
+  s: SpenderInput,
   vault: string,
   selector: string,
+  nowUnix = Math.floor(Date.now() / 1000),
 ): CheckResult {
+  const linked = s.keys.filter((k) => !k.revoked && (k.expiryUnix === 0n || k.expiryUnix > BigInt(nowUnix)));
+  if (linked.length === 0) return r("spenderRule", "failed", "No agent key is linked to the spender account.");
   const expected = `${lower(vault)}/${lower(selector)}`;
-  const calls = rules.flatMap((x) => x.allowedEvmCalls.map(lower));
-  if (rules.length === 0 || calls.length === 0)
-    return r("spenderRule", "failed", "No spending rule limits the agent key's calls.");
-  return calls.every((c) => c === expected)
-    ? r("spenderRule", "proven", "Every rule allows only paySupplier on this vault.")
-    : r("spenderRule", "failed", "A rule allows a call other than paySupplier on this vault.");
+  const accountWide = s.rules.find((x) => x.enabled);
+  for (const key of linked) {
+    const own = s.authenticatorRules.find((a) => lower(a.pubkeyHex) === lower(key.pubkeyHex) && a.rule.enabled);
+    const binding = own?.rule ?? accountWide;
+    if (!binding) return r("spenderRule", "failed", "A linked agent key is bound by no enabled spending rule.");
+    const calls = binding.allowedEvmCalls.map(lower);
+    if (calls.length === 0)
+      return r("spenderRule", "failed", "The rule of a linked agent key lists no allowed call, so it limits no call to paySupplier.");
+    if (!calls.every((c) => c === expected))
+      return r("spenderRule", "failed", "The rule of a linked agent key allows a call other than paySupplier on this vault.");
+  }
+  return r("spenderRule", "proven", "Every linked agent key is bound by a rule that allows only paySupplier on this vault.");
 }
 
 export function judgeOperatorWindow(
@@ -97,5 +125,5 @@ export function judgeBooks(books: readonly bigint[], balance: bigint): CheckResu
 
 export const judgeWidening = (state: VaultStateName): CheckResult =>
   state === "Repaid"
-    ? r("widening", "proven", "The loan is repaid, so the owner may widen the rules again.")
+    ? r("widening", "na", "The loan is repaid, so the owner may widen the rules again.")
     : r("widening", "proven", "The loan is not repaid, so the vault refuses every widening order.");

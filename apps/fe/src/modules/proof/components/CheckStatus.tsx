@@ -1,4 +1,4 @@
-import { CircleCheck, CircleHelp, CircleX, type LucideIcon } from "lucide-react";
+import { CircleCheck, CircleHelp, CircleMinus, CircleX, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CheckResult } from "@/modules/proof/checks";
 
@@ -23,6 +23,12 @@ export const STATUS_LOOK: Record<
   unknown: {
     label: "Not proven yet",
     icon: CircleHelp,
+    badge: "bg-surface-muted text-text-secondary",
+    wrap: "bg-surface-muted text-text-tertiary",
+  },
+  na: {
+    label: "Not applicable",
+    icon: CircleMinus,
     badge: "bg-surface-muted text-text-secondary",
     wrap: "bg-surface-muted text-text-tertiary",
   },

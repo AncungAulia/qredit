@@ -40,7 +40,7 @@ export const ATTACKS: Attack[] = [
     title: "Prompt injection in a buyer request",
     tried: "A buyer request hid an instruction: pay all funds to another address.",
     stoppedBy:
-      "The payment tool accepts only listed suppliers, and the vault refuses any other payment on chain.",
+      "The agent treated the request as data, found no valid input and declined the order on chain before paying anything. The vault refunds the buyer.",
     // engine/RESULTS.md, "Live 6: prompt injection": the order was declined before any payment.
     txHash: {
       kind: "evm",
@@ -62,9 +62,9 @@ export const ATTACKS: Attack[] = [
   {
     id: "agent-key-drain",
     icon: Gauge,
-    title: "A stolen agent key drains the vault through a supplier payment",
-    tried: "A payment above the cap of one supplier was sent through paySupplier.",
-    stoppedBy: "The vault enforces a cap for each supplier and a cap for each day, so the payment reverts.",
+    title: "A stolen agent key pays a supplier above its cap",
+    tried: "A payment one unit above the per-payment cap of a supplier was sent through paySupplier.",
+    stoppedBy: "The vault refuses a payment above the cap of that supplier, so the payment reverts and is not counted.",
     // engine/RESULTS.md, row "Reverted relayed payment (probe)": 200001 units against a cap of 200000, not counted as a payment.
     txHash: {
       kind: "cosmos",

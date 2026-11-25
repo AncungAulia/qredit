@@ -6,8 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { Business } from "@/lib/schemas";
 import { cn, focusRing } from "@/lib/utils";
 import { useProofQuery } from "@/modules/proof/api/useProofQuery";
-import { CHECK_IDS, CHECK_TITLES, provenCount } from "@/modules/proof/checks";
-import { resultsOf } from "@/modules/proof/components/ClaimList";
+import { applicableCount, CHECK_IDS, CHECK_TITLES, provenCount, resultsOf } from "@/modules/proof/checks";
 import { STATUS_LOOK } from "@/modules/proof/components/CheckStatus";
 
 /** "N of 6 proven" with the six checks in short form, on the Business page. Every status comes from the chain, never from copy. */
@@ -18,7 +17,7 @@ export function ProvenCard({ business }: { business: Business }) {
       {results ? (
         <div className="flex animate-in flex-col gap-4 duration-200 fade-in">
           <p className="text-[28px] leading-none font-medium tracking-[-0.8px] text-text-primary tabular-nums">
-            {provenCount(results)} of {results.length} proven
+            {provenCount(results)} of {applicableCount(results)} proven
           </p>
           <ul className="flex flex-col gap-3">
             {results.map((r) => {
