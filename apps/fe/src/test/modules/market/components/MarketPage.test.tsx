@@ -240,3 +240,15 @@ test("the loading state is one status region", () => {
   wrap(<MarketPage />);
   expect(screen.getAllByRole("status")).toHaveLength(1);
 });
+
+test("a failed refresh shows a stale notice with retry above the figures", async () => {
+  getMarket.mockResolvedValueOnce([entry("a", "Alpha", "Active", 50_000_000n, 1n)]);
+  wrap(<MarketPage />);
+  expect(await screen.findByRole("link", { name: /Alpha/ })).toBeInTheDocument();
+  expect(screen.queryByText(/could not be refreshed/)).not.toBeInTheDocument();
+  getMarket.mockRejectedValue(new Error("down"));
+  await client.invalidateQueries({ queryKey: ["market"] });
+  expect(await screen.findByText(/could not be refreshed/)).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: /Alpha/ })).toBeInTheDocument();
+});

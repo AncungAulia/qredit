@@ -1,5 +1,6 @@
 import { Check, X, type LucideIcon } from "lucide-react";
 import { EmptyState, ErrorState } from "@/components/shared/PageStates";
+import { StaleNotice } from "@/components/shared/StaleNotice";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatFusd, formatRelative } from "@/lib/format";
 import type { Decision } from "@/lib/schemas";
@@ -99,10 +100,13 @@ export function DecisionLog({ decisions, isError, onRetry, raising }: Props) {
     );
   }
   return (
-    <div className="flex flex-1 animate-in flex-col gap-0.5 rounded-3xl bg-surface px-4 py-2 duration-200 fade-in md:px-6">
-      {decisions.map((d) => (
-        <DecisionRow key={d.id} d={d} />
-      ))}
+    <div className="flex flex-1 animate-in flex-col gap-3 duration-200 fade-in">
+      {isError && <StaleNotice onRetry={onRetry} />}
+      <div className="flex flex-1 flex-col gap-0.5 rounded-3xl bg-surface px-4 py-2 md:px-6">
+        {decisions.map((d) => (
+          <DecisionRow key={d.id} d={d} />
+        ))}
+      </div>
     </div>
   );
 }

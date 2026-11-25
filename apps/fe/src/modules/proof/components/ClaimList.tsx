@@ -3,6 +3,7 @@
 import { BusinessMark } from "@/components/shared/BusinessMark";
 import { KpiTile } from "@/components/shared/KpiTile";
 import { EmptyState, ErrorState, ListSkeleton } from "@/components/shared/PageStates";
+import { StaleNotice } from "@/components/shared/StaleNotice";
 import { formatCount } from "@/lib/format";
 import type { Business } from "@/lib/schemas";
 import { useMarketQuery } from "@/modules/market";
@@ -11,7 +12,16 @@ import { applicableCount, CHECK_IDS, provenCount, resultsOf, type CheckResult } 
 import { CheckRow } from "@/modules/proof/components/CheckRow";
 import { ProvenCount } from "@/modules/proof/components/ProvenCount";
 
-function BusinessClaims({ business, results }: { business: Business; results?: CheckResult[] }) {
+function BusinessClaims({
+  business,
+  results,
+  onRetry,
+}: {
+  business: Business;
+  results?: CheckResult[];
+  /** Set when the latest refresh failed and `results` are from an earlier run. */
+  onRetry?: () => void;
+}) {
   return (
     <section
       aria-labelledby={`claims-${business.slug}`}
@@ -27,6 +37,7 @@ function BusinessClaims({ business, results }: { business: Business; results?: C
         </div>
         {results && <ProvenCount results={results} />}
       </div>
+      {results && onRetry && <StaleNotice onRetry={onRetry} />}
       {results ? (
         <ul className="animate-in duration-200 fade-in">
           {results.map((r) => (
@@ -64,7 +75,12 @@ function Claims({ businesses }: { businesses: Business[] }) {
       </div>
       <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-2">
         {businesses.map((b, i) => (
-          <BusinessClaims key={b.slug} business={b} results={all[i]} />
+          <BusinessClaims
+            key={b.slug}
+            business={b}
+            results={all[i]}
+            onRetry={queries[i].isRefetchError ? () => queries[i].refetch() : undefined}
+          />
         ))}
       </div>
     </div>
@@ -87,5 +103,10 @@ export function ClaimList() {
   }
   if (!rows) return <ListSkeleton rows={4} rowClassName="h-72" />;
   if (rows.length === 0) return <EmptyState art="search" title="No businesses are listed yet." />;
-  return <Claims businesses={rows.map((r) => r.business)} />;
+  return (
+    <div className="flex flex-col gap-4">
+      {market.isRefetchError && <StaleNotice onRetry={() => market.refetch()} />}
+      <Claims businesses={rows.map((r) => r.business)} />
+    </div>
+  );
 }

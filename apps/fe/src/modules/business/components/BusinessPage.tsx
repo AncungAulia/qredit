@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { EmptyState, ErrorState } from "@/components/shared/PageStates";
+import { StaleNotice } from "@/components/shared/StaleNotice";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError } from "@/lib/apiClient";
 import type { Business } from "@/lib/schemas";
@@ -69,7 +70,8 @@ function BusinessBody({ business }: { business: Business }) {
           onRetry={() => vault.refetch()}
         />
       ) : snapshot ? (
-        <div className="animate-in duration-200 fade-in">
+        <div className="flex animate-in flex-col gap-3 duration-200 fade-in">
+          {vault.isRefetchError && <StaleNotice onRetry={() => vault.refetch()} />}
           <BusinessKpis
             vault={snapshot}
             delivered={delivered}
@@ -119,7 +121,8 @@ function BusinessBody({ business }: { business: Business }) {
             description="Suppliers this business was created with. Caps are read from the vault now."
           >
             {rules.data ? (
-              <div className="animate-in duration-200 fade-in">
+              <div className="flex animate-in flex-col gap-3 duration-200 fade-in">
+                {rules.isRefetchError && <StaleNotice onRetry={() => rules.refetch()} />}
                 <VaultRules rules={rules.data} />
               </div>
             ) : rules.isError ? (

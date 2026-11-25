@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { EmptyState, ErrorState } from "@/components/shared/PageStates";
+import { StaleNotice } from "@/components/shared/StaleNotice";
 import { Button } from "@/components/ui/button";
 import { isFailed, isLoaded } from "@/modules/market/api/market.api";
 import { useLatestOrdersQuery, useMarketQuery } from "@/modules/market/api/useMarketQuery";
@@ -56,6 +57,7 @@ function MarketContent() {
     const failed = rows.filter(isFailed).length;
     body = (
       <div className="flex animate-in flex-col gap-6 duration-200 fade-in md:gap-8 xl:gap-10">
+        {market.isRefetchError && <StaleNotice onRetry={() => market.refetch()} />}
         <MarketKpis entries={rows.filter(isLoaded)} skipped={failed} />
         {shown.length === 0 ? (
           <EmptyState

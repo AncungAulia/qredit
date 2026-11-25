@@ -1,6 +1,7 @@
 import { Address } from "@/components/shared/Address";
 import { OrderStatusBadge } from "@/components/shared/OrderStatusBadge";
 import { EmptyState, ErrorState } from "@/components/shared/PageStates";
+import { StaleNotice } from "@/components/shared/StaleNotice";
 import { TxLink } from "@/components/shared/TxLink";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatFusd } from "@/lib/format";
@@ -73,6 +74,7 @@ export function ActivityTable({ business, orders, isError, onRetry }: Props) {
   const newest = [...orders].sort((a, b) => b.placedBlock - a.placedBlock).slice(0, SHOWN);
   return (
     <div className="flex animate-in flex-col gap-3 duration-200 fade-in">
+      {isError && <StaleNotice onRetry={onRetry} />}
       <div className="flex flex-col gap-0.5 rounded-3xl bg-surface px-6 py-2 md:p-3">
         <div
           className={`hidden gap-x-4 px-4 pt-1 pb-2 text-xs font-medium text-text-tertiary md:grid ${COLUMNS}`}

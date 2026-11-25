@@ -32,6 +32,7 @@ export function useRulesQuery(business: Business) {
     data: rules.data,
     // A failed supplier lookup is a failed rules load; nothing else would show.
     isError: suppliers.isError || rules.isError,
+    isRefetchError: suppliers.isRefetchError || rules.isRefetchError,
     refetch: () => (suppliers.isError ? suppliers.refetch() : rules.refetch()),
   };
 }
