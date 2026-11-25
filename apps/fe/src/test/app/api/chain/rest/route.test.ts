@@ -10,6 +10,8 @@ test("allowlist", () => {
   expect(isAllowedPath("cosmos/tx/v1beta1/txs/ABCDEF")).toBe(true);
   expect(isAllowedPath("qorechain/pqc/v1/protocol_features")).toBe(true);
   expect(isAllowedPath("cosmos/upgrade/v1beta1/applied_plan/v3.2.0")).toBe(true);
+  expect(isAllowedPath("qorechain/pqc/v1/protocol_featuresXYZ")).toBe(false);
+  expect(isAllowedPath("qorechain/pqc/v1/protocol_features/x")).toBe(false);
   expect(isAllowedPath("cosmos/upgrade/v1beta1/current_plan")).toBe(false);
   expect(isAllowedPath("../etc/passwd")).toBe(false);
 });

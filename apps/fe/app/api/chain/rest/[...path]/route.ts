@@ -9,11 +9,14 @@ export const ALLOWED_PREFIXES = [
   "cosmos/bank/v1beta1/balances/",
   "cosmos/auth/v1beta1/accounts/",
   "cosmos/tx/v1beta1/txs/",
-  "qorechain/pqc/v1/protocol_features",
   "cosmos/upgrade/v1beta1/applied_plan/",
 ] as const;
 
-export const isAllowedPath = (p: string) => !p.includes("..") && ALLOWED_PREFIXES.some((x) => p.startsWith(x));
+/** Single paths with no suffix: the hybrid signer reads the protocol feature list. */
+export const ALLOWED_EXACT = ["qorechain/pqc/v1/protocol_features"] as const;
+
+export const isAllowedPath = (p: string) =>
+  !p.includes("..") && (ALLOWED_PREFIXES.some((x) => p.startsWith(x)) || (ALLOWED_EXACT as readonly string[]).includes(p));
 
 /** A segment is safe only when it cannot change the path or the query once placed in a URL. */
 const isSafeSegment = (s: string) => s !== "" && s !== "." && s !== ".." && !/[%/\\?#]/.test(s);
