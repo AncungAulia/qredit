@@ -24,7 +24,20 @@ Run from the repo root once with `bun install`, then inside `apps/fe`:
 - `bun run build` and `bun run start` build and serve production.
 - `bun run test`, `bun run typecheck`, `bun run lint`, `bun run format`.
 
-Environment: `cp .env.example .env.local` and fill the values. `.env.local` is never committed.
+Environment: `cp .env.example .env.local` and fill the values listed under Environment variables. `.env.local` is never committed.
+
+## Environment variables
+
+`.env.example` lists the names only. All of these are public addresses (no secret), and the values are the same for local development and production. The `NEXT_PUBLIC_*` values are inlined into the browser bundle at build time.
+
+| Name                        | Value                             |
+| --------------------------- | --------------------------------- |
+| `NEXT_PUBLIC_API_URL`       | `https://api.qredit.fun`          |
+| `NEXT_PUBLIC_QORE_EVM_URL`  | `https://evm-testnet.qore.host`   |
+| `NEXT_PUBLIC_QORE_CHAIN_ID` | `qorechain-diana`                 |
+| `NEXT_PUBLIC_EXPLORER_URL`  | empty (no explorer link is shown) |
+| `QORE_REST_URL`             | `https://api-testnet.qore.host`   |
+
 
 ## Folder map
 
@@ -55,15 +68,7 @@ The app is hosted on Vercel at app.qredit.fun. Create one Vercel project from th
 
 Why the install command is overridden: the install path follows the Root Directory, while the workspace lockfile `bun.lock` and the `workspaces` list are in the repository root. Installing from the root links `@qredit/qore` into `apps/fe`. Vercel detects Bun from `bun.lock` and uses Bun 1, so no `vercel.json` is needed. To pin a Bun release, use `bunx bun@1.3.13 install --frozen-lockfile` from the root.
 
-Environment variables (Settings, Environment Variables; the names are in `.env.example`). The `NEXT_PUBLIC_*` values are inlined into the browser bundle at build time, so set them before the first build and redeploy after any change.
-
-| Name                        | Production value                  |
-| --------------------------- | --------------------------------- |
-| `NEXT_PUBLIC_API_URL`       | `https://api.qredit.fun`          |
-| `NEXT_PUBLIC_QORE_EVM_URL`  | `https://evm-testnet.qore.host`   |
-| `NEXT_PUBLIC_QORE_CHAIN_ID` | `qorechain-diana`                 |
-| `NEXT_PUBLIC_EXPLORER_URL`  | empty (no explorer link is shown) |
-| `QORE_REST_URL`             | `https://api-testnet.qore.host`   |
+Environment variables (Settings, Environment Variables): set every name from the table under Environment variables above. Set them before the first build and redeploy after any change, because the `NEXT_PUBLIC_*` values are inlined at build time.
 
 Domain: in Settings, Domains, add `app.qredit.fun`. Vercel then shows a `CNAME` value for the project (for example `d1d4fc829fe7bc7c.vercel-dns-017.com`; use the exact value shown, never one from another project). In the Hostinger DNS zone of `qredit.fun`, add a record of type `CNAME`, name `app`, with that value, and remove any other `A`, `AAAA` or `CNAME` record named `app`. The backend already allows the origin `https://app.qredit.fun`.
 
