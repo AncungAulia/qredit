@@ -20,6 +20,7 @@ It follows the frontend-starter-kit shape: `app/` at the app root holds thin rou
 - **Copy.** Formal English, complete sentences, no contractions, no slang or idioms, no abbreviations such as "min". No technical words such as "API" outside the Proof page. Mentions of Qredit use the inline wordmark.
 - **No dividers.** No thin divider lines in lists, cards or tables; separate with spacing. Cards in a grid share structure and height.
 - **Address inside a link: keep copyable off.** `Address` has no copy button by default so it can sit inside a link card without nesting a button in a link. Pages opt in with `copyable`.
+- **Client storage and logging.** The browser stores only `qredit.testWallet.v1` (encrypted record, `localStorage`), the theme and the faucet `retryAt` (`sessionStorage`). No `console.*` call exists in `src` or `app`; a phrase, key, sealed plaintext or opened report never goes to a log, a URL or a request, and only sealed envelopes and signed transactions leave the browser. `README.md` documents the wallet, QoreX and the two proxies; update it with any change to them.
 - **Touch and focus.** Interactive elements are 44 px on coarse pointers; every one uses `focusRing` from `src/lib/utils.ts`.
 - **Fonts.** Geist for all text; Geist Mono only for addresses and hashes; tabular numerals for every figure.
 
