@@ -4,8 +4,8 @@ const calls: string[] = [];
 const readVault = vi.fn();
 const readBalance = vi.fn();
 const readAllowance = vi.fn();
-const getReceipt = vi.fn();
 const send = vi.fn();
+const sendForReceipt = vi.fn();
 const ensureWindowFor = vi.fn();
 const signerFor = vi.fn();
 const post = vi.fn();
@@ -15,7 +15,7 @@ const seal = vi.fn();
 
 vi.mock("@/lib/chain", () => ({
   readVault: (...a: unknown[]) => readVault(...a),
-  publicClient: { getTransactionReceipt: (a: unknown) => getReceipt(a) },
+  publicClient: {},
   restUrl: () => "http://app/api/chain/rest",
 }));
 vi.mock("@/lib/fusd", () => ({
@@ -44,6 +44,7 @@ import { ApiError } from "@/lib/apiClient";
 import type { Business } from "@/lib/schemas";
 import { NOT_SEALABLE_SENTENCE, fetchCard, placeOrder, readQuote, type PlaceOrderProgress } from "@/modules/orders/api/orders.api";
 import type { TestSession } from "@/modules/wallet/session";
+import { WINDOW_FAILED_SENTENCE } from "@/modules/wallet/act";
 import { TxFailed, TxReverted } from "@/modules/wallet/signer";
 
 const EVM = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8" as const;
@@ -67,7 +68,7 @@ function placedLog(orderId: bigint) {
 beforeEach(() => {
   vi.clearAllMocks();
   calls.length = 0;
-  signerFor.mockReturnValue({ address: EVM, send });
+  signerFor.mockReturnValue({ address: EVM, send, sendForReceipt });
   readVault.mockImplementation(async (_v: string, fn: string) => {
     if (fn === "servicePrice") return PRICE;
     if (fn === "orderTtl") return 3600n;
@@ -89,11 +90,14 @@ beforeEach(() => {
     calls.push("window");
     return null;
   });
-  send.mockImplementation(async (to: string) => {
-    calls.push(to === FUSD_ADDRESS ? "approve" : "buy");
-    return to === FUSD_ADDRESS ? "0xapprove" : "0xbuy";
+  send.mockImplementation(async () => {
+    calls.push("approve");
+    return "0xapprove";
   });
-  getReceipt.mockResolvedValue({ logs: [placedLog(7n)] });
+  sendForReceipt.mockImplementation(async () => {
+    calls.push("buy");
+    return { hash: "0xbuy", receipt: { logs: [placedLog(7n)] } };
+  });
 });
 
 test("readQuote reads the price and the refund time from the vault", async () => {
@@ -111,8 +115,8 @@ test("placeOrder seals, posts, opens the window, approves and buys, in that orde
   expect(seal.mock.calls[0]![0]).toMatchObject({ body: { v: 1, serviceId: 0, input: "0xabc" }, vault: VAULT, chainId: "qorechain-diana" });
   expect(post).toHaveBeenCalledWith("/v1/envelopes", { kind: "request", body: TEXT });
   expect(ensureWindowFor).toHaveBeenCalledWith(session, [FUSD_ADDRESS, VAULT]);
-  expect(send).toHaveBeenNthCalledWith(1, FUSD_ADDRESS, encodeFunctionData({ abi: ERC20_ABI, functionName: "approve", args: [VAULT, PRICE] }));
-  expect(send).toHaveBeenNthCalledWith(2, VAULT, encodeFunctionData({ abi: LOAN_VAULT_ABI, functionName: "buy", args: [0n, HASH] }));
+  expect(send).toHaveBeenCalledWith(FUSD_ADDRESS, encodeFunctionData({ abi: ERC20_ABI, functionName: "approve", args: [VAULT, PRICE] }));
+  expect(sendForReceipt).toHaveBeenCalledWith(VAULT, encodeFunctionData({ abi: LOAN_VAULT_ABI, functionName: "buy", args: [0n, HASH] }));
 });
 
 test("the approval is skipped when the allowance already covers the price", async () => {
@@ -131,6 +135,7 @@ test("a hash that differs from the local one aborts before anything is paid", as
   await expect(placeOrder(session, business, 0, "0xabc", () => {})).rejects.toBeInstanceOf(TxFailed);
   expect(ensureWindowFor).not.toHaveBeenCalled();
   expect(send).not.toHaveBeenCalled();
+  expect(sendForReceipt).not.toHaveBeenCalled();
 });
 
 test("a spender without an inbox key ends in a sentence and nothing is posted", async () => {
@@ -138,6 +143,7 @@ test("a spender without an inbox key ends in a sentence and nothing is posted", 
   await expect(placeOrder(session, business, 0, "0xabc", () => {})).rejects.toMatchObject({ reason: NOT_SEALABLE_SENTENCE });
   expect(post).not.toHaveBeenCalled();
   expect(send).not.toHaveBeenCalled();
+  expect(sendForReceipt).not.toHaveBeenCalled();
 });
 
 test("a wallet that holds too little fUSD is refused before sealing", async () => {
@@ -153,10 +159,11 @@ test("a failed post is a sentence that says nothing was paid", async () => {
     reason: expect.stringContaining("Nothing was paid"),
   });
   expect(send).not.toHaveBeenCalled();
+  expect(sendForReceipt).not.toHaveBeenCalled();
 });
 
 test("a payment without an OrderPlaced event is reported with its hash", async () => {
-  getReceipt.mockResolvedValue({ logs: [] });
+  sendForReceipt.mockResolvedValue({ hash: "0xbuy", receipt: { logs: [] } });
   await expect(placeOrder(session, business, 0, "0xabc", () => {})).rejects.toMatchObject({ name: "TxFailed", hash: "0xbuy" });
 });
 
@@ -185,23 +192,29 @@ test.each([
   fail();
   await expect(placeOrder(session, business, 0, "0xabc", () => {})).rejects.toMatchObject({ name: "TxFailed", hash: null, reason: NOTHING_PAID });
   expect(send).not.toHaveBeenCalled();
+  expect(sendForReceipt).not.toHaveBeenCalled();
 });
 
 test("a failed window or allowance read says nothing was paid", async () => {
   readAllowance.mockRejectedValue(new Error("rpc down"));
   await expect(placeOrder(session, business, 0, "0xabc", () => {})).rejects.toMatchObject({ name: "TxFailed", reason: NOTHING_PAID });
   expect(send).not.toHaveBeenCalled();
+  expect(sendForReceipt).not.toHaveBeenCalled();
 });
 
 test("a buy that reverts keeps its hash and stays a revert, so the order can be tried again", async () => {
-  send.mockImplementation(async (to: string) => {
-    if (to === FUSD_ADDRESS) return "0xapprove";
-    throw new TxReverted("0xbuy", "The vault refused this order.");
-  });
+  sendForReceipt.mockRejectedValue(new TxReverted("0xbuy", "The vault refused this order."));
   await expect(placeOrder(session, business, 0, "0xabc", () => {})).rejects.toMatchObject({ name: "TxReverted", hash: "0xbuy" });
 });
 
-test("a receipt that cannot be read after the buy keeps the buy hash and says funds may have moved", async () => {
-  getReceipt.mockRejectedValue(new Error("rpc down"));
-  await expect(placeOrder(session, business, 0, "0xabc", () => {})).rejects.toMatchObject({ name: "TxFailed", hash: "0xbuy" });
+test("the order id comes from the receipt of the buy, with no second receipt lookup", async () => {
+  const result = await placeOrder(session, business, 0, "0xabc", () => {});
+  expect(result.orderId).toBe("7");
+  expect(sendForReceipt).toHaveBeenCalledTimes(1);
+});
+
+test("a window failure says nothing was paid with the shared sentence", async () => {
+  ensureWindowFor.mockRejectedValue(new Error("rpc down"));
+  await expect(placeOrder(session, business, 0, "0xabc", () => {})).rejects.toMatchObject({ name: "TxFailed", reason: WINDOW_FAILED_SENTENCE });
+  expect(send).not.toHaveBeenCalled();
 });

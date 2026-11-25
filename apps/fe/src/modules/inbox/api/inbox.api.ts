@@ -6,7 +6,8 @@ import { publicClient } from "@/lib/chain";
 import { env } from "@/lib/env";
 import type { Business, Order } from "@/lib/schemas";
 import { getBlockTimes, getBusinesses, getOrders } from "@/modules/market/api/market.api";
-import { testWalletOf, ensureWindowFor, evmSignerFor, TxFailed, type EvmSigner } from "@/modules/wallet/signer";
+import { act } from "@/modules/wallet/act";
+import { testWalletOf } from "@/modules/wallet/signer";
 import type { WalletSession } from "@/modules/wallet/session";
 
 type Hex = `0x${string}`;
@@ -53,8 +54,6 @@ export class NoSealKeys extends Error {
     this.name = "NoSealKeys";
   }
 }
-
-export const NO_TEST_WALLET_SENTENCE = "A test wallet is needed to send this transaction. Create or unlock one first.";
 
 const envelopeSchema = z.object({ kind: z.string(), body: z.string() });
 
@@ -165,8 +164,5 @@ export async function readReportContext(vault: Hex, orderId: string): Promise<{ 
 
 /** Takes the price of a late open order back. Opens the scoped window for the vault first. */
 export async function reclaim(session: WalletSession, vault: Hex, orderId: string): Promise<Hex> {
-  const signer: EvmSigner | null = evmSignerFor(session);
-  if (!signer) throw new TxFailed(null, NO_TEST_WALLET_SENTENCE);
-  await ensureWindowFor(session, [vault]);
-  return signer.send(vault, encodeFunctionData({ abi: LOAN_VAULT_ABI, functionName: "reclaim", args: [BigInt(orderId)] }));
+  return act(session, [vault], (signer) => signer.send(vault, encodeFunctionData({ abi: LOAN_VAULT_ABI, functionName: "reclaim", args: [BigInt(orderId)] })));
 }

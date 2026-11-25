@@ -7,12 +7,10 @@ import type { VaultStateName } from "@/lib/vaultState";
 import { readVaultSnapshot } from "@/modules/market/api/market.api";
 import type { OrderInput, PolicyOrder } from "@/modules/owner/schemas/policyOrder.schema";
 import type { WalletSession } from "@/modules/wallet/session";
-import { ensureWindowFor, evmSignerFor, TxFailed, TxReverted } from "@/modules/wallet/signer";
+import { act } from "@/modules/wallet/act";
+import { TxReverted } from "@/modules/wallet/signer";
 
 type Hex = `0x${string}`;
-
-export const NO_TEST_WALLET_SENTENCE =
-  "A test wallet is needed to send this transaction. Create or unlock one first.";
 
 /** The rules of one vault as the owner console shows them. Amounts are fUSD units (6 decimals). */
 export type Rules = {
@@ -94,11 +92,8 @@ export async function simulateApply(
 
 /** Submits the signed order. Anyone may submit it; the vault checks the owner's signature, so the test wallet pays the fee. */
 export async function applyOrder(session: WalletSession, vault: Hex, order: PolicyOrder, sig: Uint8Array): Promise<Hex> {
-  const signer = evmSignerFor(session);
-  if (!signer) throw new TxFailed(null, NO_TEST_WALLET_SENTENCE);
-  await ensureWindowFor(session, [vault]);
   try {
-    return await signer.send(vault, applyData(order, sig));
+    return await act(session, [vault], (signer) => signer.send(vault, applyData(order, sig)));
   } catch (e) {
     if (e instanceof TxReverted) throw new TxReverted(e.hash, withHint(e.reason));
     throw e;

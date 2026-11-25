@@ -7,7 +7,8 @@ import type { Business } from "@/lib/schemas";
 import { readVaultSnapshot } from "@/modules/market/api/market.api";
 import type { VaultSnapshot } from "@/modules/market/schemas/vault.schema";
 import type { WalletSession } from "@/modules/wallet/session";
-import { ensureWindowFor, evmSignerFor, TxFailed, TxReverted, type EvmSigner } from "@/modules/wallet/signer";
+import { act, requireSigner } from "@/modules/wallet/act";
+import { TxFailed, TxReverted } from "@/modules/wallet/signer";
 
 export { readFusdBalance };
 
@@ -25,8 +26,6 @@ export type Position = {
 export const RAISE_FULL_SENTENCE =
   "The vault refused this loan, and your fUSD has not moved. Please choose a business that is still raising.";
 export const LEND_NOT_PREPARED_SENTENCE = "The loan could not be prepared. Please try again.";
-export const NO_TEST_WALLET_SENTENCE =
-  "A test wallet is needed to send this transaction. Create or unlock one first.";
 
 /** The positions of one lender: only vaults where the lender still holds a deposit. */
 export async function readPositions(evm: Hex, businesses: Business[]): Promise<Position[]> {
@@ -44,12 +43,6 @@ export async function readPositions(evm: Hex, businesses: Business[]): Promise<P
   );
 }
 
-function signerOf(session: WalletSession): EvmSigner {
-  const signer = evmSignerFor(session);
-  if (!signer) throw new TxFailed(null, NO_TEST_WALLET_SENTENCE);
-  return signer;
-}
-
 /**
  * Lends `amount` to a raising vault: checks the vault and the wallet, opens the scoped window for fUSD and the vault,
  * approves when the allowance is short, then deposits. `onSent` is called once the checks passed and the sends start.
@@ -61,7 +54,7 @@ export async function lend(
   amount: bigint,
   onSent?: () => void,
 ): Promise<{ approveTx?: Hex; depositTx: Hex }> {
-  const signer = signerOf(session);
+  const signer = requireSigner(session);
   const [state, raised, loan, balance, allowance] = await Promise.all([
     readVault(vault, "state"),
     readVault(vault, "raised"),
@@ -84,21 +77,20 @@ export async function lend(
   }
   if (plan.action !== "deposit" || plan.amount !== amount) throw new TxFailed(null, LEND_NOT_PREPARED_SENTENCE);
 
-  await ensureWindowFor(session, [FUSD_ADDRESS, vault]);
-  onSent?.();
-  let approveTx: Hex | undefined;
-  if (plan.approve) {
-    approveTx = await signer.send(FUSD_ADDRESS, encodeFunctionData({ abi: ERC20_ABI, functionName: "approve", args: [vault, amount] }));
-  }
-  const depositTx = await signer.send(vault, encodeFunctionData({ abi: LOAN_VAULT_ABI, functionName: "deposit", args: [amount] }));
-  return approveTx ? { approveTx, depositTx } : { depositTx };
+  const approves = plan.approve;
+  return act(session, [FUSD_ADDRESS, vault], async (locked) => {
+    onSent?.();
+    let approveTx: Hex | undefined;
+    if (approves) {
+      approveTx = await locked.send(FUSD_ADDRESS, encodeFunctionData({ abi: ERC20_ABI, functionName: "approve", args: [vault, amount] }));
+    }
+    const depositTx = await locked.send(vault, encodeFunctionData({ abi: LOAN_VAULT_ABI, functionName: "deposit", args: [amount] }));
+    return approveTx ? { approveTx, depositTx } : { depositTx };
+  });
 }
 
-async function callVault(session: WalletSession, vault: Hex, functionName: "claimLender" | "refund"): Promise<Hex> {
-  const signer = signerOf(session);
-  await ensureWindowFor(session, [vault]);
-  return signer.send(vault, encodeFunctionData({ abi: LOAN_VAULT_ABI, functionName }));
-}
+const callVault = (session: WalletSession, vault: Hex, functionName: "claimLender" | "refund"): Promise<Hex> =>
+  act(session, [vault], (signer) => signer.send(vault, encodeFunctionData({ abi: LOAN_VAULT_ABI, functionName })));
 
 /** Pays the lender every repayment that has arrived and is not yet claimed. */
 export const claim = (session: WalletSession, vault: Hex) => callVault(session, vault, "claimLender");

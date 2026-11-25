@@ -156,3 +156,28 @@ test("claim and refund send the vault call after the window", async () => {
   expect(send).toHaveBeenLastCalledWith(V1, encodeFunctionData({ abi: LOAN_VAULT_ABI, functionName: "refund" }));
   expect(ensureWindowFor).toHaveBeenCalledWith(session, [V1]);
 });
+
+test("a claim and a refund on one wallet do not interleave: each takes its window and sends before the next starts", async () => {
+  const seen: string[] = [];
+  const wait = () => new Promise((r) => setTimeout(r, 5));
+  ensureWindowFor.mockImplementation(async (_s: unknown, targets: string[]) => {
+    seen.push(`window ${targets[0] === V1 ? "v1" : "v2"}`);
+    await wait();
+    return null;
+  });
+  send.mockReset();
+  send.mockImplementation(async (to: string) => {
+    seen.push(`send ${to === V1 ? "v1" : "v2"}`);
+    await wait();
+    return "0xccc";
+  });
+  await Promise.all([claim(session, V1), refund(session, V2)]);
+  expect(seen).toEqual(["window v1", "send v1", "window v2", "send v2"]);
+});
+
+test("a failed claim releases the lock for the next action", async () => {
+  send.mockReset();
+  send.mockRejectedValueOnce(new TxReverted(null, "no")).mockResolvedValueOnce("0xddd");
+  const results = await Promise.allSettled([claim(session, V1), refund(session, V1)]);
+  expect(results.map((r) => r.status)).toEqual(["rejected", "fulfilled"]);
+});

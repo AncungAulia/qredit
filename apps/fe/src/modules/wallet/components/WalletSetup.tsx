@@ -14,7 +14,7 @@ import { claimFaucet } from "@/modules/wallet/api/wallet.api";
 import { useWalletStatusQuery } from "@/modules/wallet/api/useWalletStatus";
 import { setupDisplay, type StepDisplay } from "@/modules/wallet/setup/display";
 import { readRetryAt, writeRetryAt } from "@/modules/wallet/setup/faucetRetry";
-import { TxFailed, TxReverted, testWalletOf } from "@/modules/wallet/signer";
+import { TxFailed, TxReverted, testWalletOf, withAccountLock } from "@/modules/wallet/signer";
 import {
   needsQorForFees,
   nextStep,
@@ -223,7 +223,8 @@ function SetupList({ wallet }: { wallet: TestSession }) {
         await refetch();
         return null;
       }
-      const tx = await runStep(step, { acc: wallet.account, sealKeys: wallet.sealKeys, net: browserNet(), status });
+      // A setup step signs from the same account as every other action, so it takes the same lock.
+      const tx = await withAccountLock(wallet.evm, () => runStep(step, { acc: wallet.account, sealKeys: wallet.sealKeys, net: browserNet(), status }));
       await refetch();
       return tx;
     });

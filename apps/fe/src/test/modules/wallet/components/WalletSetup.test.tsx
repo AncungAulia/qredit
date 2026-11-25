@@ -18,6 +18,18 @@ vi.mock("@/modules/wallet/setup/steps", async (orig) => ({
   runStep: vi.fn(),
 }));
 
+const lockSpy = vi.fn();
+vi.mock("@/modules/wallet/signer", async (orig) => {
+  const real = await orig<typeof import("@/modules/wallet/signer")>();
+  return {
+    ...real,
+    withAccountLock: (address: string, job: () => Promise<unknown>) => {
+      lockSpy(address);
+      return real.withAccountLock(address, job);
+    },
+  };
+});
+
 const fresh: WalletChainStatus = {
   qor: 0n,
   fusdBank: 0n,
@@ -90,6 +102,18 @@ test("one primary button runs the next step", async () => {
   await waitFor(() => expect(runStep).toHaveBeenCalledWith("registerKey", expect.objectContaining({ status: funded })));
   // The status is read again after a step.
   await waitFor(() => expect(vi.mocked(readWalletStatus).mock.calls.length).toBeGreaterThan(1));
+}, 30_000);
+
+test("a chain step runs inside the account lock of the wallet, the faucet does not", async () => {
+  const user = userEvent.setup();
+  lockSpy.mockClear();
+  vi.mocked(readWalletStatus).mockResolvedValue(funded);
+  vi.mocked(runStep).mockResolvedValue("ABCD");
+  renderSetup();
+  await user.click(await screen.findByRole("button", { name: "Register key" }));
+  await waitFor(() => expect(runStep).toHaveBeenCalled());
+  expect(lockSpy).toHaveBeenCalledTimes(1);
+  expect(lockSpy).toHaveBeenCalledWith(expect.stringMatching(/^0x[0-9a-fA-F]{40}$/));
 }, 30_000);
 
 test("a failed step shows a plain sentence and the button stays", async () => {
