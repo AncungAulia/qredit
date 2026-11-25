@@ -23,6 +23,7 @@
 - **Breakpoints:** phone < 768 px, tablet 768–1279 px, desktop ≥ 1280 px. Design frames are 390, 834 and 1440 wide. No horizontal scroll at 390, 834, 1440. Touch targets 44 px on coarse pointers.
 - **Motion:** follow the `motion-rules` skill: `--ease-out: cubic-bezier(0.23, 1, 0.32, 1)`, `--ease-in-out: cubic-bezier(0.77, 0, 0.175, 1)`, `--ease-drawer: cubic-bezier(0.32, 0.72, 0, 1)`; press scale 0.97 at 120 ms; enter 200 ms fade + 8 px rise; exit 150 ms; important numbers crossfade, never count up; `prefers-reduced-motion` drops movement.
 - **Code rules:** SOLID, DRY; components never call axios, fetch or viem directly (module api function → hook → component); money and dates only through `src/lib/format.ts`; types come from zod (`z.infer`); `app/` files stay thin; files over ~250 lines are split; `@/` imports only.
+- **Folder layout (user decision):** routes live in `apps/fe/app/` (app root, not `src/app`); all other code in `apps/fe/src/`; every unit and component test lives in `apps/fe/src/test/`, at the path that mirrors the file under test (`src/lib/format.ts` → `src/test/lib/format.test.ts`, `app/api/x/route.ts` → `src/test/app/api/x/route.test.ts`). Where test code in this plan imports or mocks `./X` or `../X`, use the `@/` path of that file instead (route files: a relative path from the test). Paths in Tasks 1–4 predate this decision; the layout task after Task 4 moved them.
 - Repo text in English. Never mention how long anything took or a schedule in a committed file.
 - Commits: conventional prefix with scope (`feat(fe): …`, `refactor(qore): …`), body says why and which tests ran, ends with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
 
@@ -892,8 +893,8 @@ git commit -m "feat(fe): allowlisted proxy for the QoreChain REST API" -m "The R
 - Create: `apps/fe/src/config/nav.ts`, `apps/fe/src/config/businesses.ts`
 - Create: `apps/fe/src/components/layout/{AppShell,TopBar,MobileHeader,TabBar,ThemeButton,Logo}.tsx`
 - Create: `apps/fe/src/components/shared/{Address,Amount,StateBadge,LoanBar,BusinessMark,KpiTile,InlineWordmark,TxLink}.tsx`, update `PageStates.tsx`
-- Create: `apps/fe/src/app/not-found.tsx`; copy images to `apps/fe/public/agents/` and `apps/fe/public/empty/`
-- Test: `apps/fe/src/components/shared/StateBadge.test.tsx`, `LoanBar.test.tsx`, `Address.test.tsx`, `apps/fe/src/components/layout/TopBar.test.tsx`
+- Create: `apps/fe/app/not-found.tsx`; copy images to `apps/fe/public/agents/` and `apps/fe/public/empty/`
+- Test: `apps/fe/src/test/components/shared/StateBadge.test.tsx`, `LoanBar.test.tsx`, `Address.test.tsx`, `apps/fe/src/test/components/layout/TopBar.test.tsx`
 
 **Interfaces:**
 - Produces:
@@ -941,7 +942,7 @@ export const AGENT_ART = {
 
 - [ ] **Step 3: Write failing tests for StateBadge, LoanBar and Address**
 
-`apps/fe/src/components/shared/StateBadge.test.tsx`:
+`apps/fe/src/test/components/shared/StateBadge.test.tsx`:
 ```tsx
 import { render, screen } from "@testing-library/react";
 import { expect, test } from "vitest";
@@ -964,7 +965,7 @@ test.each([
 ```
 Before finalising the labels, read the badge texts used on the BusinessCard instances in the Market frame `e8pd7o` (`Get` with `resolveInstances:true`, look at `WMVGd` text) and use the design's exact words; update the test if they differ.
 
-`apps/fe/src/components/shared/LoanBar.test.tsx`:
+`apps/fe/src/test/components/shared/LoanBar.test.tsx`:
 ```tsx
 import { render, screen } from "@testing-library/react";
 import { expect, test } from "vitest";
@@ -985,7 +986,7 @@ test("repaying shows repaid of total owed", () => {
 });
 ```
 
-`apps/fe/src/components/shared/Address.test.tsx`:
+`apps/fe/src/test/components/shared/Address.test.tsx`:
 ```tsx
 import { render, screen } from "@testing-library/react";
 import { expect, test } from "vitest";
@@ -1003,7 +1004,7 @@ test("can show the qor1 form of an EVM address", () => {
   expect(screen.getByText(/^qor1/)).toBeInTheDocument();
 });
 ```
-Run: `bunx vitest run src/components` → FAIL.
+Run: `bunx vitest run src/test/components` → FAIL.
 
 - [ ] **Step 4: Implement the shared components**
 
@@ -1082,13 +1083,13 @@ export function Address({ value, kind = "evm", className }: { value: string; kin
 
 Update `PageStates.tsx`: `EmptyState` takes `art: "error" | "waiting" | "search" | "lending" | "wallet" | "reports" | "owner" | "notfound"` and shows `/empty/${art}-light.png` and `-dark.png` (light/dark switch like BusinessMark) at 128 px, title and message, optional action; `ErrorState` uses the `error` art with title "This page could not be loaded." and a "Try again" button calling `onRetry`; `ListSkeleton` renders `rows` skeleton rows that match the row height of the list it replaces.
 
-Run: `bunx vitest run src/components` → PASS.
+Run: `bunx vitest run src/test/components` → PASS.
 
 - [ ] **Step 5: Layout components**
 
 Build `TopBar` (desktop/tablet: Logo left, NAV centre as pills with the active one filled per `Nav/Active` `X35ri`, ThemeButton right), `MobileHeader` (phone: Logo left, ThemeButton right; on detail pages a back button and title instead of the logo, per the Business Phone frame `UNBEI`), `TabBar` (phone, fixed bottom, four tabs, safe-area padding, only on top-level routes `/`, `/lend`, `/inbox`, `/proof`), `ThemeButton` (icon button 44 px on touch: Moon in light, Sun in dark; click toggles between light and dark via `useTheme().setTheme`; render nothing until mounted to avoid a hydration mismatch), `AppShell` (`<TopBar className="hidden md:flex" />`, `<MobileHeader className="md:hidden" />`, `<main className="mx-auto w-full max-w-[1200px] px-4 md:px-8 xl:px-0">`, TabBar on phone). The navbar is sticky with the glass background (`bg-glass backdrop-blur`) after the page scrolls, per the design's TopBar.
 
-`apps/fe/src/components/layout/TopBar.test.tsx`:
+`apps/fe/src/test/components/layout/TopBar.test.tsx`:
 ```tsx
 import { render, screen } from "@testing-library/react";
 import { expect, test, vi } from "vitest";
@@ -1106,7 +1107,7 @@ test("marks Market active on a business page and links all four sections", () =>
 
 - [ ] **Step 6: The 404 page**
 
-`apps/fe/src/app/not-found.tsx` renders `AppShell` with no active tab (pathname matching nothing) and `EmptyState art="notfound" title="This page does not exist." message="The link may be wrong, or the page may have moved." action={<Button render={<Link href="/" />}>Go to the market</Button>}` — use the exact copy from the "Page not found" band `b0HWn`.
+`apps/fe/app/not-found.tsx` renders `AppShell` with no active tab (pathname matching nothing) and `EmptyState art="notfound" title="This page does not exist." message="The link may be wrong, or the page may have moved." action={<Button render={<Link href="/" />}>Go to the market</Button>}` — use the exact copy from the "Page not found" band `b0HWn`.
 
 - [ ] **Step 7: Checks and commit**
 
@@ -1127,8 +1128,8 @@ git commit -m "feat(fe): app shell, shared display components and the 404 page" 
 - Create: `apps/fe/src/modules/market/api/market.api.ts`, `market.keys.ts`, `useMarketQuery.ts`
 - Create: `apps/fe/src/modules/market/schemas/vault.schema.ts`
 - Create: `apps/fe/src/modules/market/components/{MarketPage,MarketKpis,BusinessCard,BusinessGrid}.tsx`, `index.ts`
-- Modify: `apps/fe/src/app/page.tsx`
-- Test: `apps/fe/src/modules/market/api/market.api.test.ts`, `apps/fe/src/modules/market/components/MarketPage.test.tsx`
+- Modify: `apps/fe/app/page.tsx`
+- Test: `apps/fe/src/test/modules/market/api/market.api.test.ts`, `apps/fe/src/test/modules/market/components/MarketPage.test.tsx`
 
 **Interfaces:**
 - Consumes: `api`, `publicClient`, `businessSchema`, `orderSchema`, `LOAN_VAULT_ABI`, `vaultStateName`, `StateBadge`, `LoanBar`, `BusinessMark`, `KpiTile`, `PageStates`.
@@ -1144,7 +1145,7 @@ git commit -m "feat(fe): app shell, shared display components and the 404 page" 
 
 - [ ] **Step 1: Write the failing api test**
 
-`apps/fe/src/modules/market/api/market.api.test.ts`:
+`apps/fe/src/test/modules/market/api/market.api.test.ts`:
 ```ts
 import { beforeEach, expect, test, vi } from "vitest";
 
@@ -1185,7 +1186,7 @@ test("summarises orders for a card", () => {
 });
 ```
 
-Run: `bunx vitest run src/modules/market` → FAIL.
+Run: `bunx vitest run src/test/modules/market` → FAIL.
 
 - [ ] **Step 2: Implement the api**
 
@@ -1259,7 +1260,7 @@ The order rows carry a block number, not a time; the Market card does not show "
 
 `schemas/vault.schema.ts` exports the `VaultSnapshot` type from the Interfaces block. `market.keys.ts` and `useMarketQuery.ts` follow the starter-kit example module: `useMarketQuery = () => useQuery({ queryKey: marketKeys.all, queryFn: getMarket, refetchInterval: 15_000 })`; `useBusinessQuery(slug)`, `useVaultQuery(vault)` (refetch 15 s), `useOrdersQuery(vault)` (refetch 15 s).
 
-Run: `bunx vitest run src/modules/market` → PASS.
+Run: `bunx vitest run src/test/modules/market` → PASS.
 
 - [ ] **Step 3: Components and page, with a state test**
 
@@ -1268,9 +1269,9 @@ Build from the design frames:
 - `MarketKpis`: the KPI row the Market frame shows (read the labels from `e8pd7o`; values computed from the entries: total raised, total repaid, businesses repaying, reports delivered).
 - `BusinessGrid`: 2 columns on desktop and tablet, 1 on phone, equal card heights (`grid auto-rows-fr`).
 - `MarketPage`: page title and description from the frame, then KPIs, then the grid; loading → `ListSkeleton`/card skeletons shaped like the Loading frame `nD2Nw`; error → `ErrorState onRetry={refetch}` per `D9yJYo`; empty list → `EmptyState art="search" title="No businesses are listed yet."`.
-- `app/page.tsx`: `export default function Page() { return <AppShell><MarketPage /></AppShell>; }`
+- `apps/fe/app/page.tsx`: `export default function Page() { return <AppShell><MarketPage /></AppShell>; }`
 
-`apps/fe/src/modules/market/components/MarketPage.test.tsx`:
+`apps/fe/src/test/modules/market/components/MarketPage.test.tsx`:
 ```tsx
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
@@ -1308,7 +1309,7 @@ test("shows a card per business", async () => {
 });
 ```
 
-Run: `bunx vitest run src/modules/market` → PASS.
+Run: `bunx vitest run src/test/modules/market` → PASS.
 
 - [ ] **Step 4: Check in the browser against the design**
 
@@ -1330,8 +1331,8 @@ git commit -m "feat(fe): market page with live loan states" -m "Businesses come 
 **Files:**
 - Create: `apps/fe/src/modules/business/api/{business.api.ts,business.keys.ts,useBusinessPage.ts}`
 - Create: `apps/fe/src/modules/business/components/{BusinessPage,BusinessHeader,LoanTerms,VaultRules,ActivityTable,DecisionLog,ProvenCard}.tsx`, `index.ts`
-- Create: `apps/fe/src/app/agents/[slug]/page.tsx`
-- Test: `apps/fe/src/modules/business/api/business.api.test.ts`, `apps/fe/src/modules/business/components/BusinessPage.test.tsx`
+- Create: `apps/fe/app/agents/[slug]/page.tsx`
+- Test: `apps/fe/src/test/modules/business/api/business.api.test.ts`, `apps/fe/src/test/modules/business/components/BusinessPage.test.tsx`
 
 **Interfaces:**
 - Consumes: market hooks (`useBusinessQuery`, `useVaultQuery`, `useOrdersQuery` from `@/modules/market`), `VAULT_FACTORY_ABI`, `LOAN_VAULT_ABI`, `decisionSchema`, `ProvenCard` uses `useProofQuery(business)` from `@/modules/proof` (Task 8; until Task 8 lands, render `ProvenCard` only after Task 8 — build this task's page without it and add it in Task 8 Step 5).
@@ -1343,7 +1344,7 @@ git commit -m "feat(fe): market page with live loan states" -m "Businesses come 
 
 - [ ] **Step 1: Write the failing rules test**
 
-`apps/fe/src/modules/business/api/business.api.test.ts`:
+`apps/fe/src/test/modules/business/api/business.api.test.ts`:
 ```ts
 import { encodeFunctionData } from "viem";
 import { beforeEach, expect, test, vi } from "vitest";
@@ -1385,7 +1386,7 @@ test("suppliers come from the creation call, caps from the vault now", async () 
 ```
 Check the exact field names of the `Init` struct in `VAULT_FACTORY_ABI` (they come from `sc/src/VaultFactory.sol`) and align the test's `init` object with them.
 
-Run: `bunx vitest run src/modules/business` → FAIL.
+Run: `bunx vitest run src/test/modules/business` → FAIL.
 
 - [ ] **Step 2: Implement `business.api.ts`**
 
@@ -1446,7 +1447,7 @@ export async function getDecisions(vault: Hex, limit = 50): Promise<Decision[]> 
 
 Hooks in `useBusinessPage.ts`: `useRulesQuery(business)` (`staleTime: 60_000`), `useDecisionsQuery(vault)` (`refetchInterval: 15_000`).
 
-Run: `bunx vitest run src/modules/business` → PASS.
+Run: `bunx vitest run src/test/modules/business` → PASS.
 
 - [ ] **Step 3: Components**
 
@@ -1457,7 +1458,7 @@ From the Business frames (`dhbE4`, `UXoyM`, `UNBEI`; Raising `CWcUW`):
 - `ActivityTable`: orders for this vault (Table/Orders on desktop and tablet; stacked rows on phone per `Row/Order/Stacked` `Zfsty`): service name from `business.services`, status badge, price, buyer address, placed transaction link. No divider lines.
 - `DecisionLog`: Row/Decision `snx4D` list: decision, reason, suppliers bought with amounts, cost, relative time. On desktop the column fills the page height (design change of the decision log column `eZ6u8`).
 - `BusinessPage`: composes the above; loading skeleton per `e5itrK`; a `notFound` ApiError → the Not found frame `vChvM` (EmptyState `notfound`, "This business does not exist.", link back to the market); other errors → ErrorState. On phone there is no TabBar on this page; the primary action area is empty in Plan 3a (Lend and Order buttons arrive in Plan 3b).
-- `app/agents/[slug]/page.tsx`:
+- `apps/fe/app/agents/[slug]/page.tsx`:
 ```tsx
 import { AppShell } from "@/components/layout/AppShell";
 import { BusinessPage } from "@/modules/business";
@@ -1468,7 +1469,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
 }
 ```
 
-`apps/fe/src/modules/business/components/BusinessPage.test.tsx`:
+`apps/fe/src/test/modules/business/components/BusinessPage.test.tsx`:
 ```tsx
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
@@ -1488,7 +1489,7 @@ test("an unknown slug shows the not-found state", () => {
 });
 ```
 
-Run: `bunx vitest run src/modules/business` → PASS.
+Run: `bunx vitest run src/test/modules/business` → PASS.
 
 - [ ] **Step 4: Browser check**
 
@@ -1510,9 +1511,9 @@ git commit -m "feat(fe): business page with loan terms, vault rules, activity an
 **Files:**
 - Create: `apps/fe/src/modules/proof/checks.ts`, `apps/fe/src/modules/proof/api/{proof.api.ts,proof.keys.ts,useProofQuery.ts}`
 - Create: `apps/fe/src/modules/proof/components/{ProofPage,ClaimList,AttackList,ProvenCard}.tsx`, `index.ts`
-- Create: `apps/fe/src/config/attacks.ts`, `apps/fe/src/app/proof/page.tsx`
+- Create: `apps/fe/src/config/attacks.ts`, `apps/fe/app/proof/page.tsx`
 - Modify: `apps/fe/src/modules/business/components/BusinessPage.tsx` (add `ProvenCard`)
-- Test: `apps/fe/src/modules/proof/checks.test.ts`, `apps/fe/src/modules/proof/components/ProofPage.test.tsx`
+- Test: `apps/fe/src/test/modules/proof/checks.test.ts`, `apps/fe/src/test/modules/proof/components/ProofPage.test.tsx`
 
 **Interfaces:**
 - Consumes: `restUrl()`, `publicClient`, `fetchPqcStatus`, `fetchSpendingRules` (`@qorechain/sdk`), `evmWindowStatus` (`@qorechain/evm`), `hexToQor`, `PAY_SUPPLIER_SELECTOR`, `FACTORY_ADDRESS`, `FACTORY_RUNTIME_CODEHASH`, `VAULT_FACTORY_ABI`, `LOAN_VAULT_ABI`, `ERC20_ABI`, `FUSD_ADDRESS`.
@@ -1526,7 +1527,7 @@ git commit -m "feat(fe): business page with loan terms, vault rules, activity an
 
 - [ ] **Step 1: Write the failing judge tests**
 
-`apps/fe/src/modules/proof/checks.test.ts`:
+`apps/fe/src/test/modules/proof/checks.test.ts`:
 ```ts
 import { describe, expect, test } from "vitest";
 import { judgeBooks, judgeFactory, judgeOperatorWindow, judgeOwnerKey, judgeSpenderRule, judgeWidening } from "./checks";
@@ -1571,7 +1572,7 @@ describe("checks", () => {
 });
 ```
 
-Run: `bunx vitest run src/modules/proof` → FAIL.
+Run: `bunx vitest run src/test/modules/proof` → FAIL.
 
 - [ ] **Step 2: Implement `checks.ts`**
 
@@ -1639,7 +1640,7 @@ export const judgeWidening = (state: VaultStateName): CheckResult =>
 ```
 The `widening` check reports the contract's rule for the current state; the contract test `WideningLocked` is the evidence that the rule holds. If you think it should be `unknown` for some state, raise it in your report instead of changing it.
 
-Run: `bunx vitest run src/modules/proof/checks.test.ts` → PASS.
+Run: `bunx vitest run src/test/modules/proof/checks.test.ts` → PASS.
 
 - [ ] **Step 3: Implement `runChecks`**
 
@@ -1706,9 +1707,9 @@ Check two facts in the installed `.d.ts` before running: the return type of `fet
 - `AttackList`: Card/Attack `nSToj` per entry: title, "Stopped by" sentence, TxLink or "Not recorded yet".
 - `ProofPage`: title and description from `Wdr2S`, tabs "Claims" and "Attacks" (shadcn Tabs; the active tab is in the URL `?tab=attacks`, switching has no animation except the highlight slide).
 - `ProvenCard` (on the Business page, Task 7's `BusinessPage` gets it in its side column per `dhbE4`): "N of 6 proven" headline, the six checks compact, link "See every check" → `/proof`.
-- `app/proof/page.tsx` reads `searchParams.tab` and renders `<AppShell><ProofPage tab={tab === "attacks" ? "attacks" : "claims"} /></AppShell>`; the component that reads search params on the client sits inside `<Suspense>`.
+- `apps/fe/app/proof/page.tsx` reads `searchParams.tab` and renders `<AppShell><ProofPage tab={tab === "attacks" ? "attacks" : "claims"} /></AppShell>`; the component that reads search params on the client sits inside `<Suspense>`.
 
-`apps/fe/src/modules/proof/components/ProofPage.test.tsx`:
+`apps/fe/src/test/modules/proof/components/ProofPage.test.tsx`:
 ```tsx
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
