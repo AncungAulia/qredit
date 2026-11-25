@@ -1,4 +1,6 @@
-import { ERC20_ABI, FUSD_ADDRESS, LOAN_VAULT_ABI, VAULT_STATE, planLend } from "@qredit/qore";
+import { ERC20_ABI, FUSD_ADDRESS, VAULT_STATE } from "@qredit/qore/abi";
+import { LOAN_VAULT_ABI } from "@qredit/qore/abis";
+import { planLend } from "@qredit/qore/lend";
 import { encodeFunctionData } from "viem";
 import { ERC20_ERROR_SENTENCES, VAULT_ERROR_SENTENCES } from "@/components/shared/vaultErrors";
 import { readVault } from "@/lib/chain";
@@ -54,31 +56,27 @@ export async function lend(
   amount: bigint,
   onSent?: () => void,
 ): Promise<{ approveTx?: Hex; depositTx: Hex }> {
-  const signer = requireSigner(session);
-  const [state, raised, loan, balance, allowance] = await Promise.all([
-    readVault(vault, "state"),
-    readVault(vault, "raised"),
-    readVault(vault, "loan"),
-    readFusdBalance(signer.address),
-    readFusdAllowance(signer.address, vault),
-  ]);
+  requireSigner(session);
+  const [state, raised, loan] = await Promise.all([readVault(vault, "state"), readVault(vault, "raised"), readVault(vault, "loan")]);
   const target = loan[0];
   // Every refusal the wallet or the vault can give is checked here, so none depends on the text of a planner error.
   const room = target - raised;
   if (Number(state) !== VAULT_STATE.Raising || room <= 0n) throw new TxReverted(null, RAISE_FULL_SENTENCE);
   if (amount <= 0n) throw new TxReverted(null, VAULT_ERROR_SENTENCES.ZeroAmount);
   if (amount > room) throw new TxReverted(null, VAULT_ERROR_SENTENCES.OverTarget);
-  if (balance < amount) throw new TxReverted(null, ERC20_ERROR_SENTENCES.ERC20InsufficientBalance);
-  let plan;
-  try {
-    plan = planLend({ state: Number(state), raised, target, balance, allowance }, amount);
-  } catch {
-    throw new TxFailed(null, LEND_NOT_PREPARED_SENTENCE);
-  }
-  if (plan.action !== "deposit" || plan.amount !== amount) throw new TxFailed(null, LEND_NOT_PREPARED_SENTENCE);
 
-  const approves = plan.approve;
   return act(session, [FUSD_ADDRESS, vault], async (locked) => {
+    // The wallet's balance and allowance are read under the lock, after the window: nothing else can change them meanwhile.
+    const [balance, allowance] = await Promise.all([readFusdBalance(locked.address), readFusdAllowance(locked.address, vault)]);
+    if (balance < amount) throw new TxReverted(null, ERC20_ERROR_SENTENCES.ERC20InsufficientBalance);
+    let plan;
+    try {
+      plan = planLend({ state: Number(state), raised, target, balance, allowance }, amount);
+    } catch {
+      throw new TxFailed(null, LEND_NOT_PREPARED_SENTENCE);
+    }
+    if (plan.action !== "deposit" || plan.amount !== amount) throw new TxFailed(null, LEND_NOT_PREPARED_SENTENCE);
+    const approves = plan.approve;
     onSent?.();
     let approveTx: Hex | undefined;
     if (approves) {

@@ -106,6 +106,17 @@ test("lend opens the window for fUSD and the vault, approves when the allowance 
   expect(ensureWindowFor.mock.invocationCallOrder[0]).toBeLessThan(send.mock.invocationCallOrder[0]);
 });
 
+test("lend reads the balance and the allowance after the window opened, under the lock", async () => {
+  vaultReads();
+  fusdReads(fusd(1000), fusd(500));
+  send.mockReset();
+  send.mockResolvedValueOnce("0xbbb");
+  await lend(session, V1, fusd(500));
+  const balanceRead = readContract.mock.invocationCallOrder[0]!;
+  expect(ensureWindowFor.mock.invocationCallOrder[0]).toBeLessThan(balanceRead);
+  expect(balanceRead).toBeLessThan(send.mock.invocationCallOrder[0]!);
+});
+
 test("lend skips the approval when the allowance already covers the amount", async () => {
   vaultReads();
   fusdReads(fusd(1000), fusd(500));
