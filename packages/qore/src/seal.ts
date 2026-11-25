@@ -5,14 +5,12 @@ import { resolveRecipient } from "@qorechain/qoreseal/network";
 import { z } from "zod";
 import { hexToQor } from "./address.ts";
 
-export const REQUEST_PURPOSE = "qredit/request/v1";
-export const REPORT_PURPOSE = "qredit/report/v1";
-export const MAX_INPUT = 2000;
+import { MAX_INPUT, REPORT_PURPOSE, REQUEST_PURPOSE, ReportUnreadable } from "./seal-shared.ts";
+
+export { MAX_INPUT, REPORT_PURPOSE, REQUEST_PURPOSE, ReportUnreadable };
 
 export const requestSchema = z.object({ v: z.literal(1), serviceId: z.number().int().nonnegative(), input: z.string().min(1).max(MAX_INPUT) }).strict();
 export type RequestBody = z.infer<typeof requestSchema>;
-
-export class ReportUnreadable extends Error {}
 
 const utf8 = (s: string) => new TextEncoder().encode(s);
 const lower = (a: string) => a.toLowerCase();
