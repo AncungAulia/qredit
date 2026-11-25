@@ -1,6 +1,6 @@
 import { linkAuthenticatorMsgs, signAuthenticatorLinkEd25519, type UnifiedAccount } from "@qorechain/sdk";
 import {
-  BUYER_WINDOW, broadcastHybrid, confirmed as confirmedOn, convertFusd as convertFusdOn, ensureWindow as ensureWindowOn, ERC20_ABI, FACTORY_ABI,
+  broadcastHybrid, confirmed as confirmedOn, convertFusd as convertFusdOn, ensureWindow as ensureWindowOn, ERC20_ABI, FACTORY_ABI,
   FACTORY_ADDRESS, FACTORY_START_BLOCK, FUSD_ADDRESS, FUSD_DENOM, openWindow as openWindowOn, PAY_SUPPLIER_SELECTOR, planLend, publicClientFor,
   registerPqcKey, scanChunked, TESTNET, VAULT_ABI, walletFor, type EnsureWindowOptions, type WindowOptions,
 } from "@qredit/qore";
@@ -36,7 +36,8 @@ export const ensureWindow = (acc: UnifiedAccount, targets: string[], opts: Ensur
   ensureWindowOn(net, acc, targets, opts, { sleep: Bun.sleep });
 
 /** The treasury's window shape: short, few txs, small value cap. */
-export const TREASURY_WINDOW: WindowOptions = BUYER_WINDOW;
+// Its own values, not an alias of BUYER_WINDOW: changing the buyer window must not silently change the treasury's.
+export const TREASURY_WINDOW: WindowOptions = { blocks: 3600, maxTxs: 40, maxValue: 60_000_000n };
 
 export type FoundVault = { vault: string; startBlock: number; tx: string };
 type FactoryLog = { address: string; args: { vault?: string; spender?: string }; blockNumber: bigint; transactionHash: string };

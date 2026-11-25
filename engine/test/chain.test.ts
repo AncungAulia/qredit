@@ -25,3 +25,12 @@ describe("existing vault lookup", () => {
     expect(calls[0].args).toEqual({ ownerPq: "0xOwner" });
   });
 });
+
+describe("treasury window", () => {
+  test("is its own object with its own values, not the buyer window", async () => {
+    const { BUYER_WINDOW } = await import("@qredit/qore");
+    const { TREASURY_WINDOW } = await import("../src/setup/chain.ts");
+    expect(TREASURY_WINDOW).not.toBe(BUYER_WINDOW);
+    expect(TREASURY_WINDOW).toEqual({ blocks: 3600, maxTxs: 40, maxValue: 60_000_000n });
+  });
+});
