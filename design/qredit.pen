@@ -10547,15 +10547,48 @@
                       "type": "frame",
                       "id": "h6EhCS",
                       "name": "KpiTile/Feature",
-                      "context": "The one featured figure on a dashboard, dark with an abstract artwork on the right. Only one per page. Text stays left of the art. Same in light and dark mode.",
+                      "context": "The one featured figure on a dashboard: a bright sky photograph (design/kpi/feature-sky.jpg) cropped high so the text sits on blue, with a soft navy shade bottom-left and a soft text shadow. The same image in light and dark mode. Only one per page.",
                       "reusable": true,
                       "clip": true,
                       "width": 300,
                       "height": 118,
-                      "fill": "$feature-bg",
+                      "fill": [
+                        {
+                          "type": "image",
+                          "enabled": true,
+                          "url": "kpi/feature-sky.jpg",
+                          "mode": "cover",
+                          "transform": [
+                            1.25,
+                            0,
+                            0,
+                            1.75,
+                            -0.1,
+                            0
+                          ]
+                        },
+                        {
+                          "type": "gradient",
+                          "gradientType": "linear",
+                          "enabled": true,
+                          "rotation": 200,
+                          "size": {
+                            "height": 1
+                          },
+                          "colors": [
+                            {
+                              "color": "#0B2A5A00",
+                              "position": 0.35
+                            },
+                            {
+                              "color": "#0B2A5A70",
+                              "position": 1
+                            }
+                          ]
+                        }
+                      ],
                       "cornerRadius": "$radius-xl",
                       "stroke": "$feature-edge",
-                      "strokeWidth": 1,
                       "layout": "vertical",
                       "gap": 10,
                       "padding": 20,
@@ -10568,7 +10601,7 @@
                           "x": 150,
                           "y": -30,
                           "name": "Art",
-                          "enabled": "$is-light",
+                          "enabled": false,
                           "width": 250,
                           "height": 190,
                           "fill": {
@@ -10585,7 +10618,7 @@
                           "x": 150,
                           "y": -30,
                           "name": "ArtLight",
-                          "enabled": "$is-dark",
+                          "enabled": false,
                           "width": 250,
                           "height": 190,
                           "fill": {
@@ -10602,6 +10635,7 @@
                           "x": 0,
                           "y": 0,
                           "name": "ArtFade",
+                          "enabled": false,
                           "width": 320,
                           "height": 118,
                           "fill": {
@@ -10632,7 +10666,17 @@
                           "type": "text",
                           "id": "Mldgo",
                           "name": "Label",
-                          "fill": "$feature-label",
+                          "fill": "#FFFFFFE6",
+                          "effect": {
+                            "type": "shadow",
+                            "shadowType": "outer",
+                            "color": "#0B2A5A73",
+                            "offset": {
+                              "x": 0,
+                              "y": 1
+                            },
+                            "blur": 6
+                          },
                           "content": "Total lent",
                           "fontFamily": "$font-body",
                           "fontSize": 14,
@@ -10649,7 +10693,17 @@
                               "type": "text",
                               "id": "ZWgWE",
                               "name": "Figure",
-                              "fill": "$feature-figure",
+                              "fill": "#FFFFFF",
+                              "effect": {
+                                "type": "shadow",
+                                "shadowType": "outer",
+                                "color": "#0B2A5A73",
+                                "offset": {
+                                  "x": 0,
+                                  "y": 1
+                                },
+                                "blur": 6
+                              },
                               "content": "24,600",
                               "lineHeight": 1,
                               "fontFamily": "$font-body",
@@ -10661,7 +10715,17 @@
                               "type": "text",
                               "id": "D04ZJ",
                               "name": "Unit",
-                              "fill": "$feature-unit",
+                              "fill": "#FFFFFFE6",
+                              "effect": {
+                                "type": "shadow",
+                                "shadowType": "outer",
+                                "color": "#0B2A5A73",
+                                "offset": {
+                                  "x": 0,
+                                  "y": 1
+                                },
+                                "blur": 6
+                              },
                               "content": "fUSD",
                               "lineHeight": 1.5,
                               "fontFamily": "$font-body",
@@ -10754,12 +10818,26 @@
                       "type": "frame",
                       "id": "Y4j8aL",
                       "name": "KpiTile/Soft",
-                      "context": "Standard white dashboard figure with the shared soft texture on the right. Label and value only.",
+                      "context": "Standard dashboard figure on layered glacier-blue planes (design/kpi/soft-light.jpg in light mode, soft-dark.jpg in dark mode); the shapes sit on the right so the figure stays readable.",
                       "reusable": true,
                       "clip": true,
                       "width": 300,
                       "height": 118,
-                      "fill": "$surface",
+                      "fill": [
+                        "$surface",
+                        {
+                          "type": "image",
+                          "enabled": "$is-light",
+                          "url": "kpi/soft-light.jpg",
+                          "mode": "cover"
+                        },
+                        {
+                          "type": "image",
+                          "enabled": "$is-dark",
+                          "url": "kpi/soft-dark.jpg",
+                          "mode": "cover"
+                        }
+                      ],
                       "cornerRadius": "$radius-xl",
                       "layout": "vertical",
                       "gap": 10,
@@ -10776,7 +10854,8 @@
                           "y": -70,
                           "opacity": 0.55,
                           "width": 460,
-                          "height": 260
+                          "height": 260,
+                          "enabled": false
                         },
                         {
                           "type": "frame",
