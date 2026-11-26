@@ -69,7 +69,7 @@ function loop(name: string, everyMs: number, fn: () => Promise<void>) {
 
 const logs = viemLogSource(client);
 loop("watcher", cfg.WATCH_INTERVAL_MS, async () => {
-  for (const b of await listBusinesses(db)) await syncVault(db, logs, b.vault, b.startBlock);
+  for (const b of await listBusinesses(db)) await syncVault(db, logs, b.vault, b.startBlock, b.version);
 });
 
 const windowOptions = { blocks: 17_280, maxTxs: cfg.WINDOW_MAX_TXS, maxValue: cfg.WINDOW_MAX_UQOR, minBlocks: cfg.WINDOW_MIN_BLOCKS };

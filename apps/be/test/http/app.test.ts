@@ -214,7 +214,13 @@ describe("engine routes", () => {
 
   test("businesses, orders, claims and decisions", async () => {
     expect((await post("/v1/businesses", biz, engine)).status).toBe(204);
-    expect(((await (await app.request("/v1/businesses")).json()) as unknown[]).length).toBe(1);
+    const listed = (await (await app.request("/v1/businesses")).json()) as { version: number; ended: null; stats: { delivered: number; rejected: number; uniqueBuyers: number } }[];
+    expect(listed[0]).toMatchObject({ version: 1, ended: null, stats: { delivered: 0, rejected: 0, uniqueBuyers: 0 } });
+    expect((await post("/v1/businesses", { ...biz, vault: `0x${"9".repeat(40)}`, version: 2 }, engine)).status).toBe(204);
+    expect(((await (await app.request("/v1/businesses/counterparty")).json()) as { version: number }).version).toBe(2);
+    expect((await post("/v1/businesses", { ...biz, vault: `0x${"8".repeat(40)}`, version: 3 }, engine)).status).toBe(400);
+    expect((await app.request(`/v1/orders?vault=${V}&status=in_review`)).status).toBe(200);
+    expect(((await (await app.request("/v1/businesses")).json()) as unknown[]).length).toBe(2);
     expect((await app.request("/v1/businesses/counterparty")).status).toBe(200);
     expect((await app.request("/v1/businesses/none")).status).toBe(404);
 

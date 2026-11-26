@@ -9,7 +9,7 @@ export function orderRoutes(app: Hono, deps: { db: Db; auth: EngineAuth }): void
   app.get("/v1/orders", async (c) => {
     const vault = evmAddress.safeParse(c.req.query("vault"));
     if (!vault.success) return bad(c, "invalid vault");
-    const status = z.enum(["open", "claimed", "delivered", "declined", "reclaimed"]).optional().safeParse(c.req.query("status"));
+    const status = z.enum(store.ORDER_STATUSES).optional().safeParse(c.req.query("status"));
     return c.json(await store.listOrders(deps.db, vault.data, status.success ? status.data : undefined));
   });
   app.post("/v1/orders/claim", deps.auth.requireEngine, async (c) => {
