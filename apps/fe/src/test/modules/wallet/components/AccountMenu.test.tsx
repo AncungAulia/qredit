@@ -54,6 +54,7 @@ test("a test wallet menu shows the address, both balances, the theme switch, loc
   expect(within(menu).getByRole("button", { name: "Copy address" })).toBeInTheDocument();
   expect(within(menu).getByRole("button", { name: "Back up phrase" })).toBeInTheDocument();
   expect(within(menu).getByRole("button", { name: "Lock" })).toBeInTheDocument();
+  expect(within(menu).getByRole("button", { name: "Disconnect" })).toBeInTheDocument();
   expect(within(menu).queryByRole("link", { name: /Owner console/ })).not.toBeInTheDocument();
   expect(within(menu).queryByRole("button", { name: /Disconnect QoreX/ })).not.toBeInTheDocument();
 
@@ -88,6 +89,16 @@ test("lock leaves a locked button that opens the unlock form", async () => {
   // Focus moves to the button that replaced the menu, so the keyboard user does not lose their place.
   await waitFor(() => expect(locked).toHaveFocus());
   await user.click(locked);
+  expect(await screen.findByLabelText("Password")).toBeInTheDocument();
+}, 30_000);
+
+test("disconnect leaves the connect button, and choosing the test wallet again asks for the password", async () => {
+  const user = userEvent.setup();
+  withTestWallet();
+  await user.click(await screen.findByRole("button", { name: /Account menu/ }, { timeout: 20_000 }));
+  await user.click(await screen.findByRole("button", { name: "Disconnect" }));
+  await user.click(await screen.findByRole("button", { name: "Connect wallet" }));
+  await user.click(await screen.findByRole("button", { name: /Test wallet in this browser/ }));
   expect(await screen.findByLabelText("Password")).toBeInTheDocument();
 }, 30_000);
 

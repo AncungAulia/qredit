@@ -71,6 +71,28 @@ test("hydrate reads the storage", async () => {
   expect(second.getState().session).toEqual({ kind: "locked", address });
 }, 30_000);
 
+test("disconnect keeps the saved wallet but shows none, across a reload, until the wallet is unlocked", async () => {
+  const storage = memoryStorage();
+  const store = createWalletStore({ storage });
+  await store.getState().create(PHRASE, "correct horse");
+  const address = (store.getState().session as { address: string }).address;
+
+  store.getState().disconnect();
+  expect(store.getState().session).toEqual({ kind: "none" });
+  expect(readStored(storage)?.address).toBe(address);
+  expect(store.getState().hasSavedWallet()).toBe(true);
+
+  const reloaded = createWalletStore({ storage });
+  reloaded.getState().hydrate();
+  expect(reloaded.getState().session).toEqual({ kind: "none" });
+
+  await reloaded.getState().unlock("correct horse");
+  expect(reloaded.getState().session.kind).toBe("test");
+  const again = createWalletStore({ storage });
+  again.getState().hydrate();
+  expect(again.getState().session).toEqual({ kind: "locked", address });
+}, 30_000);
+
 test("create rejects an invalid phrase and a short password", async () => {
   const storage = memoryStorage();
   const store = createWalletStore({ storage });

@@ -4,6 +4,8 @@ import { base64 } from "@scure/base";
 import { z } from "zod";
 
 export const KEYSTORE_KEY = "qredit.testWallet.v1";
+/** Set while the saved test wallet is disconnected: kept in the browser, but not offered as locked on load. */
+export const DISCONNECTED_KEY = "qredit.testWallet.disconnected";
 const ITERATIONS = 600_000;
 
 function base64Bytes(length?: number) {
@@ -128,5 +130,23 @@ export function forgetStored(storage: Storage | null = defaultStorage()): void {
     storage?.removeItem(KEYSTORE_KEY);
   } catch {
     // Storage is unavailable; nothing to remove.
+  }
+}
+
+/** Whether the saved test wallet was disconnected (so a reload shows "Connect", not "Locked"). */
+export function readDisconnected(storage: Storage | null = defaultStorage()): boolean {
+  try {
+    return storage?.getItem(DISCONNECTED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function writeDisconnected(disconnected: boolean, storage: Storage | null = defaultStorage()): void {
+  try {
+    if (disconnected) storage?.setItem(DISCONNECTED_KEY, "1");
+    else storage?.removeItem(DISCONNECTED_KEY);
+  } catch {
+    // Storage is unavailable; the flag only affects what a reload shows.
   }
 }

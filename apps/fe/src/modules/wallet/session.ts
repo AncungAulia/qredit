@@ -8,7 +8,9 @@ import {
   encryptPhrase,
   forgetStored,
   passwordSchema,
+  readDisconnected,
   readStored,
+  writeDisconnected,
   writeStored,
 } from "@/modules/wallet/keystore";
 import { createQorexClient, type QorexClient, type QorexState } from "@/modules/wallet/qorex";
@@ -50,6 +52,8 @@ export type WalletStore = {
   reveal(password: string): Promise<string>;
   create(phrase: string, password: string): Promise<void>;
   lock(): void;
+  /** Locks the test wallet and stops offering it: the header shows "Connect" (also after a reload) until it is unlocked again. The saved wallet stays. */
+  disconnect(): void;
   forget(): void;
   /** Connects QoreX; an unlocked test wallet stays available under it. */
   connectQorex(): Promise<void>;
@@ -85,7 +89,7 @@ export const createWalletStore = (deps: WalletDeps = {}): StoreApi<WalletStore> 
     qorexState: "notInstalled",
     hydrated: false,
     hydrate() {
-      const stored = get().session.kind === "none" ? readStored(deps.storage) : null;
+      const stored = get().session.kind === "none" && !readDisconnected(deps.storage) ? readStored(deps.storage) : null;
       set({
         qorexState: qorex().detect(),
         hydrated: true,
@@ -98,7 +102,9 @@ export const createWalletStore = (deps: WalletDeps = {}): StoreApi<WalletStore> 
       const mine = ++token;
       const phrase = await decryptPhrase(stored, password);
       const session = await deriveSession(phrase);
-      if (mine === token) set({ session: withTestWallet(get().session, session) });
+      if (mine !== token) return;
+      writeDisconnected(false, deps.storage);
+      set({ session: withTestWallet(get().session, session) });
     },
     hasSavedWallet() {
       return readStored(deps.storage) !== null;
@@ -119,6 +125,7 @@ export const createWalletStore = (deps: WalletDeps = {}): StoreApi<WalletStore> 
       const record = await encryptPhrase(clean, password, session.address);
       if (mine !== token) throw new Cancelled();
       writeStored(record, deps.storage);
+      writeDisconnected(false, deps.storage);
       set({ session: withTestWallet(get().session, session) });
     },
     lock() {
@@ -127,10 +134,18 @@ export const createWalletStore = (deps: WalletDeps = {}): StoreApi<WalletStore> 
       if (session.kind === "test") set({ session: { kind: "locked", address: session.address } });
       else if (session.kind === "qorex" && session.testWallet) set({ session: { ...session, testWallet: null } });
     },
+    disconnect() {
+      token++;
+      const { session } = get();
+      if (session.kind !== "test" && session.kind !== "locked") return;
+      writeDisconnected(true, deps.storage);
+      set({ session: { kind: "none" } });
+    },
     forget() {
       token++;
       qorexEpoch++;
       forgetStored(deps.storage);
+      writeDisconnected(false, deps.storage);
       const { session } = get();
       set({ session: session.kind === "qorex" ? { ...session, testWallet: null } : { kind: "none" } });
     },
@@ -153,7 +168,7 @@ export const createWalletStore = (deps: WalletDeps = {}): StoreApi<WalletStore> 
       const { session } = get();
       if (session.kind !== "qorex") return;
       if (session.testWallet) return set({ session: session.testWallet });
-      const stored = readStored(deps.storage);
+      const stored = readDisconnected(deps.storage) ? null : readStored(deps.storage);
       set({ session: stored ? { kind: "locked", address: stored.address } : { kind: "none" } });
     },
   }));

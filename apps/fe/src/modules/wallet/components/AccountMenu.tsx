@@ -129,6 +129,7 @@ export function AccountMenu({ open, onOpenChange, triggerClassName, children, ..
 function AccountMenuBody({ session, onClose, onBackup, onSetup, onLock }: Props) {
   const lock = useWallet((s) => s.lock);
   const disconnectQorex = useWallet((s) => s.disconnectQorex);
+  const disconnect = useWallet((s) => s.disconnect);
   const wallet = testWalletOf(session);
   const isQorex = session.kind === "qorex";
   const status = useWalletStatusQuery(wallet);
@@ -203,6 +204,11 @@ function AccountMenuBody({ session, onClose, onBackup, onSetup, onLock }: Props)
           })}
         >
           Lock
+        </Row>
+      )}
+      {session.kind === "test" && (
+        <Row Icon={LogOut} danger onClick={run(disconnect)}>
+          Disconnect
         </Row>
       )}
       {isQorex && (
