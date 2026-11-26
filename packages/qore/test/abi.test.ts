@@ -8,12 +8,12 @@ describe("abi", () => {
     expect(data.slice(0, 10)).toBe(PAY_SUPPLIER_SELECTOR);
     expect((data.length - 2) / 2).toBe(100);
   });
-  test("factory create encodes an Init tuple", () => {
+  test("factory create encodes a v2 Init tuple (no token, maturity terms)", () => {
     const data = encodeFunctionData({ abi: FACTORY_ABI, functionName: "create", args: [{
-      token: "0x97143B771D34ddb9130b807b135Ae675A5a963CA", spender: "0x0000000000000000000000000000000000000001", operator: "0x0000000000000000000000000000000000000002",
+      spender: "0x0000000000000000000000000000000000000001", operator: "0x0000000000000000000000000000000000000002",
       ownerPq: "0x0000000000000000000000000000000000000003", ownerPayout: "0x0000000000000000000000000000000000000003", cosmosChainId: "qorechain-diana",
       lenderBps: 3000, ownerBps: 2000, dailyCap: 1n, orderTtl: 3600n,
-      loan: { target: 1n, totalOwed: 1n, raiseDeadline: 2n, period: 1n, grace: 0n, installment: 1n },
+      loan: { target: 10n, totalOwed: 10n, raiseDeadline: 2n, period: 1n, grace: 0n, installment: 10n, maturity: 1n, maturityGrace: 0n, defaultAfterMissed: 3 },
       suppliers: [], supplierCaps: [], servicePrices: [1n],
     }] });
     expect(data.startsWith("0x")).toBe(true);

@@ -7,6 +7,7 @@
     ".": "./src/index.ts",
     "./abi": "./src/abi.ts",
     "./abis": "./src/generated/abis.ts",
+    "./abis-v1": "./src/generated/abis-v1.ts",
     "./address": "./src/address.ts",
     "./hash": "./src/hash.ts",
     "./net": "./src/net.ts",

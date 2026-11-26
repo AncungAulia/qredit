@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { parseKeyList, parseKeySpec } from "../src/keys.ts";
 import { executionFailure, serial, signModeOf, txEvents } from "../src/tx.ts";
-import { PAY_SUPPLIER_SELECTOR, VAULT_EVENTS } from "../src/abi.ts";
+import { PAY_SUPPLIER_SELECTOR, VAULT_EVENTS_V1 } from "../src/abi.ts";
 
 describe("key specs", () => {
   test("mnemonic and seed forms", () => {
@@ -53,7 +53,7 @@ describe("serial", () => {
 describe("vault abi", () => {
   test("paySupplier selector and the four events", () => {
     expect(PAY_SUPPLIER_SELECTOR).toMatch(/^0x[0-9a-f]{8}$/);
-    expect(VAULT_EVENTS.map((e) => e.name)).toEqual(["OrderPlaced", "Delivered", "Declined", "Reclaimed"]);
+    expect(VAULT_EVENTS_V1.map((e) => e.name)).toEqual(["OrderPlaced", "Delivered", "Declined", "Reclaimed"]);
   });
 });
 

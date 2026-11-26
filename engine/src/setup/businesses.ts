@@ -1,6 +1,5 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { FUSD_ADDRESS } from "@qredit/qore";
 import { z } from "zod";
 
 const units = z.string().regex(/^[0-9]+$/);
@@ -19,7 +18,11 @@ const business = z.object({
   loan: z.object({
     targetUnits: units, totalOwedUnits: units, raiseSeconds: z.number().int().positive(),
     periodSeconds: z.number().int().positive(), graceSeconds: z.number().int().nonnegative(), installmentUnits: units,
-  }),
+    maturitySeconds: z.number().int().positive(), maturityGraceSeconds: z.number().int().nonnegative(), defaultAfterMissed: z.number().int().positive(),
+  }).refine(
+    (l) => BigInt(l.installmentUnits) * BigInt(Math.floor(l.maturitySeconds / l.periodSeconds)) >= BigInt(l.totalOwedUnits),
+    "the schedule must reach the debt by maturity (the vault refuses it otherwise)",
+  ),
   demoState: z.enum(["raising", "active", "trapped", "repaid"]),
 });
 const file = z.object({
@@ -40,7 +43,6 @@ export function vaultInit(
   nowSeconds: number,
 ) {
   return {
-    token: FUSD_ADDRESS as Hex,
     spender: roles.spender,
     operator: roles.operator,
     ownerPq: roles.ownerPq,
@@ -57,6 +59,9 @@ export function vaultInit(
       period: BigInt(b.loan.periodSeconds),
       grace: BigInt(b.loan.graceSeconds),
       installment: BigInt(b.loan.installmentUnits),
+      maturity: BigInt(b.loan.maturitySeconds),
+      maturityGrace: BigInt(b.loan.maturityGraceSeconds),
+      defaultAfterMissed: b.loan.defaultAfterMissed,
     },
     suppliers: b.suppliers.map((s) => roles.suppliers[s.role]),
     supplierCaps: b.suppliers.map((s) => BigInt(s.capUnits)),

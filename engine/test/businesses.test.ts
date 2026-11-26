@@ -32,5 +32,16 @@ describe("businesses.json", () => {
     expect(init.loan.raiseDeadline).toBe(1_000_000n + 1_209_600n);
     expect(init.loan.period).toBe(3600n);
     expect(init.orderTtl).toBe(3600n);
+    expect("token" in init).toBe(false);
+    expect(init.loan.maturity).toBe(79_200n);
+    expect(init.loan.maturityGrace).toBe(3600n);
+    expect(init.loan.defaultAfterMissed).toBe(3);
+  });
+  test("every business has a schedule that reaches its debt by maturity", () => {
+    for (const b of loadBusinesses()) {
+      const periods = BigInt(Math.floor(b.loan.maturitySeconds / b.loan.periodSeconds));
+      expect(BigInt(b.loan.installmentUnits) * periods >= BigInt(b.loan.totalOwedUnits)).toBe(true);
+      expect(b.loan.defaultAfterMissed).toBe(3);
+    }
   });
 });

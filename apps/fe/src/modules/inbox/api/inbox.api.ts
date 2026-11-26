@@ -1,4 +1,4 @@
-import { VAULT_EVENTS } from "@qredit/qore/abi";
+import { VAULT_EVENTS_V1 } from "@qredit/qore/abi";
 import { LOAN_VAULT_ABI } from "@qredit/qore/abis";
 import { envelopeHash } from "@qredit/qore/hash";
 import { encodeFunctionData, getAbiItem } from "viem";
@@ -73,7 +73,7 @@ export async function readMyOrders(evm: Hex, businesses: Business[]): Promise<In
 
 export { getBlockTimes };
 
-const DELIVERED = getAbiItem({ abi: VAULT_EVENTS, name: "Delivered" });
+const DELIVERED = getAbiItem({ abi: VAULT_EVENTS_V1, name: "Delivered" });
 
 // The node answers a log search over at most 10,000 blocks, so the search walks forward in windows of that size.
 const LOG_WINDOW = 10_000n;

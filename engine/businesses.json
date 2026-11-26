@@ -15,7 +15,7 @@
       "split": { "lenderBps": 3000, "ownerBps": 2000 },
       "dailyCapUnits": "20000000",
       "orderTtlSeconds": 3600,
-      "loan": { "targetUnits": "50000000", "totalOwedUnits": "55000000", "raiseSeconds": 1209600, "periodSeconds": 86400, "graceSeconds": 86400, "installmentUnits": "1000000" },
+      "loan": { "targetUnits": "50000000", "totalOwedUnits": "55000000", "raiseSeconds": 1209600, "periodSeconds": 86400, "graceSeconds": 86400, "installmentUnits": "1000000", "maturitySeconds": 4752000, "maturityGraceSeconds": 86400, "defaultAfterMissed": 3 },
       "demoState": "active"
     },
     {
@@ -27,7 +27,7 @@
       "split": { "lenderBps": 8000, "ownerBps": 1000 },
       "dailyCapUnits": "10000000",
       "orderTtlSeconds": 3600,
-      "loan": { "targetUnits": "2000000", "totalOwedUnits": "2200000", "raiseSeconds": 1209600, "periodSeconds": 86400, "graceSeconds": 86400, "installmentUnits": "500000" },
+      "loan": { "targetUnits": "2000000", "totalOwedUnits": "2200000", "raiseSeconds": 1209600, "periodSeconds": 86400, "graceSeconds": 86400, "installmentUnits": "500000", "maturitySeconds": 432000, "maturityGraceSeconds": 86400, "defaultAfterMissed": 3 },
       "demoState": "repaid"
     },
     {
@@ -39,7 +39,7 @@
       "split": { "lenderBps": 3000, "ownerBps": 2000 },
       "dailyCapUnits": "15000000",
       "orderTtlSeconds": 3600,
-      "loan": { "targetUnits": "20000000", "totalOwedUnits": "22000000", "raiseSeconds": 1209600, "periodSeconds": 3600, "graceSeconds": 0, "installmentUnits": "1000000" },
+      "loan": { "targetUnits": "20000000", "totalOwedUnits": "22000000", "raiseSeconds": 1209600, "periodSeconds": 3600, "graceSeconds": 0, "installmentUnits": "1000000", "maturitySeconds": 79200, "maturityGraceSeconds": 3600, "defaultAfterMissed": 3 },
       "demoState": "trapped"
     },
     {
@@ -51,7 +51,7 @@
       "split": { "lenderBps": 3000, "ownerBps": 2000 },
       "dailyCapUnits": "20000000",
       "orderTtlSeconds": 7200,
-      "loan": { "targetUnits": "100000000", "totalOwedUnits": "110000000", "raiseSeconds": 1209600, "periodSeconds": 86400, "graceSeconds": 86400, "installmentUnits": "5000000" },
+      "loan": { "targetUnits": "100000000", "totalOwedUnits": "110000000", "raiseSeconds": 1209600, "periodSeconds": 86400, "graceSeconds": 86400, "installmentUnits": "5000000", "maturitySeconds": 1900800, "maturityGraceSeconds": 86400, "defaultAfterMissed": 3 },
       "demoState": "raising"
     }
   ]

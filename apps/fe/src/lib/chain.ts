@@ -1,9 +1,12 @@
 import { LOAN_VAULT_ABI } from "@qredit/qore/abis";
 import { publicClientFor } from "@qredit/qore/net";
-import type { Address, ContractFunctionArgs, ContractFunctionName, ReadContractReturnType } from "viem";
+import type { Abi, Address, ContractFunctionArgs, ContractFunctionName, ReadContractReturnType } from "viem";
 import { env } from "./env";
 
 export const publicClient = publicClientFor(env.evmUrl);
+
+/** The loose shape of a readContract call: the vault ABI is wide enough that viem's generic inference over it is too deep for tsc. */
+type ReadParams = { address: Address; abi: Abi; functionName: string; args?: readonly unknown[] };
 
 type VaultReader = ContractFunctionName<typeof LOAN_VAULT_ABI, "view" | "pure">;
 
@@ -16,7 +19,7 @@ export const readVault = <F extends VaultReader>(
   functionName: F,
   args?: ContractFunctionArgs<typeof LOAN_VAULT_ABI, "view" | "pure", F>,
 ): Promise<ReadContractReturnType<typeof LOAN_VAULT_ABI, F>> =>
-  publicClient.readContract({ address, abi: LOAN_VAULT_ABI, functionName, args } as never) as Promise<
+  (publicClient.readContract as (p: ReadParams) => Promise<unknown>)({ address, abi: LOAN_VAULT_ABI, functionName, args: args as readonly unknown[] | undefined }) as Promise<
     ReadContractReturnType<typeof LOAN_VAULT_ABI, F>
   >;
 

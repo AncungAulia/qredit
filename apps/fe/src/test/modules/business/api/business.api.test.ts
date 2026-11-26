@@ -29,7 +29,6 @@ const NOON = Date.UTC(2026, 10, 25, 12) / 1000;
 const TODAY = Math.floor(NOON / 86400);
 
 const init = {
-  token: S1,
   spender: S1,
   operator: S1,
   ownerPq: S1,
@@ -39,7 +38,7 @@ const init = {
   ownerBps: 2000,
   dailyCap: 2_000_000n,
   orderTtl: 3600n,
-  loan: { target: 1n, totalOwed: 1n, raiseDeadline: 1n, period: 1n, grace: 1n, installment: 1n },
+  loan: { target: 1n, totalOwed: 1n, raiseDeadline: 1n, period: 1n, grace: 1n, installment: 1n, maturity: 1n, maturityGrace: 0n, defaultAfterMissed: 3 },
   suppliers: [S1, S2],
   supplierCaps: [100_000n, 200_000n],
   servicePrices: [250_000n],

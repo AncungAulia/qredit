@@ -4,15 +4,15 @@ export const LOAN_VAULT_ABI = [
     "type": "constructor",
     "inputs": [
       {
+        "name": "token_",
+        "type": "address",
+        "internalType": "contract IERC20"
+      },
+      {
         "name": "init",
         "type": "tuple",
         "internalType": "struct LoanVault.Init",
         "components": [
-          {
-            "name": "token",
-            "type": "address",
-            "internalType": "contract IERC20"
-          },
           {
             "name": "spender",
             "type": "address",
@@ -92,6 +92,21 @@ export const LOAN_VAULT_ABI = [
                 "name": "installment",
                 "type": "uint256",
                 "internalType": "uint256"
+              },
+              {
+                "name": "maturity",
+                "type": "uint64",
+                "internalType": "uint64"
+              },
+              {
+                "name": "maturityGrace",
+                "type": "uint64",
+                "internalType": "uint64"
+              },
+              {
+                "name": "defaultAfterMissed",
+                "type": "uint16",
+                "internalType": "uint16"
               }
             ]
           },
@@ -117,6 +132,32 @@ export const LOAN_VAULT_ABI = [
   },
   {
     "type": "function",
+    "name": "BOND_BPS",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "REVIEW_WINDOW",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "accPerShare",
     "inputs": [],
     "outputs": [
@@ -127,6 +168,19 @@ export const LOAN_VAULT_ABI = [
       }
     ],
     "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "accept",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -188,6 +242,19 @@ export const LOAN_VAULT_ABI = [
   },
   {
     "type": "function",
+    "name": "bondHeld",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "books",
     "inputs": [],
     "outputs": [
@@ -213,6 +280,11 @@ export const LOAN_VAULT_ABI = [
       },
       {
         "name": "held",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "bond",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -316,6 +388,19 @@ export const LOAN_VAULT_ABI = [
   },
   {
     "type": "function",
+    "name": "defaultable",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "deliver",
     "inputs": [
       {
@@ -360,6 +445,19 @@ export const LOAN_VAULT_ABI = [
         "name": "",
         "type": "uint256",
         "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "ended",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint8",
+        "internalType": "enum LoanVault.EndKind"
       }
     ],
     "stateMutability": "view"
@@ -494,6 +592,21 @@ export const LOAN_VAULT_ABI = [
         "name": "installment",
         "type": "uint256",
         "internalType": "uint256"
+      },
+      {
+        "name": "maturity",
+        "type": "uint64",
+        "internalType": "uint64"
+      },
+      {
+        "name": "maturityGrace",
+        "type": "uint64",
+        "internalType": "uint64"
+      },
+      {
+        "name": "defaultAfterMissed",
+        "type": "uint16",
+        "internalType": "uint16"
       }
     ],
     "stateMutability": "view"
@@ -682,6 +795,11 @@ export const LOAN_VAULT_ABI = [
         "name": "requestRef",
         "type": "bytes32",
         "internalType": "bytes32"
+      },
+      {
+        "name": "reviewEnds",
+        "type": "uint64",
+        "internalType": "uint64"
       }
     ],
     "stateMutability": "view"
@@ -835,6 +953,19 @@ export const LOAN_VAULT_ABI = [
   },
   {
     "type": "function",
+    "name": "reject",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "repaid",
     "inputs": [],
     "outputs": [
@@ -845,6 +976,32 @@ export const LOAN_VAULT_ABI = [
       }
     ],
     "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "seenBuyer",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "selfPause",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -877,6 +1034,19 @@ export const LOAN_VAULT_ABI = [
       }
     ],
     "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "settle",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -965,6 +1135,25 @@ export const LOAN_VAULT_ABI = [
   },
   {
     "type": "function",
+    "name": "supplierCost",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "suppliers",
     "inputs": [
       {
@@ -989,6 +1178,19 @@ export const LOAN_VAULT_ABI = [
   },
   {
     "type": "function",
+    "name": "swept",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "token",
     "inputs": [],
     "outputs": [
@@ -999,6 +1201,33 @@ export const LOAN_VAULT_ABI = [
       }
     ],
     "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "triggerDefault",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "uniqueBuyers",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "withdrawBond",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -1013,6 +1242,51 @@ export const LOAN_VAULT_ABI = [
     "inputs": [
       {
         "name": "at",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "AgentPaused",
+    "inputs": [
+      {
+        "name": "by",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "AgentRotated",
+    "inputs": [
+      {
+        "name": "spender",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      },
+      {
+        "name": "operator",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "BondReturned",
+    "inputs": [
+      {
+        "name": "amount",
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
@@ -1056,19 +1330,7 @@ export const LOAN_VAULT_ABI = [
         "internalType": "bytes32"
       },
       {
-        "name": "toLenders",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      },
-      {
-        "name": "toOwner",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      },
-      {
-        "name": "toOpex",
+        "name": "reviewEnds",
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
@@ -1110,6 +1372,19 @@ export const LOAN_VAULT_ABI = [
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "LoanEnded",
+    "inputs": [
+      {
+        "name": "kind",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "uint8"
       }
     ],
     "anonymous": false
@@ -1235,10 +1510,66 @@ export const LOAN_VAULT_ABI = [
   },
   {
     "type": "event",
+    "name": "Rejected",
+    "inputs": [
+      {
+        "name": "orderId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "refund",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "cost",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "RemainderWithdrawn",
     "inputs": [
       {
         "name": "amount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "Settled",
+    "inputs": [
+      {
+        "name": "orderId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "toLenders",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "toOwner",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "toOpex",
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
@@ -1293,12 +1624,37 @@ export const LOAN_VAULT_ABI = [
   },
   {
     "type": "error",
+    "name": "BuyerNotAllowed",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "Ended",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "InsufficientOpex",
     "inputs": []
   },
   {
     "type": "error",
+    "name": "NotAgent",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "NotBuyer",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NotDefaultable",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NotInReview",
     "inputs": []
   },
   {
@@ -1348,12 +1704,22 @@ export const LOAN_VAULT_ABI = [
   },
   {
     "type": "error",
+    "name": "OverOrderPrice",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "OverSupplierCap",
     "inputs": []
   },
   {
     "type": "error",
     "name": "OverTarget",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "OwnerClaimNotAhead",
     "inputs": []
   },
   {
@@ -1373,6 +1739,16 @@ export const LOAN_VAULT_ABI = [
   },
   {
     "type": "error",
+    "name": "ReviewOpen",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ReviewOver",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "SafeERC20FailedOperation",
     "inputs": [
       {
@@ -1385,11 +1761,6 @@ export const LOAN_VAULT_ABI = [
   {
     "type": "error",
     "name": "SupplierNotAllowed",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "TrappedNoOwnerClaim",
     "inputs": []
   },
   {
@@ -1419,6 +1790,17 @@ export const LOAN_VAULT_ABI = [
   }
 ] as const;
 export const VAULT_FACTORY_ABI = [
+  {
+    "type": "constructor",
+    "inputs": [
+      {
+        "name": "token_",
+        "type": "address",
+        "internalType": "contract IERC20"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
   {
     "type": "function",
     "name": "all",
@@ -1454,11 +1836,6 @@ export const VAULT_FACTORY_ABI = [
         "type": "tuple",
         "internalType": "struct LoanVault.Init",
         "components": [
-          {
-            "name": "token",
-            "type": "address",
-            "internalType": "contract IERC20"
-          },
           {
             "name": "spender",
             "type": "address",
@@ -1538,6 +1915,21 @@ export const VAULT_FACTORY_ABI = [
                 "name": "installment",
                 "type": "uint256",
                 "internalType": "uint256"
+              },
+              {
+                "name": "maturity",
+                "type": "uint64",
+                "internalType": "uint64"
+              },
+              {
+                "name": "maturityGrace",
+                "type": "uint64",
+                "internalType": "uint64"
+              },
+              {
+                "name": "defaultAfterMissed",
+                "type": "uint16",
+                "internalType": "uint16"
               }
             ]
           },
@@ -1567,6 +1959,19 @@ export const VAULT_FACTORY_ABI = [
       }
     ],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "token",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract IERC20"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -1623,7 +2028,23 @@ export const VAULT_FACTORY_ABI = [
       }
     ],
     "anonymous": false
+  },
+  {
+    "type": "error",
+    "name": "BadToken",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "SafeERC20FailedOperation",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
   }
 ] as const;
-/** keccak256 of VaultFactory's runtime bytecode (it has no immutables, so it equals the deployed code). */
-export const FACTORY_RUNTIME_CODEHASH = "0xcdc333616f5753a685e206a028114f05f16a8098e82227a0b22e745720ad0628" as const;
+/** keccak256 of VaultFactory's runtime bytecode with its immutable token set to fUSD, which equals the deployed code. */
+export const FACTORY_RUNTIME_CODEHASH = "0x9e5884c976dcb9f048cf25f8e4603250dbbd2dc7398236105cb947ebb7be17fd" as const;

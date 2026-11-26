@@ -1,5 +1,5 @@
 import type { PublicClient } from "viem";
-import { VAULT_EVENTS } from "@qredit/qore";
+import { VAULT_EVENTS_V1 } from "@qredit/qore";
 import type { Db } from "../db/client.ts";
 import { applyVaultEvent, getWatchState, setWatchState, type VaultEvent } from "../db/store/index.ts";
 
@@ -38,7 +38,7 @@ export function viemLogSource(client: PublicClient): LogSource {
   return {
     latestBlock: async () => Number(await client.getBlockNumber()),
     async events(vault, from, to) {
-      const logs = await client.getLogs({ address: vault as `0x${string}`, events: VAULT_EVENTS, fromBlock: BigInt(from), toBlock: BigInt(to) });
+      const logs = await client.getLogs({ address: vault as `0x${string}`, events: VAULT_EVENTS_V1, fromBlock: BigInt(from), toBlock: BigInt(to) });
       const out: VaultEvent[] = [];
       for (const l of logs) {
         const base = { vault: vault.toLowerCase(), orderId: String(l.args.orderId), block: Number(l.blockNumber), logIndex: Number(l.logIndex), tx: l.transactionHash.toLowerCase() };
