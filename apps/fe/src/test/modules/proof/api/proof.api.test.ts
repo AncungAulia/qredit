@@ -30,6 +30,8 @@ const business = {
   operator: ADDR,
   spender: ADDR,
   startBlock: 1,
+  version: 2 as const,
+  ended: null,
 };
 const reads = {
   codeHash: async () => FACTORY_RUNTIME_CODEHASH as string,

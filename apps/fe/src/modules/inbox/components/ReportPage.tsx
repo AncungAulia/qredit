@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useNow } from "@/hooks/useNow";
 import { ApiError } from "@/lib/apiClient";
 import { formatCount, formatDateTime, formatFusd, shortHash } from "@/lib/format";
+import { hasReport } from "@/lib/orderStatus";
 import type { Business, Order } from "@/lib/schemas";
 import { serviceName } from "@/lib/serviceName";
 import { cn, focusRing } from "@/lib/utils";
@@ -157,7 +158,7 @@ function WaitingOrder({ ctx }: { ctx: Loaded }) {
   const late = isLate(order, useNow());
   const base = { business, order };
   let card: ReactNode;
-  if (order.status === "delivered") card = null;
+  if (hasReport(order.status)) card = null;
   else if (late) {
     card = (
       <EmptyState
@@ -204,7 +205,7 @@ export function ReportPage({ vault, orderId }: { vault: Hex; orderId: string }) 
   const ctx = useReportContextQuery(vault, orderId);
   const loaded = ctx.data as Loaded | undefined;
   const order = loaded?.order;
-  const delivered = order?.status === "delivered";
+  const delivered = order ? hasReport(order.status) : false;
   const delivery = useDeliveryQuery(vault, orderId, order?.placedBlock ?? 0, order?.deadline ?? new Date(0), Boolean(delivered));
   const open = useOpenReport();
   const wallet = useWallet((s) => testWalletOf(s.session));

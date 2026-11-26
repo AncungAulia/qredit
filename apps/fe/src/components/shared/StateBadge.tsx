@@ -1,4 +1,4 @@
-import { Circle, CircleCheck, Hourglass, TrendingUp, Undo2, type LucideIcon } from "lucide-react";
+import { Archive, Circle, CircleCheck, Hourglass, OctagonX, TrendingUp, Undo2, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { VaultStateName } from "@/lib/vaultState";
 
@@ -13,6 +13,8 @@ const LOOK: Record<VaultStateName, { label: string; icon: LucideIcon; className:
   Trapped: { label: "Trapped", icon: Hourglass, className: "bg-warning-soft text-warning" },
   Repaid: { label: "Repaid", icon: CircleCheck, className: "bg-success-soft text-success" },
   Refunded: { label: "Refunded", icon: Undo2, className: "bg-surface-muted text-text-secondary" },
+  Defaulted: { label: "Defaulted", icon: OctagonX, className: "bg-danger-soft text-danger" },
+  Closed: { label: "Closed", icon: Archive, className: "bg-surface-muted text-text-secondary" },
 };
 
 export function StateBadge({ state, className }: { state: VaultStateName; className?: string }) {

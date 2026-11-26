@@ -37,3 +37,25 @@ test("rejects an unknown status", () => {
   expect(result.success).toBe(false);
   expect(result.error?.issues.map((i) => i.path.join("."))).toEqual(["decision"]);
 });
+
+test("a business without a version is a v1 vault; v2 carries ended and stats", () => {
+  const base = {
+    slug: "s", vault: `0x${"a".repeat(40)}`, name: "n", tagline: "t", services: [], operator: `0x${"b".repeat(40)}`,
+    spender: `0x${"c".repeat(40)}`, startBlock: 1,
+  };
+  expect(businessSchema.parse(base)).toMatchObject({ version: 1, ended: null });
+  expect(businessSchema.parse({ ...base, version: 2, ended: "defaulted", stats: { delivered: 4, rejected: 1, uniqueBuyers: 3 } }))
+    .toMatchObject({ version: 2, ended: "defaulted", stats: { delivered: 4, rejected: 1, uniqueBuyers: 3 } });
+  expect(() => businessSchema.parse({ ...base, version: 3 })).toThrow();
+});
+
+test("an order in review carries its review end; a rejection its refund", () => {
+  const base = {
+    vault: `0x${"a".repeat(40)}`, orderId: "5", buyer: `0x${"b".repeat(40)}`, serviceId: 0, price: "250000",
+    requestRef: `0x${"7".repeat(64)}`, deadline: 1795549723, placedTx: `0x${"f".repeat(64)}`, placedBlock: 1, envelopeHash: null,
+  };
+  const review = orderSchema.parse({ ...base, status: "in_review", reviewEnds: 1_900_000_000, refund: null });
+  expect(review.reviewEnds).toEqual(new Date(1_900_000_000_000));
+  expect(orderSchema.parse({ ...base, status: "rejected", reviewEnds: 1, refund: "150000" }).refund).toBe(150000n);
+  expect(orderSchema.parse({ ...base, status: "delivered" })).toMatchObject({ reviewEnds: null, refund: null });
+});

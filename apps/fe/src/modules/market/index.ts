@@ -4,6 +4,7 @@ export { MarketPage } from "@/modules/market/components/MarketPage";
 export { countDelivered, getBusiness, ORDERS_LIMIT, readVaultSnapshot } from "@/modules/market/api/market.api";
 export { marketKeys } from "@/modules/market/api/market.keys";
 export {
+  useBusinessesQuery,
   useBusinessQuery,
   useLatestOrdersQuery,
   useMarketQuery,

@@ -36,7 +36,7 @@ export async function readPositions(evm: Hex, businesses: Business[]): Promise<P
   return Promise.all(
     held.map(async ({ business, deposit }) => {
       const [vault, claimable, claimed] = await Promise.all([
-        readVaultSnapshot(business.vault),
+        readVaultSnapshot(business.vault, business.version),
         readVault(business.vault, "lenderClaimable", [evm]),
         readVault(business.vault, "lenderClaimed", [evm]),
       ]);

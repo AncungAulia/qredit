@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { api, parseResponse } from "@/lib/apiClient";
-import { publicClient, readVault } from "@/lib/chain";
+import { publicClient, readVault, readVaultV1 } from "@/lib/chain";
+import { hasReport } from "@/lib/orderStatus";
+import type { VaultVersion } from "@qredit/qore/abi";
 import { serviceName } from "@/lib/serviceName";
 import { vaultStateName } from "@/lib/vaultState";
 import { businessSchema, orderSchema, type Business, type Order } from "@/lib/schemas";
@@ -24,7 +26,7 @@ export const ORDERS_LIMIT = 100;
 /** Orders delivered in a list. `capped` is true when the list is as long as the backend allows, so older orders may be missing. */
 export function countDelivered(orders: Order[]): { count: number; capped: boolean } {
   return {
-    count: orders.filter((o) => o.status === "delivered").length,
+    count: orders.filter((o) => hasReport(o.status)).length,
     capped: orders.length >= ORDERS_LIMIT,
   };
 }
@@ -34,29 +36,37 @@ export async function getOrders(vault: Hex): Promise<Order[]> {
   return parseResponse(z.array(orderSchema), data);
 }
 
-/** Reads the loan state of one vault from the chain. An unknown state number rejects. */
-export async function readVaultSnapshot(vault: Hex): Promise<VaultSnapshot> {
-  const [state, raised, repaid, paused, lenderBps, loan] = await Promise.all([
+/** Reads the loan of one vault from the chain, with the ABI of its version. An unknown state number rejects. */
+export async function readVaultSnapshot(vault: Hex, version: VaultVersion = 2): Promise<VaultSnapshot> {
+  const [state, raised, repaid, paused, lenderBps, activatedAt] = await Promise.all([
     readVault(vault, "state"),
     readVault(vault, "raised"),
     readVault(vault, "repaid"),
     readVault(vault, "paused"),
     readVault(vault, "lenderBps"),
-    readVault(vault, "loan"),
+    readVault(vault, "activatedAt"),
   ]);
-  // loan() returns target, totalOwed, raiseDeadline, period, grace, installment.
-  const [target, totalOwed, raiseDeadline, period, , installment] = loan;
+  const common = { state: vaultStateName(Number(state)), raised, repaid, paused, lenderBps: Number(lenderBps) };
+  if (version === 1) {
+    // loan() of v1 returns target, totalOwed, raiseDeadline, period, grace, installment.
+    const [target, totalOwed, raiseDeadline, period, , installment] = await readVaultV1(vault, "loan");
+    return {
+      ...common, version: 1, target, totalOwed, installment, period, raiseDeadline: new Date(Number(raiseDeadline) * 1000),
+      bondHeld: 0n, swept: 0n, uniqueBuyers: null, maturityAt: null,
+    };
+  }
+  const [loan, bondHeld, swept, uniqueBuyers] = await Promise.all([
+    readVault(vault, "loan"),
+    readVault(vault, "bondHeld"),
+    readVault(vault, "swept"),
+    readVault(vault, "uniqueBuyers"),
+  ]);
+  // v2 loan() adds maturity, maturityGrace and defaultAfterMissed after the installment.
+  const [target, totalOwed, raiseDeadline, period, , installment, maturity] = loan;
   return {
-    state: vaultStateName(Number(state)),
-    raised,
-    repaid,
-    paused,
-    lenderBps: Number(lenderBps),
-    target,
-    totalOwed,
-    installment,
-    period,
-    raiseDeadline: new Date(Number(raiseDeadline) * 1000),
+    ...common, version: 2, target, totalOwed, installment, period, raiseDeadline: new Date(Number(raiseDeadline) * 1000),
+    bondHeld, swept, uniqueBuyers: Number(uniqueBuyers),
+    maturityAt: activatedAt > 0n ? new Date(Number(activatedAt + maturity) * 1000) : null,
   };
 }
 
@@ -96,12 +106,13 @@ export function toMarketEntry(
  * becomes a failed row; when none can be read, the load itself fails.
  */
 export async function getMarket(): Promise<MarketRow[]> {
-  const businesses = await getBusinesses();
+  // v1 vaults stay on chain for old orders and positions; the Market lists only v2.
+  const businesses = (await getBusinesses()).filter((b) => b.version === 2);
   let firstError: unknown;
   const rows = await Promise.all(
     businesses.map(async (b): Promise<MarketRow> => {
       const [vault, orders] = await Promise.allSettled([
-        readVaultSnapshot(b.vault),
+        readVaultSnapshot(b.vault, b.version),
         getOrders(b.vault),
       ]);
       if (vault.status === "fulfilled" && orders.status === "fulfilled") {

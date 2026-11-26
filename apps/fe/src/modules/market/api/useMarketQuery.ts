@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   getBlockTimes,
   getBusiness,
+  getBusinesses,
   getMarket,
   getOrders,
   isLoaded,
@@ -18,13 +19,17 @@ const LATEST_ORDERS = 4;
 export const useMarketQuery = () =>
   useQuery({ queryKey: marketKeys.all, queryFn: getMarket, refetchInterval: REFRESH_MS });
 
+/** Every business, v1 and v2: the Inbox and lending positions still read v1 vaults. */
+export const useBusinessesQuery = () =>
+  useQuery({ queryKey: marketKeys.businesses, queryFn: getBusinesses, refetchInterval: REFRESH_MS });
+
 export const useBusinessQuery = (slug: string) =>
   useQuery({ queryKey: marketKeys.business(slug), queryFn: () => getBusiness(slug) });
 
-export const useVaultQuery = (vault: `0x${string}`) =>
+export const useVaultQuery = (vault: `0x${string}`, version: 1 | 2 = 2) =>
   useQuery({
     queryKey: marketKeys.vault(vault),
-    queryFn: () => readVaultSnapshot(vault),
+    queryFn: () => readVaultSnapshot(vault, version),
     refetchInterval: REFRESH_MS,
   });
 

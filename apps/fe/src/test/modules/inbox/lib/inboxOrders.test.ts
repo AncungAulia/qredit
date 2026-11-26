@@ -22,3 +22,13 @@ test("totals separate delivered, waiting and returned money", () => {
   ]);
   expect(totals).toEqual({ ready: 1, waiting: 2, spent: 250_000n, refunded: 750_000n });
 });
+
+test("v2 totals: a report in review is ready but not yet spent; a rejection returns its refund", () => {
+  const totals = inboxTotals([
+    { status: "in_review", price: 250_000n },
+    { status: "settled", price: 250_000n },
+    { status: "rejected", price: 250_000n, refund: 200_000n },
+    { status: "declined", price: 250_000n, refund: 250_000n },
+  ]);
+  expect(totals).toEqual({ ready: 3, waiting: 0, spent: 300_000n, refunded: 450_000n });
+});

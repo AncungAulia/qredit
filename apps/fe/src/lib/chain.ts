@@ -1,4 +1,5 @@
 import { LOAN_VAULT_ABI } from "@qredit/qore/abis";
+import { LOAN_VAULT_V1_ABI } from "@qredit/qore/abis-v1";
 import { publicClientFor } from "@qredit/qore/net";
 import type { Abi, Address, ContractFunctionArgs, ContractFunctionName, ReadContractReturnType } from "viem";
 import { env } from "./env";
@@ -21,6 +22,18 @@ export const readVault = <F extends VaultReader>(
 ): Promise<ReadContractReturnType<typeof LOAN_VAULT_ABI, F>> =>
   (publicClient.readContract as (p: ReadParams) => Promise<unknown>)({ address, abi: LOAN_VAULT_ABI, functionName, args: args as readonly unknown[] | undefined }) as Promise<
     ReadContractReturnType<typeof LOAN_VAULT_ABI, F>
+  >;
+
+type VaultV1Reader = ContractFunctionName<typeof LOAN_VAULT_V1_ABI, "view" | "pure">;
+
+/** Reads a v1 vault where its ABI differs from v2 (`loan`, `books`, `orders`). The same single cast as `readVault`. */
+export const readVaultV1 = <F extends VaultV1Reader>(
+  address: Address,
+  functionName: F,
+  args?: ContractFunctionArgs<typeof LOAN_VAULT_V1_ABI, "view" | "pure", F>,
+): Promise<ReadContractReturnType<typeof LOAN_VAULT_V1_ABI, F>> =>
+  publicClient.readContract({ address, abi: LOAN_VAULT_V1_ABI, functionName, args } as never) as Promise<
+    ReadContractReturnType<typeof LOAN_VAULT_V1_ABI, F>
   >;
 
 /** The Cosmos REST API has no CORS headers, so browser calls go through this app's proxy (app/api/chain/rest). */

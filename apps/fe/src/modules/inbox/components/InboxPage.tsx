@@ -14,7 +14,7 @@ import { cn, focusRing } from "@/lib/utils";
 import { useMyOrdersQuery, useOrderTimesQuery } from "@/modules/inbox/api/useInbox";
 import { InboxList } from "@/modules/inbox/components/InboxList";
 import { inboxTotals } from "@/modules/inbox/lib/inboxOrders";
-import { KPI_GRID, useMarketQuery } from "@/modules/market";
+import { KPI_GRID, useBusinessesQuery } from "@/modules/market";
 import { ConnectPrompt } from "@/modules/wallet/components/ConnectPrompt";
 import { SetupGate, useWalletReadiness } from "@/modules/wallet/components/RequireReadyWallet";
 import { testWalletOf } from "@/modules/wallet/signer";
@@ -89,8 +89,9 @@ export function InboxPage() {
   const session = useWallet((s) => s.session);
   const hydrated = useWallet((s) => s.hydrated);
   const evm = testWalletOf(session)?.evm ?? null;
-  const market = useMarketQuery();
-  const businesses = market.data?.map((row) => row.business);
+  // v1 vaults stay listed here: old orders and positions must still open.
+  const market = useBusinessesQuery();
+  const businesses = market.data;
   const orders = useMyOrdersQuery(evm, businesses);
   const rows = orders.data;
   const times = useOrderTimesQuery([...new Set((rows ?? []).map((o) => o.placedBlock))]);

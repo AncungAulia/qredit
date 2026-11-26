@@ -9,6 +9,8 @@ vi.mock("@/lib/chain", () => ({
   },
   readVault: (address: string, functionName: string, args?: unknown[]) =>
     readContract({ address, functionName, args }),
+  readVaultV1: (address: string, functionName: string, args?: unknown[]) =>
+    readContract({ address, functionName, args, v1: true }),
 }));
 const get = vi.fn();
 vi.mock("@/lib/apiClient", async (importOriginal) => ({
@@ -51,6 +53,7 @@ const wire = (slug: string, vault: string) => ({
   operator: "0x2",
   spender: "0x3",
   startBlock: 1,
+  version: 2,
 });
 
 const VAULT_VALUES: Record<string, unknown> = {
@@ -59,7 +62,11 @@ const VAULT_VALUES: Record<string, unknown> = {
   repaid: 11_000_000n,
   paused: false,
   lenderBps: 7000,
-  loan: [50_000_000n, 55_000_000n, 1795500000n, 3600n, 600n, 5_000_000n],
+  activatedAt: 1_800_000_000n,
+  bondHeld: 5_000_000n,
+  swept: 0n,
+  uniqueBuyers: 3n,
+  loan: [50_000_000n, 55_000_000n, 1795500000n, 3600n, 600n, 5_000_000n, 86_400n * 55n, 86_400n, 3],
 };
 
 test("reads and names the vault state", async () => {
@@ -155,4 +162,26 @@ test("countDelivered counts delivered orders and flags a list at the backend lim
   expect(countDelivered(list(100))).toEqual({ count: 100, capped: true });
   expect(countDelivered(list(100, "open"))).toEqual({ count: 0, capped: true });
   expect(toMarketEntry(business("a"), { state: "Active" } as never, list(100)).deliveredCapped).toBe(true);
+});
+
+test("the market lists only v2 vaults", async () => {
+  get.mockImplementation(async (path: string) => ({ data: path === "/v1/businesses" ? [{ ...wire("old", "0x1"), version: 1 }, wire("new", "0x2")] : [] }));
+  readContract.mockImplementation(async ({ functionName }: { functionName: string }) => VAULT_VALUES[functionName]);
+  const rows = await getMarket();
+  expect(rows.map((r) => r.business.slug)).toEqual(["new"]);
+});
+
+test("a v2 snapshot carries the bond, the maturity date and unique buyers", async () => {
+  readContract.mockImplementation(async ({ functionName }: { functionName: string }) => VAULT_VALUES[functionName]);
+  const v = await readVaultSnapshot("0x2", 2);
+  expect(v).toMatchObject({ version: 2, bondHeld: 5_000_000n, swept: 0n, uniqueBuyers: 3 });
+  expect(v.maturityAt).toEqual(new Date((1_800_000_000 + 86_400 * 55) * 1000));
+});
+
+test("a v1 snapshot reads loan() with the v1 ABI and has no bond", async () => {
+  const v1Loan = [50_000_000n, 55_000_000n, 1_900_000_000n, 86_400n, 86_400n, 1_000_000n];
+  readContract.mockImplementation(async ({ functionName, v1 }: { functionName: string; v1?: boolean }) =>
+    functionName === "loan" ? (v1 ? v1Loan : Promise.reject(new Error("v2 loan() on a v1 vault"))) : VAULT_VALUES[functionName]);
+  const v = await readVaultSnapshot("0x1", 1);
+  expect(v).toMatchObject({ version: 1, bondHeld: 0n, swept: 0n, uniqueBuyers: null, maturityAt: null, target: 50_000_000n });
 });

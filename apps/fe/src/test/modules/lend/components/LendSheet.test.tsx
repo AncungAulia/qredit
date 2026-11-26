@@ -53,6 +53,11 @@ const vault: VaultSnapshot = {
   raiseDeadline: new Date("2027-01-14T00:00:00Z"),
   lenderBps: 7000,
   paused: false,
+  version: 2,
+  bondHeld: 0n,
+  swept: 0n,
+  uniqueBuyers: 0,
+  maturityAt: null,
 };
 
 const open = (onOpenChange = vi.fn()) =>

@@ -4,12 +4,14 @@ import { StateBadge } from "@/components/shared/StateBadge";
 import { vaultStateName } from "@/lib/vaultState";
 
 test("maps chain numbers to names", () => {
-  expect([0, 1, 2, 3, 4].map(vaultStateName)).toEqual([
+  expect([0, 1, 2, 3, 4, 5, 6].map(vaultStateName)).toEqual([
     "Raising",
     "Active",
     "Trapped",
     "Repaid",
     "Refunded",
+    "Defaulted",
+    "Closed",
   ]);
 });
 
@@ -20,6 +22,8 @@ test.each([
   ["Trapped", "Trapped"],
   ["Repaid", "Repaid"],
   ["Refunded", "Refunded"],
+  ["Defaulted", "Defaulted"],
+  ["Closed", "Closed"],
 ] as const)("%s reads as %s", (state, label) => {
   render(<StateBadge state={state} />);
   expect(screen.getByText(label)).toBeInTheDocument();

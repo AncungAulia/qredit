@@ -22,7 +22,7 @@ vi.mock("@/modules/wallet/components/RequireReadyWallet", () => ({
 const market = vi.hoisted(() => ({ data: [] as unknown[] | undefined, isError: false }));
 vi.mock("@/modules/market", async (orig) => ({
   ...(await orig<object>()),
-  useMarketQuery: () => ({ ...market, refetch: vi.fn() }),
+  useBusinessesQuery: () => ({ ...market, refetch: vi.fn() }),
 }));
 
 const orders = vi.hoisted(() => ({
@@ -55,7 +55,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   wallet.session = { kind: "test", evm: ME, address: "qor1x" };
   wallet.hydrated = true;
-  market.data = [{ business }];
+  market.data = [business];
   market.isError = false;
   orders.data = undefined;
   orders.isError = false;

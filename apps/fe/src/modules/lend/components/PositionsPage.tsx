@@ -11,7 +11,7 @@ import { formatCount, formatFusd } from "@/lib/format";
 import { usePositionsQuery } from "@/modules/lend/api/useLend";
 import { PositionList } from "@/modules/lend/components/PositionList";
 import { lendTotals, lenderAddress } from "@/modules/lend/lib/lender";
-import { KPI_GRID, useMarketQuery } from "@/modules/market";
+import { KPI_GRID, useBusinessesQuery } from "@/modules/market";
 import { ConnectPrompt } from "@/modules/wallet/components/ConnectPrompt";
 import { SetupGate, useWalletReadiness } from "@/modules/wallet/components/RequireReadyWallet";
 import { testWalletOf } from "@/modules/wallet/signer";
@@ -49,8 +49,9 @@ export function PositionsPage() {
   const session = useWallet((s) => s.session);
   const hydrated = useWallet((s) => s.hydrated);
   const evm = lenderAddress(session);
-  const market = useMarketQuery();
-  const businesses = market.data?.map((row) => row.business);
+  // v1 vaults stay listed here: old orders and positions must still open.
+  const market = useBusinessesQuery();
+  const businesses = market.data;
   const positions = usePositionsQuery(evm, businesses);
   const rows = positions.data;
   const hasTestWallet = Boolean(testWalletOf(session));

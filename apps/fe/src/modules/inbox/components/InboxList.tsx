@@ -6,6 +6,7 @@ import { OrderStatusBadge } from "@/components/shared/OrderStatusBadge";
 import { Button } from "@/components/ui/button";
 import { useNow } from "@/hooks/useNow";
 import { formatFusd, formatRelative } from "@/lib/format";
+import { hasReport } from "@/lib/orderStatus";
 import { serviceName } from "@/lib/serviceName";
 import { cn, focusRing } from "@/lib/utils";
 import type { InboxOrder } from "@/modules/inbox/api/inbox.api";
@@ -17,6 +18,9 @@ const COLUMNS = "md:grid-cols-[minmax(0,1fr)_150px_200px_90px_130px] xl:grid-col
 
 const ICONS: Record<InboxOrder["status"], LucideIcon> = {
   delivered: Mail,
+  in_review: Mail,
+  settled: Mail,
+  rejected: MailX,
   open: Hourglass,
   claimed: Hourglass,
   declined: MailX,
@@ -25,8 +29,8 @@ const ICONS: Record<InboxOrder["status"], LucideIcon> = {
 
 const reportHref = (o: InboxOrder) => `/inbox/${o.vault}/${o.orderId}`;
 
-function Status({ order, late }: { order: InboxOrder; late: boolean }) {
-  if (!late) return <OrderStatusBadge status={order.status} />;
+function Status({ order, late, now }: { order: InboxOrder; late: boolean; now: number }) {
+  if (!late) return <OrderStatusBadge status={order.status} reviewEnds={order.reviewEnds} refund={order.refund} now={now} />;
   return (
     <span className="inline-flex items-center rounded-full bg-warning-soft px-2.5 py-1.5 text-[13px] leading-none font-medium text-warning">
       Late, reclaim available
@@ -35,10 +39,10 @@ function Status({ order, late }: { order: InboxOrder; late: boolean }) {
 }
 
 function Action({ order, late, canSend }: { order: InboxOrder; late: boolean; canSend: boolean }) {
-  if (order.status === "delivered") {
+  if (hasReport(order.status)) {
     return (
       <Button size="sm" variant="secondary" className="max-md:h-11 max-md:w-full" render={<Link href={reportHref(order)} />} nativeButton={false} role="link">
-        Open report
+        {order.status === "rejected" ? "View report" : "Open report"}
       </Button>
     );
   }
@@ -80,7 +84,7 @@ export function InboxList({ orders, times, canSend }: { orders: InboxOrder[]; ti
                 <span
                   className={cn(
                     "grid size-10 shrink-0 place-items-center rounded-xl md:size-9 md:rounded-[10px]",
-                    late ? "bg-warning-soft text-warning" : o.status === "delivered" ? "bg-accent-soft text-accent-strong" : "bg-surface-muted text-text-tertiary",
+                    late ? "bg-warning-soft text-warning" : hasReport(o.status) ? "bg-accent-soft text-accent-strong" : "bg-surface-muted text-text-tertiary",
                   )}
                 >
                   <Icon className="size-4" aria-hidden />
@@ -100,7 +104,7 @@ export function InboxList({ orders, times, canSend }: { orders: InboxOrder[]; ti
               </span>
               <span className="truncate text-sm text-text-secondary max-md:order-3 md:col-start-2 md:row-start-1">{o.business.name}</span>
               <span className="justify-self-end max-md:order-3 md:col-start-3 md:row-start-1 md:justify-self-start">
-                <Status order={o} late={late} />
+                <Status order={o} late={late} now={now} />
               </span>
               <div className="col-span-2 max-md:order-4 empty:hidden md:col-span-1 md:col-start-5 md:row-start-1 md:justify-self-end">
                 <Action order={o} late={late} canSend={canSend} />

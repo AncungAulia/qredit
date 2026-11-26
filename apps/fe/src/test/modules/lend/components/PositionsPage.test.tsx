@@ -35,7 +35,7 @@ vi.mock("@/modules/wallet/components/WalletSetup", () => ({ WalletSetup: () => <
 const market = vi.hoisted(() => ({ data: [] as unknown[] | undefined, isError: false }));
 vi.mock("@/modules/market", async (orig) => ({
   ...(await orig<object>()),
-  useMarketQuery: () => ({ ...market, refetch: vi.fn() }),
+  useBusinessesQuery: () => ({ ...market, refetch: vi.fn() }),
 }));
 
 const positions = vi.hoisted(() => ({
@@ -76,7 +76,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   wallet.session = { kind: "test", evm: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8" };
   wallet.hydrated = true;
-  market.data = [{ business: business("a", "Counterparty Check") }];
+  market.data = [business("a", "Counterparty Check")];
   market.isError = false;
   positions.data = undefined;
   positions.isError = false;
