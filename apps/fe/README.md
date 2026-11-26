@@ -35,7 +35,7 @@ Environment: `cp .env.example .env.local` and fill the values listed under Envir
 | `NEXT_PUBLIC_API_URL`       | `https://api.qredit.fun`          |
 | `NEXT_PUBLIC_QORE_EVM_URL`  | `https://evm-testnet.qore.host`   |
 | `NEXT_PUBLIC_QORE_CHAIN_ID` | `qorechain-diana`                 |
-| `NEXT_PUBLIC_EXPLORER_URL`  | empty (no explorer link is shown); testnet: `https://dashboard.qorechain.io/explorer` |
+| `NEXT_PUBLIC_EXPLORER_URL`  | empty (no explorer link is shown); testnet: `https://dashboard.qorechain.io/explorer` (it opens on Mainnet; pick Testnet once in its top-right toggle) |
 | `QORE_REST_URL`             | `https://api-testnet.qore.host`   |
 | `QORE_RPC_URL`              | `https://rpc-testnet.qore.host`   |
 
