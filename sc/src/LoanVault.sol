@@ -29,7 +29,7 @@ contract LoanVault {
     enum State { Raising, Active, Trapped, Repaid, Refunded, Defaulted, Closed }
     enum EndKind { None, Defaulted, Closed }
     enum OrderStatus { None, Open, InReview, Settled, Rejected, Declined, Reclaimed }
-    enum Kind { RemoveSupplier, LowerSupplierCap, LowerDailyCap, Pause, Unpause, AddSupplier, RaiseSupplierCap, RaiseDailyCap, Close }
+    enum Kind { RemoveSupplier, LowerSupplierCap, LowerDailyCap, Pause, Unpause, AddSupplier, RaiseSupplierCap, RaiseDailyCap, Close, RotateAgent }
 
     struct LoanTerms {
         uint256 target;
@@ -85,8 +85,9 @@ contract LoanVault {
 
     // Roles and fixed terms
     IERC20 public immutable token;
-    address public immutable spender;
-    address public immutable operator;
+    /// The agent keys; the owner may rotate them with a signed RotateAgent order.
+    address public spender;
+    address public operator;
     address public immutable ownerPq;
     address public immutable ownerPayout;
     uint16 public immutable lenderBps;
@@ -149,6 +150,8 @@ contract LoanVault {
     event RemainderWithdrawn(uint256 amount);
     event BondReturned(uint256 amount);
     event LoanEnded(uint8 kind);
+    event AgentRotated(address spender, address operator);
+    event AgentPaused(address indexed by);
 
     error BadConfig();
     error WrongState();
@@ -184,6 +187,7 @@ contract LoanVault {
     error NotInReview();
     error ReviewOpen();
     error ReviewOver();
+    error NotAgent();
 
     constructor(IERC20 token_, Init memory init) {
         if (
@@ -558,7 +562,7 @@ contract LoanVault {
 
     function applyOrder(PolicyOrder calldata o, bytes calldata sig) external {
         _notEnded();
-        if (o.kind > uint8(Kind.Close)) revert UnknownKind();
+        if (o.kind > uint8(Kind.RotateAgent)) revert UnknownKind();
         (bool registered,, bytes memory pubkey, bool proven) = PQC_KEYS.pqcKeyStatus(ownerPq);
         if (!registered || pubkey.length == 0) revert OwnerKeyNotRegistered();
         if (!proven) revert OwnerKeyNotProven();
@@ -605,12 +609,33 @@ contract LoanVault {
         } else if (k == Kind.RaiseDailyCap) {
             if (value <= dailyCap) revert BadOrder();
             dailyCap = value;
-        } else {
-            // Close: only a running loan (Active or Trapped); Raising, Refunded and Repaid refuse.
+        } else if (k == Kind.Close) {
+            // Only a running loan (Active or Trapped); Raising, Refunded and Repaid refuse.
             State s = state();
             if (s != State.Active && s != State.Trapped) revert WrongState();
             _end(EndKind.Closed);
+        } else {
+            // RotateAgent: target = new spender, value = new operator as uint256(uint160(addr)).
+            address newOperator = address(uint160(value));
+            if (value >> 160 != 0 || target == address(0) || newOperator == address(0)) revert BadOrder();
+            if (!_canBeAgent(target) || !_canBeAgent(newOperator)) revert BadOrder();
+            spender = target;
+            operator = newOperator;
+            emit AgentRotated(target, newOperator);
         }
+    }
+
+    /// The agent may stop its own vault (a leaked key is noticed first by the agent); only the owner resumes it.
+    function selfPause() external {
+        if (msg.sender != spender && msg.sender != operator) revert NotAgent();
+        if (paused) revert Paused();
+        paused = true;
+        emit AgentPaused(msg.sender);
+    }
+
+    /// An agent key may not be a supplier or an owner address, so no role can pay itself.
+    function _canBeAgent(address a) internal view returns (bool) {
+        return !suppliers[a].allowed && a != ownerPq && a != ownerPayout && a != address(this);
     }
 
     /// True when a supplier address would let a role pay itself through the supplier path.

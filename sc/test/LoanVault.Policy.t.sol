@@ -145,7 +145,7 @@ contract LoanVaultPolicyTest is Base {
     }
 
     function test_unknownKindReverts() public {
-        LoanVault.PolicyOrder memory o = _order(9, address(0), 0);
+        LoanVault.PolicyOrder memory o = _order(10, address(0), 0);
         vm.expectRevert(LoanVault.UnknownKind.selector);
         vault.applyOrder(o, hex"");
     }
@@ -256,5 +256,92 @@ contract LoanVaultPolicyTest is Base {
         bytes memory own = abi.encodePacked("qorechain-msg-v1|qorechain-vladi|", vladi.orderText(o));
         vladi.applyOrder(o, abi.encodePacked(keccak256(abi.encodePacked("ok", hex"c0ffee", own))));
         assertTrue(vladi.paused());
+    }
+
+    uint8 internal constant ROTATE_AGENT = 9;
+    address internal newSpender = makeAddr("newSpender");
+    address internal newOperator = makeAddr("newOperator");
+
+    function _rotateOrder(address s, address o) internal view returns (LoanVault.PolicyOrder memory) {
+        return _order(ROTATE_AGENT, s, uint256(uint160(o)));
+    }
+
+    function test_rotateAgentMovesBothRoles() public {
+        vm.expectEmit(address(vault));
+        emit LoanVault.AgentRotated(newSpender, newOperator);
+        _apply(_rotateOrder(newSpender, newOperator));
+        assertEq(vault.spender(), newSpender);
+        assertEq(vault.operator(), newOperator);
+        uint256 id = _buy(2);
+        vm.prank(spender);
+        vm.expectRevert(LoanVault.NotSpender.selector);
+        vault.paySupplier(supplierA, 1e18, id);
+        vm.prank(newSpender);
+        vault.paySupplier(supplierA, 1e18, id);
+        vm.prank(operator);
+        vm.expectRevert(LoanVault.NotOperator.selector);
+        vault.deliver(id, bytes32(0));
+        vm.prank(newOperator);
+        vault.deliver(id, bytes32(0));
+    }
+
+    function test_rotateAgentRefusesUnsafeAddresses() public {
+        address[5] memory bad = [address(0), supplierA, ownerPq, ownerPayout, address(vault)];
+        for (uint256 k; k < bad.length; k++) {
+            LoanVault.PolicyOrder memory o = _rotateOrder(bad[k], newOperator);
+            bytes memory sig = _sign(o);
+            vm.expectRevert(LoanVault.BadOrder.selector);
+            vault.applyOrder(o, sig);
+            o = _rotateOrder(newSpender, bad[k]);
+            sig = _sign(o);
+            vm.expectRevert(LoanVault.BadOrder.selector);
+            vault.applyOrder(o, sig);
+        }
+        assertEq(vault.policyNonce(), 0);
+    }
+
+    function test_rotateAgentRefusesValueAbove160Bits() public {
+        LoanVault.PolicyOrder memory o = _order(ROTATE_AGENT, newSpender, (uint256(1) << 160) | uint256(uint160(newOperator)));
+        bytes memory sig = _sign(o);
+        vm.expectRevert(LoanVault.BadOrder.selector);
+        vault.applyOrder(o, sig);
+    }
+
+    function test_rotateAgentByNonOwnerRefused() public {
+        LoanVault.PolicyOrder memory o = _rotateOrder(newSpender, newOperator);
+        vm.expectRevert(LoanVault.BadPqcSignature.selector);
+        vault.applyOrder(o, hex"deadbeef");
+        assertEq(vault.spender(), spender);
+    }
+
+    function test_rotateAgentAllowedWhileRaising() public {
+        vault = _create(_init());
+        _apply(_rotateOrder(newSpender, newOperator));
+        assertEq(vault.spender(), newSpender);
+    }
+
+    function test_agentCanPauseButNotUnpause() public {
+        vm.expectEmit(address(vault));
+        emit LoanVault.AgentPaused(spender);
+        vm.prank(spender);
+        vault.selfPause();
+        assertTrue(vault.paused());
+        vm.prank(operator);
+        vm.expectRevert(LoanVault.Paused.selector);
+        vault.selfPause();
+        _apply(_order(UNPAUSE, address(0), 0));
+        assertFalse(vault.paused());
+        vm.prank(operator);
+        vault.selfPause();
+        assertTrue(vault.paused());
+    }
+
+    function test_onlyTheAgentSelfPauses() public {
+        address[3] memory others = [ownerPq, buyer, stranger];
+        for (uint256 k; k < others.length; k++) {
+            vm.prank(others[k]);
+            vm.expectRevert(LoanVault.NotAgent.selector);
+            vault.selfPause();
+        }
     }
 }
