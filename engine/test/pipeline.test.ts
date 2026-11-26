@@ -5,7 +5,7 @@ import type { Llm, PlanInput } from "../src/agent/llm.ts";
 import { handleOrder, type BusinessRuntime, type PipelineDeps } from "../src/agent/pipeline.ts";
 import { sealRequest } from "../src/agent/seal.ts";
 import { createSuppliersClient, SupplierRefused } from "../src/agent/suppliers-client.ts";
-import type { Order, Prices } from "../src/agent/types.ts";
+import type { ChainOrder, Order, Prices } from "../src/agent/types.ts";
 import { SERVICES } from "../src/services/index.ts";
 import type { SupplierRole } from "../src/setup/businesses.ts";
 
@@ -36,6 +36,7 @@ type Opts = {
   llm?: Partial<Llm>; wrongHash?: boolean;
   relayThrow?: boolean; payThrow?: boolean; waitForFail?: boolean; getError?: Error; deliverThrow?: boolean; shared?: Set<SupplierRole>;
   chain?: Set<SupplierRole>; slowRelay?: boolean;
+  onChain?: Partial<ChainOrder>; chainFail?: boolean;
 };
 
 function setup(o: Opts = {}) {
@@ -45,7 +46,7 @@ function setup(o: Opts = {}) {
   const order: Order = { vault, orderId: "7", buyer: "0x" + "ab".repeat(20), serviceId: 0, price: o.price ?? "200000", requestRef: envelopeHash(text), deadline: NOW + 3600 };
   const calls = {
     relay: [] as string[], deliver: [] as unknown[][], decline: [] as unknown[][],
-    decisions: [] as Record<string, any>[], planCalls: 0, writeCalls: 0,
+    decisions: [] as Record<string, any>[], planCalls: 0, writeCalls: 0, resolved: [] as string[],
   };
   const logs: string[] = [];
   const chain = o.chain ?? new Set<SupplierRole>();
@@ -81,6 +82,13 @@ function setup(o: Opts = {}) {
     vaults: {
       funds: async () => ({ opex: o.opex ?? 100000n, dailyCap: 10_000_000n, spentToday: 0n, dayIndex: 1n, nowDay: 1n, paused: false }),
       supplierCap: async () => 1_000_000n,
+      order: async () => {
+        if (o.chainFail) throw new Error("rpc down");
+        return {
+          buyer: order.buyer, serviceId: order.serviceId, deadline: order.deadline, status: 1, price: BigInt(order.price),
+          requestRef: order.requestRef, reviewEnds: 0, ...o.onChain,
+        };
+      },
     },
     suppliers: {
       get: async (role) => { if (o.getError) throw o.getError; return paid.has(role) ? roleData[role] : null; },
@@ -88,7 +96,7 @@ function setup(o: Opts = {}) {
     },
     paidOnChain: async (_v, _o, supplier) => (chain.has(roleOf(supplier)) ? prices[roleOf(supplier)] : 0n),
     llm, prices, chainId, log: (l) => { logs.push(l); },
-    resolveBuyer: async () => (o.buyer === false ? null : recipientOf(buyerKeys)),
+    resolveBuyer: async (b) => { calls.resolved.push(b); return o.buyer === false ? null : recipientOf(buyerKeys); },
     now: () => o.now ?? NOW,
   };
   const biz: BusinessRuntime = { slug, vault, spenderQor: "qor1s", service: SERVICES[slug]!, servicePrices: [200000n], sealKeys: agentKeys, supplierAddress: address };
@@ -416,5 +424,28 @@ describe("suppliers client", () => {
     expect(await mk(true).waitFor("listOracle", vault, "1", {})).toBe(1);
     expect(slept).toEqual([10, 10]);
     await expect(mk(false).waitFor("listOracle", vault, "1", {})).rejects.toThrow(/did not confirm/);
+  });
+});
+
+describe("the order comes from the vault", () => {
+  test("the report is sealed to the vault's buyer, not the backend copy", async () => {
+    const chainBuyer = "0x" + "cd".repeat(20);
+    const t = setup({ onChain: { buyer: chainBuyer } });
+    const out = await handleOrder(t.order, t.biz, t.deps);
+    expect(out.status).toBe("delivered");
+    expect(t.calls.resolved).toEqual([chainBuyer]);
+    expect(t.logs.some((l) => l.includes("differs from the vault"))).toBe(true);
+  });
+  test("an order the vault no longer holds open is not served", async () => {
+    const t = setup({ onChain: { status: 2 } });
+    expect(await handleOrder(t.order, t.biz, t.deps)).toEqual({ status: "already-closed" });
+    expect(t.calls.relay).toEqual([]);
+    expect(t.calls.deliver).toEqual([]);
+  });
+  test("a failed chain read fails the order for a retry", async () => {
+    const t = setup({ chainFail: true });
+    const out = await handleOrder(t.order, t.biz, t.deps);
+    expect(out.status).toBe("failed");
+    expect(t.calls.relay).toEqual([]);
   });
 });

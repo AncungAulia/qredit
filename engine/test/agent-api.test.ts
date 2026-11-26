@@ -57,3 +57,13 @@ describe("agent api client", () => {
     expect(await api.relayer()).toBe("qor1r");
   });
 });
+
+test("inReview lists the vault's orders in review", async () => {
+  const seen: string[] = [];
+  const api = createApi({
+    url: "http://api", token: "t",
+    fetch: (async (url: string) => { seen.push(url); return new Response(JSON.stringify([{ orderId: "1", reviewEnds: 99, status: "in_review" }]), { status: 200 }); }) as never,
+  });
+  expect(await api.inReview("0xAA")).toEqual([{ orderId: "1", reviewEnds: 99 }]);
+  expect(seen[0]).toBe("http://api/v1/orders?vault=0xAA&status=in_review");
+});

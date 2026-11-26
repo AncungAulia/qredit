@@ -81,3 +81,24 @@ describe("operator", () => {
     await expect(make(async () => ({ request: {} }), "reverted").op.deliver(VAULT, 1n, `0x${"11".repeat(32)}`)).rejects.toThrow("reverted on chain");
   });
 });
+
+describe("v2 reads and settle", () => {
+  test("order maps the vault's tuple", async () => {
+    const tuple = ["0x" + "ab".repeat(20), 0, 1_900_000_000n, 1, 250_000n, `0x${"11".repeat(32)}`, 0n];
+    const reader = createVaultReader({ readContract: (async () => tuple) as never, getBlock: async () => ({ timestamp: 0n }) });
+    expect(await reader.order(VAULT, 7n)).toEqual({
+      buyer: "0x" + "ab".repeat(20), serviceId: 0, deadline: 1_900_000_000, status: 1, price: 250_000n, requestRef: `0x${"11".repeat(32)}`, reviewEnds: 0,
+    });
+  });
+  test("settle of an order no longer in review is an idempotent no-op", async () => {
+    const notInReview = new ContractFunctionRevertedError({ abi: VAULT_ABI, data: encodeErrorResult({ abi: VAULT_ABI, errorName: "NotInReview" }), functionName: "settle" });
+    const op = createOperator({
+      privateKey: "0x01", evm: "x",
+      clients: {
+        pub: { simulateContract: (async () => { throw notInReview; }) as never, waitForTransactionReceipt: async () => ({ status: "success" }) },
+        wallet: { account: { address: SPENDER }, writeContract: (async () => "0xabc") as never },
+      },
+    });
+    expect(await op.settle(VAULT, 3n)).toEqual({ tx: null, alreadyClosed: true });
+  });
+});

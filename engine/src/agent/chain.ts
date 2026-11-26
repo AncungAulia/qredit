@@ -2,7 +2,7 @@ import { ed25519 } from "@noble/curves/ed25519";
 import { buildPhantomExecuteEvm, fetchAuthNonce, resolveEvmAuthDigestVersion } from "@qorechain/sdk";
 import { publicClientFor, type RelayRequest, VAULT_ABI, walletFor, type Net } from "@qredit/qore";
 import { BaseError, ContractFunctionRevertedError, encodeFunctionData, type Hex, type PublicClient } from "viem";
-import type { DeclineCode, VaultFunds } from "./types.ts";
+import type { ChainOrder, DeclineCode, VaultFunds } from "./types.ts";
 
 const PAY_GAS_LIMIT = 300_000;
 
@@ -51,7 +51,7 @@ export function revertName(e: unknown): string | undefined {
 
 export function createOperator(o: { privateKey: Hex; evm: string; clients?: OperatorClients }) {
   const clients = o.clients ?? ({ pub: publicClientFor(o.evm), wallet: walletFor(o.privateKey, o.evm) } as unknown as OperatorClients);
-  async function close(vault: string, functionName: "deliver" | "decline", args: readonly [bigint, Hex | number]): Promise<CloseResult> {
+  async function close(vault: string, functionName: "deliver" | "decline" | "settle", args: readonly unknown[]): Promise<CloseResult> {
     try {
       const { request } = await clients.pub.simulateContract({
         address: vault as Hex, abi: VAULT_ABI, functionName, args, account: clients.wallet.account.address,
@@ -63,7 +63,7 @@ export function createOperator(o: { privateKey: Hex; evm: string; clients?: Oper
       return { tx, alreadyClosed: false };
     } catch (e) {
       const name = revertName(e);
-      if (name === "OrderNotOpen") return { tx: null, alreadyClosed: true };
+      if (name === "OrderNotOpen" || name === "NotInReview") return { tx: null, alreadyClosed: true };
       if (name) throw new Error(`${functionName} reverted with ${name}`);
       throw e;
     }
@@ -71,6 +71,8 @@ export function createOperator(o: { privateKey: Hex; evm: string; clients?: Oper
   return {
     deliver: (vault: string, orderId: bigint, envelopeHash: Hex) => close(vault, "deliver", [orderId, envelopeHash]),
     decline: (vault: string, orderId: bigint, code: DeclineCode) => close(vault, "decline", [orderId, code]),
+    /** Anyone may settle once the review has ended; the operator does it for its own orders. */
+    settle: (vault: string, orderId: bigint) => close(vault, "settle", [orderId]),
   };
 }
 
@@ -90,6 +92,13 @@ export function createVaultReader(client: ReaderClient | PublicClient) {
         read<bigint | number>(vault, "dayIndex"), read<boolean>(vault, "paused"), c.getBlock({ blockTag: "latest" }),
       ]);
       return { opex, dailyCap, spentToday, dayIndex: BigInt(dayIndex), nowDay: block.timestamp / 86400n, paused };
+    },
+    async order(vault: string, orderId: bigint): Promise<ChainOrder> {
+      const [buyer, serviceId, deadline, status, price, requestRef, reviewEnds] =
+        await read<readonly [string, number | bigint, bigint, number | bigint, bigint, string, bigint]>(vault, "orders", [orderId]);
+      return {
+        buyer, serviceId: Number(serviceId), deadline: Number(deadline), status: Number(status), price, requestRef, reviewEnds: Number(reviewEnds),
+      };
     },
     async supplierCap(vault: string, supplier: string): Promise<bigint> {
       const [allowed, perTxCap] = await read<readonly [boolean, bigint]>(vault, "suppliers", [supplier]);

@@ -68,4 +68,20 @@ describe("runLoop", () => {
     });
     expect(logs.some((l) => l.includes("net down"))).toBe(true);
   });
+
+  test("calls onIdle when nothing was claimed, before sleeping", async () => {
+    const ctl = new AbortController();
+    const seen: string[] = [];
+    let polls = 0;
+    await runLoop({
+      businesses: [biz("a", V1)],
+      deps: { log: () => {} } as unknown as PipelineDeps,
+      pollMs: 10,
+      signal: ctl.signal,
+      claim: async () => { if (++polls > 2) ctl.abort(); return null; },
+      onIdle: async () => { seen.push("idle"); },
+      sleep: async () => { seen.push("sleep"); },
+    });
+    expect(seen.slice(0, 4)).toEqual(["idle", "sleep", "idle", "sleep"]);
+  });
 });

@@ -1,5 +1,5 @@
 import type { SealKeyPair, SealRecipient } from "@qorechain/qoreseal";
-import { envelopeHash, type RelayRequest } from "@qredit/qore";
+import { envelopeHash, ORDER_STATUS, type RelayRequest } from "@qredit/qore";
 import type { ServiceModule, SupplierData, Verdict } from "../services/types.ts";
 import type { SupplierRole } from "../setup/businesses.ts";
 import type { Api } from "./api.ts";
@@ -340,10 +340,36 @@ async function serve(r: Run): Promise<Outcome> {
 }
 
 /**
+ * The order as the vault holds it, or null when it is no longer open. The backend copy only says which order to serve;
+ * buyer, service, price, request and deadline come from the chain, so a wrong copy can never redirect a report (L3).
+ */
+export async function readChainOrder(claimed: Order, deps: Pick<PipelineDeps, "vaults">): Promise<Order | null> {
+  const c = await deps.vaults.order(claimed.vault, BigInt(claimed.orderId));
+  if (c.status !== ORDER_STATUS.Open) return null;
+  return {
+    ...claimed, buyer: c.buyer.toLowerCase(), serviceId: c.serviceId, price: c.price.toString(),
+    requestRef: c.requestRef.toLowerCase(), deadline: c.deadline,
+  };
+}
+
+export const orderDiffers = (a: Order, b: Order): boolean =>
+  a.buyer.toLowerCase() !== b.buyer.toLowerCase() || a.serviceId !== b.serviceId || a.price !== b.price
+  || a.requestRef.toLowerCase() !== b.requestRef.toLowerCase() || a.deadline !== b.deadline;
+
+/**
  * Serves one order. Callers must not retry a `failed` order sooner than the backend's stale-claim window (15 min),
  * so a submitted-but-unconfirmed payment has time to land; the runner relies on the backend claim queue for that.
  */
-export async function handleOrder(order: Order, biz: BusinessRuntime, deps: PipelineDeps): Promise<Outcome> {
+export async function handleOrder(claimed: Order, biz: BusinessRuntime, deps: PipelineDeps): Promise<Outcome> {
+  let order: Order;
+  try {
+    const onChain = await readChainOrder(claimed, deps);
+    if (onChain === null) return { status: "already-closed" };
+    if (orderDiffers(claimed, onChain)) deps.log(`order ${claimed.orderId}: the backend copy differs from the vault; the vault's is used`);
+    order = onChain;
+  } catch (e) {
+    return failOrder({ order: claimed, biz, deps, paid: new Map(), data: {}, query: {} }, new Retry(detail(e), "chain-order"));
+  }
   const r: Run = { order, biz, deps, paid: new Map(), data: {}, query: {} };
   if ((deps.now ?? defaultNow)() >= order.deadline - EXPIRY_MARGIN_S) {
     await probeChainCost(r);

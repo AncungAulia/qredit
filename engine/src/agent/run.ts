@@ -13,6 +13,7 @@ import { createOperator, createSpenderSigner, createVaultReader } from "./chain.
 import { createOpenRouterLlm } from "./llm.ts";
 import { handleOrder, type BusinessRuntime, type Outcome, type PipelineDeps } from "./pipeline.ts";
 import { createRecipientResolver } from "./recipient.ts";
+import { everyMs, settleDue } from "./settle.ts";
 import { loadSealKeys } from "./seal.ts";
 import { createSuppliersClient } from "./suppliers-client.ts";
 import type { Order, Prices } from "./types.ts";
@@ -32,6 +33,8 @@ export async function runLoop(o: {
   sleep?: (ms: number) => Promise<void>;
   /** Called at the start of every loop iteration (liveness). */
   onTick?: () => void;
+  /** Called when no order was claimed, before sleeping (background work such as settling reviews). */
+  onIdle?: () => Promise<void>;
 }): Promise<void> {
   const handle = o.handle ?? handleOrder;
   const sleep = o.sleep ?? defaultSleep;
@@ -47,6 +50,11 @@ export async function runLoop(o: {
     }
     if (!order) {
       if (o.signal.aborted) break;
+      try {
+        await o.onIdle?.();
+      } catch (e) {
+        o.deps.log(`idle work failed: ${detail(e)}`);
+      }
       await sleep(o.pollMs);
       continue;
     }
@@ -65,7 +73,9 @@ export async function runLoop(o: {
   }
 }
 
-const SERVING = new Set<number>([VAULT_STATE.Active, VAULT_STATE.Trapped, VAULT_STATE.Repaid]);
+const SETTLE_EVERY_MS = 60_000;
+/** Ended vaults are served too, so their open orders finish and their reviews settle (a settlement after the end pays lenders). */
+const SERVING = new Set<number>([VAULT_STATE.Active, VAULT_STATE.Trapped, VAULT_STATE.Repaid, VAULT_STATE.Defaulted, VAULT_STATE.Closed]);
 
 const defaultLog = (line: string) => console.log(`[agent ${new Date().toISOString()}] ${line}`);
 
@@ -114,6 +124,7 @@ export async function buildRuntime(cfg: AgentConfig, ks: Keystore, log: (line: s
     operator: {
       deliver: (vault, ...rest) => operators.get(vault.toLowerCase())!.deliver(vault, ...rest),
       decline: (vault, ...rest) => operators.get(vault.toLowerCase())!.decline(vault, ...rest),
+      settle: (vault, ...rest) => operators.get(vault.toLowerCase())!.settle(vault, ...rest),
     },
   };
   return { runtimes, deps, api };
@@ -131,7 +142,17 @@ async function main(): Promise<void> {
   const ctl = new AbortController();
   for (const sig of ["SIGINT", "SIGTERM"] as const) process.on(sig, () => { log(`${sig}: stopping after the current step`); ctl.abort(); });
   log(`running for ${runtimes.length} business(es)`);
-  await runLoop({ businesses: runtimes, deps, pollMs: cfg.AGENT_POLL_MS, signal: ctl.signal, claim: (v) => api.claim(v), onTick: () => { lastLoopAt = new Date(); } });
+  const vaults = runtimes.map((r) => r.vault);
+  const settleTick = everyMs(async () => {
+    await settleDue(vaults, {
+      inReview: (v) => api.inReview(v), settle: (v, id) => deps.operator.settle(v, id),
+      now: () => Math.floor(Date.now() / 1000), log,
+    });
+  }, SETTLE_EVERY_MS);
+  await runLoop({
+    businesses: runtimes, deps, pollMs: cfg.AGENT_POLL_MS, signal: ctl.signal, claim: (v) => api.claim(v),
+    onTick: () => { lastLoopAt = new Date(); }, onIdle: settleTick,
+  });
   log("stopped");
 }
 

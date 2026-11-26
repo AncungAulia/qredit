@@ -70,6 +70,10 @@ export function createApi(o: { url: string; token: string; fetch?: typeof fetch;
     async relay(r: RelayRequest): Promise<RelayResult> {
       return (await request("POST", "/v1/relay", r)) as RelayResult;
     },
+    async inReview(vault: string): Promise<{ orderId: string; reviewEnds: number | null }[]> {
+      const r = (await request("GET", `/v1/orders?vault=${vault}&status=in_review`)) as { orderId: string; reviewEnds: number | null }[];
+      return r.map((o) => ({ orderId: o.orderId, reviewEnds: o.reviewEnds }));
+    },
     async relayer(): Promise<string> {
       return ((await request("GET", "/v1/relayer")) as { address: string }).address;
     },
