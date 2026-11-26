@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { ed25519 } from "@noble/curves/ed25519";
 import { FACTORY_ABI, FACTORY_ADDRESS, FACTORY_START_BLOCK } from "@qredit/qore";
 import { encodeAbiParameters, encodeEventTopics } from "viem";
-import { agentLinkMsgs, bondApproval, findExistingVault, matchVaultLog, vaultFromReceipt } from "../src/setup/chain.ts";
+import { agentLinkMsgs, bondApproval, findExistingVault, hasLiveLink, matchVaultLog, vaultFromReceipt } from "../src/setup/chain.ts";
 
 const V = "0x00000000000000000000000000000000000000aa";
 describe("existing vault lookup", () => {
@@ -63,4 +63,11 @@ describe("agent link for the v2 vault", () => {
     expect(relink[0]!.typeUrl).toBe("/qorechain.abstractaccount.v1.MsgRevokeAuthenticator");
     expect(relink.slice(1).map((m) => m.typeUrl)).toEqual(fresh.map((m) => m.typeUrl));
   });
+});
+
+test("a live link of the key needs a revoke, a revoked one does not", () => {
+  const auths = [{ pubkeyHex: "AB12", revoked: true }, { pubkeyHex: "cd34", revoked: false }];
+  expect(hasLiveLink(auths, "ab12")).toBe(false);
+  expect(hasLiveLink(auths, "CD34")).toBe(true);
+  expect(hasLiveLink([], "ab12")).toBe(false);
 });

@@ -7,7 +7,7 @@ import { keystore } from "../keystore.ts";
 import { accountNames, agentKey, ensureAccounts, fundedFirst, loadAccount, SUPPLIER_ACCOUNTS } from "../setup/accounts.ts";
 import { loadSealKeys } from "../agent/seal.ts";
 import { loadBusinesses, vaultInit } from "../setup/businesses.ts";
-import { convertFusd, createVault, ensureWindow, findExistingVault, lend, linkAgent, openWindow, registerBusiness, registerKey, sendQor, TREASURY_WINDOW } from "../setup/chain.ts";
+import { agentLinkIsLive, convertFusd, createVault, ensureWindow, findExistingVault, lend, linkAgent, openWindow, registerBusiness, registerKey, sendQor, TREASURY_WINDOW } from "../setup/chain.ts";
 import { ensureSealSeed, publishCard, registerSealKey } from "../setup/seal.ts";
 import { readDeployments, readDeploymentsV1, writeDeployment } from "../setup/deployments.ts";
 import { RUNTIME_KEY_FIELDS, SUPPLIERS_PATH } from "../runtime-keys.ts";
@@ -111,7 +111,7 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
         console.log(`${b.slug}: vault ${d.vault} (block ${d.startBlock})`);
       }
       if (!d.linkTx) {
-        d = { ...d, linkTx: await linkAgent(spender, agent, d.vault, Boolean(readDeploymentsV1()[b.slug]?.linkTx)) };
+        d = { ...d, linkTx: await linkAgent(spender, agent, d.vault, Boolean(readDeploymentsV1()[b.slug]?.linkTx) && await agentLinkIsLive(spender.cosmos, agent.publicKey)) };
         writeDeployment(d);
         console.log(`${b.slug}: agent key linked ${d.linkTx}`);
       }

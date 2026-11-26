@@ -1,5 +1,5 @@
 // Vault v2 smoke run on qorechain-diana (vault v2 spec, section 12). It spends testnet QOR and fUSD: run it only after
-// the human said yes. Phase a creates and raises a small vault, buys three orders as the demo buyer, delivers them as
+// the human said yes. Both phases are resumable: a rerun skips the steps whose hash is in smoke-v2.json. Phase a creates and raises a small vault, buys three orders as the demo buyer, delivers them as
 // the smoke operator, accepts order 1, rejects order 2 and records read-only refusals. Phase b, once the review of
 // order 3 has ended and the loan is three installments behind, settles order 3, triggers the default and claims the
 // sweep as the lender. Every hash goes to smoke-v2.json (public data only).
@@ -16,11 +16,11 @@ import { createVault, ensureWindow, evmSender, lend, registerKey, sendQor, TREAS
 import { DEMO_BUYER } from "../src/setup/demo-buyer.ts";
 import { SMOKE_OPERATOR, SMOKE_PRICE, smokeInit } from "../src/setup/smoke.ts";
 
-type Run = { vault: Hex; startBlock: number; txs: Record<string, string>; refusals: Record<string, string> };
+import { EVM_CHAIN_ID, phaseBBlocker, recordRefusal, recordStep, type Run } from "../src/setup/smoke-run.ts";
 const OUT = join(import.meta.dir, "..", "smoke-v2.json");
 const pub = publicClientFor(TESTNET.evm);
 const ks = keystore(keysDir());
-const save = (r: Run) => writeFileSync(OUT, `${JSON.stringify(r, null, 2)}\n`);
+const saveRun = (r: Run) => writeFileSync(OUT, `${JSON.stringify(r, null, 2)}\n`);
 const vaultCall = (functionName: string, args: unknown[] = []) => encodeFunctionData({ abi: VAULT_ABI, functionName, args } as never);
 
 /** A dry run that must be refused; returns the vault error name (no transaction is sent). */
@@ -33,72 +33,96 @@ async function refusedWith(vault: Hex, from: Hex, functionName: string, args: un
   }
 }
 
+const ZERO = "0x0000000000000000000000000000000000000000" as const;
+const load = (): Run => (existsSync(OUT) ? (JSON.parse(readFileSync(OUT, "utf8")) as Run) : { vault: ZERO, startBlock: 0, txs: {}, refusals: {} });
+
+async function assertChain(): Promise<void> {
+  const id = await pub.getChainId();
+  if (id !== EVM_CHAIN_ID) throw new Error(`wrong chain: EVM chain id ${id}, expected ${EVM_CHAIN_ID} (qorechain-diana)`);
+}
+
+/** Phase a, resumable: a rerun skips every step whose hash is already in smoke-v2.json. */
 async function phaseA(): Promise<void> {
-  if (existsSync(OUT)) throw new Error("smoke-v2.json exists: phase a already ran; run phase b");
+  await assertChain();
+  const run = load();
+  const { txs } = run;
+  const save = () => saveRun(run);
+  const step = (key: string, fn: () => Promise<string | null | undefined>) => recordStep(txs, key, fn, save);
+  const refusal = (key: string, fn: () => Promise<string>) => recordRefusal(run, key, fn, save);
+
   ensureAccounts(ks, [SMOKE_OPERATOR]);
   const [treasury, buyer, operator] = await Promise.all([loadAccount(ks, "treasury"), loadAccount(ks, DEMO_BUYER), loadAccount(ks, SMOKE_OPERATOR)]);
-  const txs: Record<string, string> = {};
-  txs.fundOperator = await sendQor(treasury, [operator.cosmos], 2_000_000n);
-  const registered = await registerKey(operator);
-  if (registered) txs.registerOperator = registered;
-  const treasuryWindow = await ensureWindow(treasury, [FACTORY_ADDRESS, FUSD_ADDRESS], TREASURY_WINDOW);
-  if (treasuryWindow) txs.treasuryWindow = treasuryWindow;
+  await step("fundOperator", () => sendQor(treasury, [operator.cosmos], 2_000_000n));
+  await step("registerOperator", () => registerKey(operator));
+  await step("treasuryWindow", () => ensureWindow(treasury, [FACTORY_ADDRESS, FUSD_ADDRESS], TREASURY_WINDOW));
 
   const init = smokeInit({ operator: operator.evm as Hex, ownerPq: treasury.evm as Hex }, Math.floor(Date.now() / 1000));
-  const created = await createVault(treasury, init);
-  if (created.approveTx) txs.approveBond = created.approveTx;
-  txs.create = created.tx;
-  const vault = created.vault as Hex;
-  const run: Run = { vault, startBlock: created.startBlock, txs, refusals: {} };
-  save(run);
+  if (!txs.create) {
+    const created = await createVault(treasury, init);
+    if (created.approveTx) txs.approveBond = created.approveTx;
+    txs.create = created.tx;
+    run.vault = created.vault as Hex;
+    run.startBlock = created.startBlock;
+    save();
+  }
+  const vault = run.vault;
+  await step("deposit", async () => {
+    const raised = await lend(treasury, vault, init.loan.target);
+    if (!raised.depositTx) throw new Error(`the raise was skipped: ${raised.skipped}`);
+    return raised.depositTx;
+  });
 
-  const raised = await lend(treasury, vault, init.loan.target);
-  if (!raised.depositTx) throw new Error(`the raise was skipped: ${raised.skipped}`);
-  txs.deposit = raised.depositTx;
-
-  const buyerWindow = await ensureWindow(buyer, [FUSD_ADDRESS, vault], BUYER_WINDOW);
-  if (buyerWindow) txs.buyerWindow = buyerWindow;
+  await step("buyerWindow", () => ensureWindow(buyer, [FUSD_ADDRESS, vault], BUYER_WINDOW));
   const asBuyer = evmSender(buyer);
-  txs.approvePrice = (await asBuyer(FUSD_ADDRESS, encodeFunctionData({ abi: ERC20_ABI, functionName: "approve", args: [vault, 3n * SMOKE_PRICE] }))).hash;
-  for (const id of [1, 2, 3]) txs[`buy${id}`] = (await asBuyer(vault, vaultCall("buy", [0n, keccak256(toHex(`smoke-request-${id}`))]))).hash;
+  await step("approvePrice", async () => (await asBuyer(FUSD_ADDRESS, encodeFunctionData({ abi: ERC20_ABI, functionName: "approve", args: [vault, 3n * SMOKE_PRICE] }))).hash);
+  for (const id of [1, 2, 3]) await step(`buy${id}`, async () => (await asBuyer(vault, vaultCall("buy", [0n, keccak256(toHex(`smoke-request-${id}`))]))).hash);
 
-  const operatorWindow = await ensureWindow(operator, [vault]);
-  if (operatorWindow) txs.operatorWindow = operatorWindow;
+  await step("operatorWindow", () => ensureWindow(operator, [vault]));
   const asOperator = evmSender(operator);
-  for (const id of [1, 2, 3]) txs[`deliver${id}`] = (await asOperator(vault, vaultCall("deliver", [BigInt(id), keccak256(toHex(`smoke-report-${id}`))]))).hash;
+  for (const id of [1, 2, 3]) await step(`deliver${id}`, async () => (await asOperator(vault, vaultCall("deliver", [BigInt(id), keccak256(toHex(`smoke-report-${id}`))]))).hash);
 
-  txs.accept1 = (await asBuyer(vault, vaultCall("accept", [1n]))).hash;
-  txs.reject2 = (await asBuyer(vault, vaultCall("reject", [2n]))).hash;
+  await step("accept1", async () => (await asBuyer(vault, vaultCall("accept", [1n]))).hash);
+  await step("reject2", async () => (await asBuyer(vault, vaultCall("reject", [2n]))).hash);
 
-  run.refusals.buyFromOwner = await refusedWith(vault, treasury.evm as Hex, "buy", [0n, keccak256(toHex("smoke-owner-buy"))]);
-  run.refusals.settleBeforeReviewEnds = await refusedWith(vault, treasury.evm as Hex, "settle", [3n]);
-  run.refusals.ownerClaimNotAhead = await refusedWith(vault, treasury.evm as Hex, "claimOwner");
-  const nonce = (await pub.readContract({ address: vault, abi: LOAN_VAULT_ABI, functionName: "policyNonce" })) as bigint;
-  const block = await pub.getBlock();
-  run.refusals.closeByNonOwner = await refusedWith(vault, buyer.evm as Hex, "applyOrder", [
-    { kind: 8, target: "0x0000000000000000000000000000000000000000", value: 0n, nonce, expiry: block.timestamp + 600n }, "0xdeadbeef",
-  ]);
-  save(run);
+  await refusal("buyFromOwner", () => refusedWith(vault, treasury.evm as Hex, "buy", [0n, keccak256(toHex("smoke-owner-buy"))]));
+  await refusal("settleBeforeReviewEnds", () => refusedWith(vault, treasury.evm as Hex, "settle", [3n]));
+  await refusal("ownerClaimNotAhead", () => refusedWith(vault, treasury.evm as Hex, "claimOwner"));
+  await refusal("closeByNonOwner", async () => {
+    const nonce = (await pub.readContract({ address: vault, abi: LOAN_VAULT_ABI, functionName: "policyNonce" })) as bigint;
+    const block = await pub.getBlock();
+    return refusedWith(vault, buyer.evm as Hex, "applyOrder", [
+      { kind: 8, target: "0x0000000000000000000000000000000000000000", value: 0n, nonce, expiry: block.timestamp + 600n }, "0xdeadbeef",
+    ]);
+  });
   const order3 = (await pub.readContract({ address: vault, abi: VAULT_ABI, functionName: "orders", args: [3n] })) as readonly unknown[];
   console.log(JSON.stringify(run, null, 2));
   console.log(`phase b can run once the review of order 3 ends: ${new Date(Number(order3[6]) * 1000).toISOString()}`);
 }
 
+/** Phase b, resumable: refuses to start unless phase a finished and order 3 is still in review (or already settled by an earlier phase b run). */
 async function phaseB(): Promise<void> {
-  const run = JSON.parse(readFileSync(OUT, "utf8")) as Run;
-  const treasury = await loadAccount(ks, "treasury");
+  await assertChain();
+  if (!existsSync(OUT)) throw new Error("smoke-v2.json is missing: run phase a first");
+  const run = load();
+  const { txs } = run;
   const order3 = (await pub.readContract({ address: run.vault, abi: VAULT_ABI, functionName: "orders", args: [3n] })) as readonly unknown[];
-  const now = (await pub.getBlock()).timestamp;
-  if (now <= (order3[6] as bigint)) throw new Error("the review of order 3 has not ended yet");
-  if (!(await pub.readContract({ address: run.vault, abi: VAULT_ABI, functionName: "defaultable" }))) throw new Error("the loan is not defaultable yet");
-  const w = await ensureWindow(treasury, [run.vault, FUSD_ADDRESS, FACTORY_ADDRESS], TREASURY_WINDOW);
-  if (w) run.txs.treasuryWindowB = w;
+  const blocker = phaseBBlocker(run, Number(order3[3]));
+  if (blocker) throw new Error(blocker);
+  const save = () => saveRun(run);
+  const step = (key: string, fn: () => Promise<string | null | undefined>) => recordStep(txs, key, fn, save);
+
+  const treasury = await loadAccount(ks, "treasury");
+  if (!txs.settle3) {
+    const now = (await pub.getBlock()).timestamp;
+    if (now <= (order3[6] as bigint)) throw new Error("the review of order 3 has not ended yet");
+  }
+  if (!txs.triggerDefault && !(await pub.readContract({ address: run.vault, abi: VAULT_ABI, functionName: "defaultable" }))) throw new Error("the loan is not defaultable yet");
+  await step("treasuryWindowB", () => ensureWindow(treasury, [run.vault, FUSD_ADDRESS, FACTORY_ADDRESS], TREASURY_WINDOW));
   const asTreasury = evmSender(treasury);
-  run.txs.settle3 = (await asTreasury(run.vault, vaultCall("settle", [3n]))).hash;
-  run.txs.triggerDefault = (await asTreasury(run.vault, vaultCall("triggerDefault"))).hash;
-  run.txs.claimSweep = (await asTreasury(run.vault, vaultCall("claimLender"))).hash;
-  run.refusals.buyAfterDefault = await refusedWith(run.vault, treasury.evm as Hex, "buy", [0n, keccak256(toHex("smoke-late-buy"))]);
-  save(run);
+  await step("settle3", async () => (await asTreasury(run.vault, vaultCall("settle", [3n]))).hash);
+  await step("triggerDefault", async () => (await asTreasury(run.vault, vaultCall("triggerDefault"))).hash);
+  await step("claimSweep", async () => (await asTreasury(run.vault, vaultCall("claimLender"))).hash);
+  await recordRefusal(run, "buyAfterDefault", () => refusedWith(run.vault, treasury.evm as Hex, "buy", [0n, keccak256(toHex("smoke-late-buy"))]), save);
   console.log(JSON.stringify(run, null, 2));
   console.log("swept", String(await pub.readContract({ address: run.vault, abi: VAULT_ABI, functionName: "swept" })));
 }

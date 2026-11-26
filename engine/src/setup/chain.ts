@@ -1,4 +1,4 @@
-import { linkAuthenticatorMsgs, revokeAuthenticatorMsg, signAuthenticatorLinkEd25519, type UnifiedAccount } from "@qorechain/sdk";
+import { fetchAuthenticators, linkAuthenticatorMsgs, revokeAuthenticatorMsg, signAuthenticatorLinkEd25519, type UnifiedAccount } from "@qorechain/sdk";
 import {
   bondFor, broadcastHybrid, confirmed as confirmedOn, convertFusd as convertFusdOn, ensureWindow as ensureWindowOn, ERC20_ABI, FACTORY_ABI,
   FACTORY_ADDRESS, FACTORY_START_BLOCK, FUSD_ADDRESS, FUSD_DENOM, openWindow as openWindowOn, PAY_SUPPLIER_SELECTOR, planLend, publicClientFor,
@@ -128,6 +128,16 @@ export function agentLinkMsgs(o: {
   });
   if (!o.revokeFirst) return link;
   return [revokeAuthenticatorMsg({ owner: o.spenderCosmos, scheme: "ed25519", pubkey: o.agent.publicKey }), ...link];
+}
+
+/** Whether the key is linked to the account and not revoked, so a link of the same key needs a revoke first. */
+export const hasLiveLink = (auths: readonly { pubkeyHex: string; revoked: boolean }[], pubkeyHex: string): boolean =>
+  auths.some((a) => !a.revoked && a.pubkeyHex.toLowerCase() === pubkeyHex.toLowerCase());
+
+/** Reads the chain: true when the agent key still has a live link (the v1 vault's) on the spender. */
+export async function agentLinkIsLive(spenderCosmos: string, agentPubkey: Uint8Array): Promise<boolean> {
+  const auths = await fetchAuthenticators({ rest: net.rest, address: spenderCosmos });
+  return hasLiveLink(auths, Buffer.from(agentPubkey).toString("hex"));
 }
 
 export async function linkAgent(spender: UnifiedAccount, agent: { secret: Uint8Array; publicKey: Uint8Array }, vault: string, revokeFirst = false): Promise<string> {
