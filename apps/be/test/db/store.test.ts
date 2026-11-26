@@ -166,6 +166,13 @@ describe("vault v2 businesses", () => {
     await expect(store.upsertBusiness(db, biz("0x00000000000000000000000000000000000000a3", 2))).rejects.toThrow();
   });
 
+  test("a re-upsert without a version keeps the vault's version", async () => {
+    await store.upsertBusiness(db, biz(V2, 2));
+    await store.upsertBusiness(db, { ...biz(V2), name: "Renamed" });
+    const b = await store.getBusiness(db, "counterparty");
+    expect([b?.version, b?.name]).toEqual([2, "Renamed"]);
+  });
+
   test("LoanEnded marks the business once; AgentRotated moves the agent keys", async () => {
     await store.upsertBusiness(db, biz(V2, 2));
     expect(await store.applyVaultEvent(db, { kind: "LoanEnded", vault: V2, block: 30, logIndex: 0, tx: "0xe", ended: "defaulted" })).toBe(true);

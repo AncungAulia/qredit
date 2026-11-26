@@ -1,3 +1,6 @@
+import { copyFileSync, mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, test } from "bun:test";
 import { memoryDb } from "../../src/db/client.ts";
 import { MIGRATIONS_DIR, runMigrations } from "../../src/db/migrate.ts";
@@ -73,6 +76,33 @@ describe("runMigrations", () => {
     await business(`0x${"2".repeat(40)}`, 2);
     await expect(business(`0x${"3".repeat(40)}`, 3)).rejects.toThrow();
     await expect(business(`0x${"4".repeat(40)}`, 2)).rejects.toThrow(); // one v2 vault per slug
+    await db.close();
+  });
+
+  test("003 keeps rows written under 001 and 002", async () => {
+    const db = await memoryDb();
+    const early = mkdtempSync(join(tmpdir(), "qredit-mig-"));
+    for (const f of ["001_init.sql", "002_indexes_and_checks.sql"]) copyFileSync(join(MIGRATIONS_DIR, f), join(early, f));
+    expect(await runMigrations(db, early)).toEqual(["001_init.sql", "002_indexes_and_checks.sql"]);
+    const vault = `0x${"a".repeat(40)}`;
+    await db.query(
+      "insert into qredit.businesses (slug, vault, name, tagline, services, operator, spender, start_block) values ('sl', $1, 'n', 't', '[]', $1, $1, 1)",
+      [vault],
+    );
+    await db.query(
+      "insert into qredit.orders (vault, order_id, buyer, service_id, price, request_ref, deadline, status, placed_tx, placed_block) values ($1, '1', $2, 0, '5', $3, 1, 'delivered', '0x', 1)",
+      [vault, `0x${"b".repeat(40)}`, `0x${"1".repeat(64)}`],
+    );
+    expect(await runMigrations(db, MIGRATIONS_DIR)).toEqual(["003_vault_v2.sql"]);
+    const [b] = await db.query<{ version: number; ended: string | null }>("select version, ended from qredit.businesses where vault = $1", [vault]);
+    expect([Number(b!.version), b!.ended]).toEqual([1, null]);
+    const [o] = await db.query<{ status: string; review_ends: string | null; refund: string | null }>(
+      "select status, review_ends, refund from qredit.orders where vault = $1",
+      [vault],
+    );
+    expect([o!.status, o!.review_ends, o!.refund]).toEqual(["delivered", null, null]);
+    await db.query("update qredit.orders set status = 'in_review', review_ends = 2, refund = '7' where vault = $1", [vault]);
+    await db.query("update qredit.businesses set version = 2, ended = 'closed' where vault = $1", [vault]);
     await db.close();
   });
 });

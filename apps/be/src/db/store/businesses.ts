@@ -27,7 +27,7 @@ export async function upsertBusiness(db: Queryable, b: BusinessInput): Promise<v
      values ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9)
      on conflict (vault) do update set slug = excluded.slug, name = excluded.name, tagline = excluded.tagline,
        services = excluded.services, operator = excluded.operator, spender = excluded.spender,
-       start_block = excluded.start_block, version = excluded.version`,
+       start_block = excluded.start_block`,
     [b.slug, lc(b.vault), b.name, b.tagline, JSON.stringify(b.services), lc(b.operator), lc(b.spender), b.startBlock, b.version ?? 1],
   );
 }
