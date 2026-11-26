@@ -46,4 +46,41 @@ contract LoanVaultFuzzTest is Base {
             assertLe(a + b, vault.lenderPool(), "claims above pool");
         }
     }
+
+    function testFuzz_supplierSpendNeverExceedsOrderPrice(uint256[8] memory amounts, uint8[8] memory picks) public {
+        _activate();
+        uint256[3] memory ids = [_buy(0), _buy(1), _buy(2)];
+        uint256 t = block.timestamp;
+        for (uint256 k; k < 8; k++) {
+            uint256 id = ids[picks[k] % 3];
+            uint256 amount = bound(amounts[k], 1, CAP_A);
+            t += 1 days; // a new day each time, so the daily cap never decides
+            vm.warp(t);
+            vm.prank(spender);
+            try vault.paySupplier(supplierA, amount, id) {} catch {}
+            for (uint256 j; j < 3; j++) {
+                (,,,, uint256 price,,) = vault.orders(ids[j]);
+                assertLe(vault.supplierCost(ids[j]), price, "spend on an order above its price");
+            }
+        }
+        assertEq(_booksSum(), fusd.balanceOf(address(vault)));
+    }
+
+    function testFuzz_rejectReturnsPriceLessCost(uint256 spend) public {
+        _activate();
+        uint256 id = _buy(1); // 5 fUSD
+        spend = bound(spend, 0, PRICE1);
+        if (spend > 0) {
+            vm.prank(spender);
+            vault.paySupplier(supplierA, spend, id);
+        }
+        _deliver(id);
+        uint256 before = fusd.balanceOf(buyer);
+        uint256 opex = vault.opexBalance();
+        vm.prank(buyer);
+        vault.reject(id);
+        assertEq(fusd.balanceOf(buyer) - before, PRICE1 - spend);
+        assertEq(vault.opexBalance() - opex, spend);
+        assertEq(_booksSum(), fusd.balanceOf(address(vault)));
+    }
 }

@@ -18,13 +18,24 @@ contract VaultHandler is Test {
     // Ghost counters, incremented only on success
     uint256 public buys;
     uint256 public deliveries;
+    uint256 public settlements;
+    uint256 public rejections;
+    uint256 public ends;
     uint256 public lenderClaims;
     uint256 public supplierPayments;
-    uint256 public ownerEntitledMax; // sum over deliveries of price * ownerBps / 10000
+    uint256 public ownerEntitledMax; // sum over settlements of price * ownerBps / 10000
 
     constructor(LoanVault v, MockToken t, address s, address o, address b, address sup, address la, address lb) {
         (vault, fusd, spender, operator, buyer, supplier) = (v, t, s, o, b, sup);
         lenders = [la, lb];
+    }
+
+    function _id(uint256 seed) internal view returns (uint256) {
+        return bound(seed, 1, vault.orderCount());
+    }
+
+    function _price(uint256 id) internal view returns (uint256 price) {
+        (,,,, price,,) = vault.orders(id);
     }
 
     function buy(uint256 serviceId) external {
@@ -44,8 +55,6 @@ contract VaultHandler is Test {
         } catch {}
     }
 
-    uint256 public settlements;
-
     function _deliver(uint256 id) internal {
         vm.prank(operator);
         try vault.deliver(id, bytes32(id)) {
@@ -53,10 +62,15 @@ contract VaultHandler is Test {
         } catch {}
     }
 
+    function deliver(uint256 id) external {
+        if (vault.orderCount() == 0) return;
+        _deliver(_id(id));
+    }
+
     function accept(uint256 id) external {
         if (vault.orderCount() == 0) return;
-        id = bound(id, 1, vault.orderCount());
-        (,,,, uint256 price,,) = vault.orders(id);
+        id = _id(id);
+        uint256 price = _price(id);
         vm.prank(buyer);
         try vault.accept(id) {
             settlements++;
@@ -64,32 +78,41 @@ contract VaultHandler is Test {
         } catch {}
     }
 
-    function deliver(uint256 id) external {
+    function settle(uint256 id) external {
         if (vault.orderCount() == 0) return;
-        id = bound(id, 1, vault.orderCount());
-        _deliver(id);
+        id = _id(id);
+        uint256 price = _price(id);
+        try vault.settle(id) {
+            settlements++;
+            ownerEntitledMax += price * vault.ownerBps() / 10_000;
+        } catch {}
+    }
+
+    function reject(uint256 id) external {
+        if (vault.orderCount() == 0) return;
+        vm.prank(buyer);
+        try vault.reject(_id(id)) {
+            rejections++;
+        } catch {}
     }
 
     function decline(uint256 id) external {
         if (vault.orderCount() == 0) return;
-        id = bound(id, 1, vault.orderCount());
         vm.prank(operator);
-        try vault.decline(id, 0) {} catch {}
+        try vault.decline(_id(id), 0) {} catch {}
     }
 
     function reclaim(uint256 id) external {
         if (vault.orderCount() == 0) return;
-        id = bound(id, 1, vault.orderCount());
         vm.prank(buyer);
-        try vault.reclaim(id) {} catch {}
+        try vault.reclaim(_id(id)) {} catch {}
     }
 
-    function pay(uint256 amount) external {
-        uint256 id = vault.orderCount();
-        if (id == 0) return;
+    function pay(uint256 amount, uint256 id) external {
+        if (vault.orderCount() == 0) return;
         amount = bound(amount, 1, 10e18);
         vm.prank(spender);
-        try vault.paySupplier(supplier, amount, id) {
+        try vault.paySupplier(supplier, amount, _id(id)) {
             supplierPayments++;
         } catch {}
     }
@@ -103,6 +126,25 @@ contract VaultHandler is Test {
 
     function claimOwner() external {
         try vault.claimOwner() {} catch {}
+    }
+
+    /// Ends only after some business happened, so the run never ends empty (see afterInvariant).
+    function triggerDefault() external {
+        if (deliveries == 0) return;
+        try vault.triggerDefault() {
+            ends++;
+        } catch {}
+    }
+
+    function close() external {
+        if (deliveries == 0) return;
+        LoanVault.PolicyOrder memory o = LoanVault.PolicyOrder({
+            kind: 8, target: address(0), value: 0, nonce: vault.policyNonce(), expiry: uint64(block.timestamp + 1 hours)
+        });
+        bytes memory sig = abi.encodePacked(keccak256(abi.encodePacked("ok", hex"c0ffee", vault.signedBytes(o))));
+        try vault.applyOrder(o, sig) {
+            ends++;
+        } catch {}
     }
 
     function warp(uint256 secs) external {
@@ -135,6 +177,21 @@ contract LoanVaultInvariantTest is Base {
 
     function invariant_ownerNeverGetsMoreThanItsShare() public view {
         assertLe(vault.ownerPending() + fusd.balanceOf(ownerPayout), handler.ownerEntitledMax());
+    }
+
+    function invariant_supplierCostNeverAboveThePrice() public view {
+        uint256 n = vault.orderCount();
+        for (uint256 id = 1; id <= n; id++) {
+            (,,,, uint256 price,,) = vault.orders(id);
+            assertLe(vault.supplierCost(id), price);
+        }
+    }
+
+    function invariant_endedVaultHoldsNoOwnerMoney() public view {
+        if (vault.ended() == LoanVault.EndKind.None) return;
+        assertEq(vault.ownerPending(), 0);
+        assertEq(vault.opexBalance(), 0);
+        assertEq(vault.bondHeld(), 0);
     }
 
     /// The run must have exercised the vault; a handler that only reverts would pass the rest vacuously.
