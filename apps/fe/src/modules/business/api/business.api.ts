@@ -1,4 +1,5 @@
-import { FACTORY_ADDRESS, VAULT_FACTORY_ABI } from "@qredit/qore";
+import { FACTORY_ADDRESS } from "@qredit/qore/abi";
+import { VAULT_FACTORY_ABI } from "@qredit/qore/abis";
 import { decodeFunctionData, getAbiItem } from "viem";
 import { z } from "zod";
 import { api, parseResponse } from "@/lib/apiClient";

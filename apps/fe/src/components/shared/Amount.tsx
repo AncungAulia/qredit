@@ -33,11 +33,13 @@ export function Amount({
   const [whole, fraction] = formatFusd(units, { unit: false }).split(".");
   const s = SIZES[size];
   return (
-    <span className={cn("inline-flex items-end gap-2 tabular-nums", className)}>
-      <span className={cn("leading-none font-normal text-text-primary", s.whole)}>{whole}</span>
-      {fraction !== undefined && (
-        <span className={cn("leading-[1.3] text-text-tertiary", s.fraction)}>.{fraction}</span>
-      )}
+    <span className={cn("inline-flex items-end gap-1.5 tabular-nums", className)}>
+      <span className="inline-flex items-end">
+        <span className={cn("leading-none font-normal text-text-primary", s.whole)}>{whole}</span>
+        {fraction !== undefined && (
+          <span className={cn("leading-[1.3] text-text-tertiary", s.fraction)}>.{fraction}</span>
+        )}
+      </span>
       {unit && <span className={cn("leading-loose text-text-secondary", s.unit)}>{unit}</span>}
     </span>
   );

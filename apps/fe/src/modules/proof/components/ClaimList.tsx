@@ -61,16 +61,12 @@ function Claims({ businesses }: { businesses: Business[] }) {
   return (
     <div className="flex animate-in flex-col gap-4 duration-200 fade-in md:gap-6">
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
-        {settled ? (
-          <KpiTile
-            variant="feature"
-            label="Claims proven"
-            value={formatCount(proven)}
-            unit={`of ${formatCount(total)}`}
-          />
-        ) : (
-          <KpiTile variant="feature" label="Claims proven" value="Checking" />
-        )}
+        <KpiTile
+          variant="feature"
+          label="Claims proven"
+          value={settled ? formatCount(proven) : undefined}
+          unit={settled ? `of ${formatCount(total)}` : undefined}
+        />
         <KpiTile variant="soft" label="Businesses checked" value={formatCount(businesses.length)} />
       </div>
       <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-2">

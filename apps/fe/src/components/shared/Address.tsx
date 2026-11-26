@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Check, Copy } from "lucide-react";
-import { hexToQor } from "@qredit/qore";
+import { hexToQor } from "@qredit/qore/address";
 import { shortAddress } from "@/lib/format";
 import { cn, focusRing } from "@/lib/utils";
 

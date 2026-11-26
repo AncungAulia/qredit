@@ -1,7 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { LendSheet } from "@/modules/lend";
 import { EmptyState, ErrorState } from "@/components/shared/PageStates";
 import { StaleNotice } from "@/components/shared/StaleNotice";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -50,8 +53,23 @@ function BusinessBody({ business }: { business: Business }) {
   const rules = useRulesQuery(business);
   const decisions = useDecisionsQuery(business.vault);
 
+  const [lendOpen, setLendOpen] = useState(false);
   const snapshot = vault.data;
   const vaultFailed = vault.isError && !snapshot;
+  // Lending is offered only while the vault is raising.
+  const raising = snapshot?.state === "Raising";
+  const lendButton = (className: string) => (
+    <Button size="lg" className={className} onClick={() => setLendOpen(true)}>
+      Lend fUSD
+    </Button>
+  );
+  // Reports are sold once the loan is funded, and stay on sale while it is repaid.
+  const selling = snapshot?.state === "Active" || snapshot?.state === "Trapped" || snapshot?.state === "Repaid";
+  const buyButton = (className: string) => (
+    <Button size="lg" className={className} render={<Link href={`/shop/${business.slug}`} />} nativeButton={false} role="link">
+      Buy a report
+    </Button>
+  );
   const counted = orders.data ? countDelivered(orders.data) : null;
   const delivered = counted
     ? counted.count
@@ -61,7 +79,12 @@ function BusinessBody({ business }: { business: Business }) {
 
   return (
     <>
-      <BusinessHeader business={business} state={snapshot?.state} stateFailed={vaultFailed} />
+      <BusinessHeader
+        business={business}
+        state={snapshot?.state}
+        stateFailed={vaultFailed}
+        action={raising ? lendButton("h-11 px-5") : selling ? buyButton("h-11 px-5") : undefined}
+      />
       {vaultFailed ? (
         <ErrorState
           layout="section"
@@ -165,6 +188,15 @@ function BusinessBody({ business }: { business: Business }) {
           />
         </Section>
       </div>
+
+      {selling && <div className="sticky bottom-4 z-10 md:hidden">{buyButton("h-12 w-full shadow-[0_8px_24px_var(--shadow)]")}</div>}
+
+      {snapshot && raising && (
+        <>
+          <div className="sticky bottom-4 z-10 md:hidden">{lendButton("h-12 w-full shadow-[0_8px_24px_var(--shadow)]")}</div>
+          <LendSheet business={business} vault={snapshot} open={lendOpen} onOpenChange={setLendOpen} />
+        </>
+      )}
     </>
   );
 }
