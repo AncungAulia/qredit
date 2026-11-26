@@ -9,7 +9,7 @@ const CENTER = 120;
 const OUTER = 100;
 const INNER = 84;
 /** Lit ticks pump in one after another, left to right, when the report opens. */
-const TICK_STAGGER_MS = 35;
+const TICK_STAGGER_MS = 20;
 const VIEW_Y = 10;
 const VIEW_H = 190;
 /** Where the ring centre sits, as a share of the box height. */
@@ -44,7 +44,7 @@ export function RiskDial({ grade, className }: { grade: string; className?: stri
                 <line
                   {...line}
                   data-lit
-                  className="animate-tick-pump stroke-accent-strong"
+                  className="animate-tick-pump stroke-accent-strong [transform-box:fill-box] [transform-origin:center]"
                   opacity={opacity}
                   style={{ "--tick-opacity": opacity, animationDelay: `${i * TICK_STAGGER_MS}ms` } as CSSProperties}
                 />
