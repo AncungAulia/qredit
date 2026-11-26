@@ -69,6 +69,7 @@ vi.mock("@/modules/business/api/useBusinessPage", () => ({
 }));
 vi.mock("@/modules/proof", () => ({ ProvenCard: () => null }));
 vi.mock("@/modules/business/components/VaultRules", () => ({ VaultRules: () => <p>rules body</p> }));
+vi.mock("@/modules/business/components/DefaultLoanCard", () => ({ DefaultLoanCard: () => null }));
 import { BusinessPage } from "@/modules/business/components/BusinessPage";
 
 const renderPage = () =>

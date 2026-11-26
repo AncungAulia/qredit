@@ -1,12 +1,19 @@
-import { useQuery } from "@tanstack/react-query";
+import { useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { hasUnverifiedSuppliers } from "@/lib/supplierCheck";
 import type { Business } from "@/lib/schemas";
 import { businessKeys } from "@/modules/business/api/business.keys";
 import {
   getDecisions,
   readCreationSuppliers,
+  readDefaultBooks,
   readVaultRules,
+  simulateTriggerDefault,
+  triggerDefault,
 } from "@/modules/business/api/business.api";
+import { lendKeys } from "@/modules/lend/api/lend.keys";
+import { marketKeys } from "@/modules/market";
+import { useWallet } from "@/modules/wallet/WalletProvider";
 
 const RULES_STALE_MS = 60_000;
 const DECISIONS_REFRESH_MS = 15_000;
@@ -49,4 +56,27 @@ export const useDecisionsQuery = (vault: `0x${string}`) =>
 export function useUnverifiedQuery(business: Business): boolean | undefined {
   const suppliers = useCreationSuppliersQuery(business);
   return suppliers.data ? hasUnverifiedSuppliers(suppliers.data) : undefined;
+}
+
+const DEFAULT_CHECK_MS = 30_000;
+
+/** Whether the vault would accept a default now, checked by a dry run; only for a running loan. */
+export const useDefaultDryRunQuery = (vault: `0x${string}`, enabled: boolean) =>
+  useQuery({ queryKey: businessKeys.defaultable(vault), queryFn: () => simulateTriggerDefault(vault), enabled, refetchInterval: DEFAULT_CHECK_MS });
+
+/** The books the default dialog lists; read only while the dialog needs them. */
+export const useDefaultBooksQuery = (vault: `0x${string}`, enabled: boolean) =>
+  useQuery({ queryKey: businessKeys.books(vault), queryFn: () => readDefaultBooks(vault), enabled });
+
+/** Sends the default from the test wallet, then reads the business, the market and lending again. */
+export function useDefaultAction(vault: `0x${string}`) {
+  const session = useWallet((s) => s.session);
+  const client = useQueryClient();
+  return useCallback(async () => {
+    const hash = await triggerDefault(session, vault);
+    void client.invalidateQueries({ queryKey: ["business"] });
+    void client.invalidateQueries({ queryKey: marketKeys.all });
+    void client.invalidateQueries({ queryKey: lendKeys.all });
+    return hash;
+  }, [session, client, vault]);
 }

@@ -1,11 +1,13 @@
-import { encodeFunctionData } from "viem";
+import { encodeErrorResult, encodeFunctionData } from "viem";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { VAULT_FACTORY_ABI } from "@qredit/qore";
+import { LOAN_VAULT_ABI } from "@qredit/qore/abis";
 
 const chain = vi.hoisted(() => ({
   getLogs: vi.fn(),
   getTransaction: vi.fn(),
   readContract: vi.fn(),
+  call: vi.fn(),
 }));
 vi.mock("@/lib/chain", () => ({
   publicClient: chain,
@@ -19,6 +21,8 @@ vi.mock("@/lib/apiClient", async (orig) => ({
 import {
   getDecisions,
   readCreationSuppliers,
+  readDefaultBooks,
+  simulateTriggerDefault,
   readVaultRules,
 } from "@/modules/business/api/business.api";
 
@@ -137,4 +141,18 @@ test("a vault not created by a direct create call is an error, never a guess", a
   await expect(readCreationSuppliers({ vault: "0xbbbb", startBlock: 100 } as never)).rejects.toThrow(
     "The vault was not created by a direct factory call.",
   );
+});
+
+test("the default dry run sends nothing and says why the vault refuses", async () => {
+  chain.call.mockResolvedValueOnce({ data: "0x" });
+  expect(await simulateTriggerDefault("0x1")).toEqual({ ok: true });
+  const data = encodeErrorResult({ abi: LOAN_VAULT_ABI, errorName: "NotDefaultable" } as never);
+  chain.call.mockRejectedValueOnce(Object.assign(new Error("execution reverted"), { cause: { data } }));
+  expect(await simulateTriggerDefault("0x1")).toEqual({ ok: false, reason: "The loan is not far enough behind its schedule or past its maturity to be defaulted." });
+  expect(chain.call).toHaveBeenCalledWith(expect.objectContaining({ to: "0x1", data: expect.stringMatching(/^0x/) }));
+});
+
+test("the books for the default dialog are the cash, the owner share and the bond", async () => {
+  chain.readContract.mockResolvedValueOnce([1n, 2n, 3n, 4n, 5n, 6n]);
+  expect(await readDefaultBooks("0x1")).toEqual({ opex: 4n, ownerOwed: 3n, bond: 6n });
 });

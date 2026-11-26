@@ -47,6 +47,7 @@ vi.mock("@/modules/business/api/useBusinessPage", () => ({
   useUnverifiedQuery: () => undefined,
   useDecisionsQuery: () => ({ data: [decision], isError: false, refetch: vi.fn() }),
 }));
+vi.mock("@/modules/business/components/DefaultLoanCard", () => ({ DefaultLoanCard: () => null }));
 import { BusinessPage } from "@/modules/business/components/BusinessPage";
 
 test("a failed rules read shows an error in that section only", () => {

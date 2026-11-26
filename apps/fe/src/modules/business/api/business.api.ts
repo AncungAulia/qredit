@@ -1,8 +1,13 @@
+import { encodeFunctionData } from "viem";
 import { z } from "zod";
+import { LOAN_VAULT_ABI } from "@qredit/qore/abis";
+import { revertSentence } from "@/components/shared/vaultErrors";
 import { api, parseResponse } from "@/lib/apiClient";
-import { readVault } from "@/lib/chain";
+import { publicClient, readVault } from "@/lib/chain";
 import { readCreationSuppliers } from "@/lib/creationSuppliers";
 import { decisionSchema, type Business, type Decision } from "@/lib/schemas";
+import { act } from "@/modules/wallet/act";
+import type { WalletSession } from "@/modules/wallet/session";
 
 type Hex = `0x${string}`;
 type VaultRef = Pick<Business, "vault" | "startBlock">;
@@ -57,4 +62,28 @@ export async function readVaultRules(b: VaultRef, creationSuppliers?: Hex[]): Pr
 export async function getDecisions(vault: Hex, limit = 50): Promise<Decision[]> {
   const { data } = await api.get("/v1/decisions", { params: { vault, limit } });
   return parseResponse(z.array(decisionSchema), data);
+}
+
+const TRIGGER_DEFAULT = encodeFunctionData({ abi: LOAN_VAULT_ABI, functionName: "triggerDefault" });
+
+/** A dry run of `triggerDefault`: no transaction is sent. The vault decides, so the page never guesses from the schedule. */
+export async function simulateTriggerDefault(vault: Hex, from?: Hex): Promise<{ ok: true } | { ok: false; reason: string }> {
+  try {
+    await publicClient.call({ account: from, to: vault, data: TRIGGER_DEFAULT });
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, reason: revertSentence(e) };
+  }
+}
+
+/** Ends a loan that is far enough behind or past maturity. Anyone may send it; the test wallet pays the fee. */
+export const triggerDefault = (session: WalletSession, vault: Hex): Promise<Hex> =>
+  act(session, [vault], (signer) => signer.send(vault, TRIGGER_DEFAULT));
+
+export type DefaultBooks = { opex: bigint; ownerOwed: bigint; bond: bigint };
+
+/** What a default moves to lenders besides the sale proceeds: the vault's cash, the owner's unclaimed share and the bond. */
+export async function readDefaultBooks(vault: Hex): Promise<DefaultBooks> {
+  const [, , ownerOwed, opex, , bond] = await readVault(vault, "books");
+  return { opex, ownerOwed, bond };
 }

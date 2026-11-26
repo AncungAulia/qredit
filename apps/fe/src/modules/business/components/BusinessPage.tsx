@@ -19,6 +19,9 @@ import { ActivityTable } from "@/modules/business/components/ActivityTable";
 import { BusinessHeader } from "@/modules/business/components/BusinessHeader";
 import { BusinessKpis } from "@/modules/business/components/BusinessKpis";
 import { BusinessSkeleton } from "@/modules/business/components/BusinessSkeleton";
+import { DefaultLoanCard } from "@/modules/business/components/DefaultLoanCard";
+import { LoanEndedNotice } from "@/modules/business/components/LoanEndedNotice";
+import { isEnded } from "@/lib/vaultState";
 import { DecisionLog } from "@/modules/business/components/DecisionLog";
 import { LoanTerms } from "@/modules/business/components/LoanTerms";
 import { Section } from "@/modules/business/components/Section";
@@ -72,6 +75,13 @@ function BusinessBody({ business }: { business: Business }) {
       Buy a report
     </Button>
   );
+  const running = snapshot?.state === "Active" || snapshot?.state === "Trapped";
+  const ended = snapshot ? isEnded(snapshot.state) : false;
+  const disabledBuy = (
+    <Button size="lg" className="h-11 px-5" disabled>
+      Buy a report
+    </Button>
+  );
   const counted = orders.data ? countDelivered(orders.data) : null;
   const delivered = counted
     ? counted.count
@@ -86,7 +96,7 @@ function BusinessBody({ business }: { business: Business }) {
         state={snapshot?.state}
         stateFailed={vaultFailed}
         unverified={unverified}
-        action={raising ? lendButton("h-11 px-5") : selling ? buyButton("h-11 px-5") : undefined}
+        action={raising ? lendButton("h-11 px-5") : ended ? disabledBuy : selling ? buyButton("h-11 px-5") : undefined}
       />
       {vaultFailed ? (
         <ErrorState
@@ -103,6 +113,8 @@ function BusinessBody({ business }: { business: Business }) {
             delivered={delivered}
             ordersCapped={counted?.capped ?? false}
           />
+          {snapshot && running && <DefaultLoanCard business={business} vault={snapshot} />}
+          {snapshot && ended && <LoanEndedNotice vault={snapshot} />}
         </div>
       ) : (
         <SectionLoading className="h-[118px]" />
