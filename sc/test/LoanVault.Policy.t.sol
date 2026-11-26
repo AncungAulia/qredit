@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Base} from "./Base.t.sol";
 import {LoanVault} from "../src/LoanVault.sol";
 import {console} from "forge-std/console.sol";
@@ -192,7 +193,7 @@ contract LoanVaultPolicyTest is Base {
 
     function test_fixedSigningVector() public {
         address at = address(0x000000000000000000000000000000000000cA11);
-        deployCodeTo("LoanVault.sol:LoanVault", abi.encode(_init()), at);
+        deployCodeTo("LoanVault.sol:LoanVault", abi.encode(IERC20(address(fusd)), _init()), at);
         LoanVault v = LoanVault(at);
         LoanVault.PolicyOrder memory o = LoanVault.PolicyOrder({
             kind: LOWER_DAILY_CAP,
@@ -224,7 +225,7 @@ contract LoanVaultPolicyTest is Base {
     bytes32 internal constant PINNED_DIGEST = 0x5d5bb129b0e312312ed45b5145b6b48adb811be00569221b533c0e70a064939f;
 
     function test_signatureForOtherVaultRefused() public {
-        LoanVault other = new LoanVault(_init());
+        LoanVault other = _create(_init());
         assertTrue(address(other) != address(vault));
         LoanVault.PolicyOrder memory o = _order(PAUSE, address(0), 0);
         bytes memory sig = _sign(o); // valid for `vault`
@@ -244,7 +245,7 @@ contract LoanVaultPolicyTest is Base {
     function test_signatureForOtherCosmosChainRefused() public {
         LoanVault.Init memory i = _init();
         i.cosmosChainId = "qorechain-vladi";
-        LoanVault vladi = new LoanVault(i);
+        LoanVault vladi = _create(i);
         LoanVault.PolicyOrder memory o = _order(PAUSE, address(0), 0);
         // signed over the diana prefix, but with this vault's own digest
         bytes memory dianaBytes = abi.encodePacked("qorechain-msg-v1|qorechain-diana|", vladi.orderText(o));

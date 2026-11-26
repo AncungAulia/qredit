@@ -109,8 +109,7 @@ contract LoanVaultInvariantTest is Base {
     }
 
     function invariant_booksEqualBalance() public view {
-        (uint256 e, uint256 l, uint256 o, uint256 x, uint256 h) = vault.books();
-        assertEq(e + l + o + x + h, fusd.balanceOf(address(vault)));
+        assertEq(_booksSum(), fusd.balanceOf(address(vault)));
     }
 
     function invariant_repaidNeverExceedsOwed() public view {

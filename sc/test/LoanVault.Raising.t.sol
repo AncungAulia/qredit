@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Base} from "./Base.t.sol";
 import {LoanVault} from "../src/LoanVault.sol";
 
@@ -79,21 +80,20 @@ contract LoanVaultRaisingTest is Base {
         i.lenderBps = 9000;
         i.ownerBps = 2000;
         vm.expectRevert(LoanVault.BadConfig.selector);
-        new LoanVault(i);
+        new LoanVault(IERC20(address(fusd)), i);
     }
 
     function test_constructorRejectsMismatchedSuppliers() public {
         LoanVault.Init memory i = _init();
         i.supplierCaps = new uint256[](1);
         vm.expectRevert(LoanVault.BadConfig.selector);
-        new LoanVault(i);
+        new LoanVault(IERC20(address(fusd)), i);
     }
 
     function test_booksMatchBalanceWhileRaising() public {
         vm.prank(lenderA);
         vault.deposit(60e18);
-        (uint256 e, uint256 l, uint256 o, uint256 x, uint256 h) = vault.books();
-        assertEq(e + l + o + x + h, fusd.balanceOf(address(vault)));
+        assertEq(_booksSum(), fusd.balanceOf(address(vault)));
     }
 
     function _initWithSupplier(address who) internal view returns (LoanVault.Init memory i) {
@@ -106,7 +106,7 @@ contract LoanVaultRaisingTest is Base {
         for (uint256 k; k < roles.length; k++) {
             LoanVault.Init memory i = _initWithSupplier(roles[k]);
             vm.expectRevert(LoanVault.BadConfig.selector);
-            new LoanVault(i);
+            new LoanVault(IERC20(address(fusd)), i);
         }
     }
 
@@ -115,7 +115,7 @@ contract LoanVaultRaisingTest is Base {
         address predicted = vm.computeCreateAddress(address(this), vm.getNonce(address(this)));
         LoanVault.Init memory i = _initWithSupplier(predicted);
         vm.expectRevert(LoanVault.BadConfig.selector);
-        new LoanVault(i);
+        new LoanVault(IERC20(address(fusd)), i);
     }
 
     function test_depositAtRaiseDeadlineWorksAndOneAfterReverts() public {
@@ -144,7 +144,90 @@ contract LoanVaultRaisingTest is Base {
         vault.refund();
         assertEq(fusd.balanceOf(lenderA) - a0, 30e18);
         assertEq(fusd.balanceOf(lenderB) - b0, 25e18);
-        assertEq(fusd.balanceOf(address(vault)), 0);
+        assertEq(fusd.balanceOf(address(vault)), BOND, "only the bond is left");
         assertEq(vault.raisedHeld(), 0);
+    }
+
+    function test_bondHeldAtCreation() public view {
+        assertEq(vault.bondHeld(), BOND);
+        assertEq(BOND, TARGET * vault.BOND_BPS() / 10_000);
+        assertEq(fusd.balanceOf(address(vault)), BOND);
+        assertEq(_booksSum(), fusd.balanceOf(address(vault)));
+    }
+
+    function test_constructorRejectsZeroMaturity() public {
+        LoanVault.Init memory i = _init();
+        i.loan.maturity = 0;
+        vm.expectRevert(LoanVault.BadConfig.selector);
+        new LoanVault(IERC20(address(fusd)), i);
+    }
+
+    function test_constructorRejectsZeroDefaultAfterMissed() public {
+        LoanVault.Init memory i = _init();
+        i.loan.defaultAfterMissed = 0;
+        vm.expectRevert(LoanVault.BadConfig.selector);
+        new LoanVault(IERC20(address(fusd)), i);
+    }
+
+    function test_constructorRejectsScheduleShortOfDebt() public {
+        LoanVault.Init memory i = _init();
+        i.loan.maturity = 10 days; // 10 installments of 10 fUSD stay below the 110 fUSD owed
+        vm.expectRevert(LoanVault.BadConfig.selector);
+        new LoanVault(IERC20(address(fusd)), i);
+    }
+
+    function test_constructorAcceptsScheduleThatReachesDebt() public {
+        LoanVault.Init memory i = _init();
+        i.loan.maturity = 11 days; // 11 x 10 = 110
+        LoanVault v = new LoanVault(IERC20(address(fusd)), i);
+        (,,,,,, uint64 maturity, uint64 maturityGrace, uint16 missed) = v.loan();
+        assertEq(maturity, 11 days);
+        assertEq(maturityGrace, MATURITY_GRACE);
+        assertEq(missed, MISSED);
+    }
+
+    function test_constructorRejectsTargetTooSmallForABond() public {
+        LoanVault.Init memory i = _init();
+        i.loan.target = 9;
+        i.loan.totalOwed = 9;
+        i.loan.installment = 9; // bond = 9 * 1000 / 10000 = 0
+        vm.expectRevert(LoanVault.BadConfig.selector);
+        new LoanVault(IERC20(address(fusd)), i);
+    }
+
+    function test_constructorRejectsZeroToken() public {
+        vm.expectRevert(LoanVault.BadConfig.selector);
+        new LoanVault(IERC20(address(0)), _init());
+    }
+
+    function test_withdrawBondAfterFailedRaise() public {
+        vm.prank(lenderA);
+        vault.deposit(60e18);
+        vm.warp(raiseDeadline + 1);
+        vm.prank(stranger);
+        vm.expectRevert(LoanVault.NotOwner.selector);
+        vault.withdrawBond();
+        vm.expectEmit(address(vault));
+        emit LoanVault.BondReturned(BOND);
+        vm.prank(ownerPq);
+        vault.withdrawBond();
+        assertEq(fusd.balanceOf(ownerPayout), BOND);
+        assertEq(vault.bondHeld(), 0);
+        vm.prank(ownerPq);
+        vm.expectRevert(LoanVault.ZeroAmount.selector);
+        vault.withdrawBond();
+        vm.prank(lenderA);
+        vault.refund();
+        assertEq(fusd.balanceOf(address(vault)), 0);
+    }
+
+    function test_withdrawBondRefusedWhileRaisingOrActive() public {
+        vm.prank(ownerPq);
+        vm.expectRevert(LoanVault.WrongState.selector);
+        vault.withdrawBond();
+        _activate();
+        vm.prank(ownerPq);
+        vm.expectRevert(LoanVault.WrongState.selector);
+        vault.withdrawBond();
     }
 }

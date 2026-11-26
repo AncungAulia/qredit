@@ -5,10 +5,10 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IQorePQC} from "./interfaces/IQorePQC.sol";
 
-/// @title LoanVault
-/// @notice Working capital for one AI agent business. Lenders fund it in fUSD; the agent's
-/// spender may pay only listed suppliers under caps; buyers' payments sit in escrow until the
-/// agent's operator delivers a sealed report, then the contract splits them, lenders first.
+/// @title LoanVault (v2)
+/// @notice Working capital for one AI agent business. Lenders fund it in fUSD; the owner's bond sits beside the
+/// principal; the agent's spender may pay only listed suppliers under caps; buyers' payments sit in escrow until the
+/// agent's operator delivers a sealed report and the buyer's review ends, then the contract splits them, lenders first.
 /// Policy changes need the owner's ML-DSA-87 signature (checked by the pqcVerify precompile),
 /// and while the loan runs only changes that narrow the rules are accepted.
 contract LoanVault {
@@ -21,8 +21,11 @@ contract LoanVault {
     // 1e36 keeps per-delivery truncation below 1 wei; toLenders * 1e36 and deposits * accPerShare stay far below 2^256.
     uint256 internal constant ACC = 1e36;
     bytes32 internal constant POLICY_TAG = keccak256("qredit-policy-v1");
+    /// The owner's bond in basis points of the loan target; the factory pulls it from the creator.
+    uint256 public constant BOND_BPS = 1000;
 
-    enum State { Raising, Active, Trapped, Repaid, Refunded }
+    enum State { Raising, Active, Trapped, Repaid, Refunded, Defaulted, Closed }
+    enum EndKind { None, Defaulted, Closed }
     enum OrderStatus { None, Open, Delivered, Declined, Reclaimed }
     enum Kind { RemoveSupplier, LowerSupplierCap, LowerDailyCap, Pause, Unpause, AddSupplier, RaiseSupplierCap, RaiseDailyCap }
 
@@ -33,10 +36,12 @@ contract LoanVault {
         uint64 period;
         uint64 grace;
         uint256 installment;
+        uint64 maturity;
+        uint64 maturityGrace;
+        uint16 defaultAfterMissed;
     }
 
     struct Init {
-        IERC20 token;
         address spender;
         address operator;
         address ownerPq;
@@ -103,12 +108,16 @@ contract LoanVault {
     uint256 public accPerShare;
     mapping(address => uint256) public lenderClaimed;
 
-    // Books: balance == escrowTotal + lenderPool + ownerPending + opexBalance + raisedHeld
+    // Books: balance == escrowTotal + lenderPool + ownerPending + opexBalance + raisedHeld + bondHeld
     uint256 public escrowTotal;
     uint256 public lenderPool;
     uint256 public ownerPending;
     uint256 public opexBalance;
     uint256 public raisedHeld;
+    uint256 public bondHeld;
+
+    /// Set once, by a default or a Close order; it freezes the vault (state() returns it).
+    EndKind public ended;
 
     // Orders
     uint256 public orderCount;
@@ -126,6 +135,7 @@ contract LoanVault {
     event OwnerClaimed(uint256 amount);
     event PolicyApplied(uint64 indexed nonce, uint8 kind, address target, uint256 value);
     event RemainderWithdrawn(uint256 amount);
+    event BondReturned(uint256 amount);
 
     error BadConfig();
     error WrongState();
@@ -155,9 +165,9 @@ contract LoanVault {
     error NotNarrowing();
     error BadOrder();
 
-    constructor(Init memory init) {
+    constructor(IERC20 token_, Init memory init) {
         if (
-            address(init.token) == address(0) || init.spender == address(0) || init.operator == address(0)
+            address(token_) == address(0) || init.spender == address(0) || init.operator == address(0)
                 || init.ownerPq == address(0) || init.ownerPayout == address(0)
         ) revert BadConfig();
         if (uint256(init.lenderBps) + init.ownerBps > BPS) revert BadConfig();
@@ -167,8 +177,14 @@ contract LoanVault {
             l.target == 0 || l.totalOwed < l.target || l.period == 0 || l.installment == 0
                 || l.raiseDeadline <= block.timestamp || init.orderTtl == 0 || bytes(init.cosmosChainId).length == 0
         ) revert BadConfig();
+        // The schedule must be able to reach the debt by maturity (checked after period != 0).
+        if (l.maturity == 0 || l.defaultAfterMissed == 0 || l.installment * (l.maturity / l.period) < l.totalOwed) {
+            revert BadConfig();
+        }
+        uint256 bond = l.target * BOND_BPS / BPS;
+        if (bond == 0) revert BadConfig();
 
-        token = init.token;
+        token = token_;
         spender = init.spender;
         operator = init.operator;
         ownerPq = init.ownerPq;
@@ -179,6 +195,7 @@ contract LoanVault {
         cosmosChainId = bytes(init.cosmosChainId);
         loan = l;
         dailyCap = init.dailyCap;
+        bondHeld = bond;
         for (uint256 i; i < init.suppliers.length; i++) {
             address sup = init.suppliers[i];
             if (sup == address(0) || init.supplierCaps[i] == 0) revert BadConfig();
@@ -194,6 +211,8 @@ contract LoanVault {
     // ---------------------------------------------------------------- views
 
     function state() public view returns (State) {
+        if (ended == EndKind.Defaulted) return State.Defaulted;
+        if (ended == EndKind.Closed) return State.Closed;
         if (activatedAt == 0) return block.timestamp > loan.raiseDeadline ? State.Refunded : State.Raising;
         if (repaid >= loan.totalOwed) return State.Repaid;
         return repaid < expectedRepaid(block.timestamp) ? State.Trapped : State.Active;
@@ -219,8 +238,12 @@ contract LoanVault {
         return deposits[lender] * accPerShare / ACC - lenderClaimed[lender];
     }
 
-    function books() external view returns (uint256 escrow, uint256 lenders, uint256 ownerOwed, uint256 opex, uint256 held) {
-        return (escrowTotal, lenderPool, ownerPending, opexBalance, raisedHeld);
+    function books()
+        external
+        view
+        returns (uint256 escrow, uint256 lenders, uint256 ownerOwed, uint256 opex, uint256 held, uint256 bond)
+    {
+        return (escrowTotal, lenderPool, ownerPending, opexBalance, raisedHeld, bondHeld);
     }
 
     // -------------------------------------------------------------- lenders
@@ -359,14 +382,29 @@ contract LoanVault {
         emit OwnerClaimed(amount);
     }
 
+    /// Repaid: the owner takes the operating funds and the bond back.
     function withdrawRemainder() external {
         if (msg.sender != ownerPq) revert NotOwner();
         if (state() != State.Repaid) revert WrongState();
-        uint256 amount = opexBalance;
-        if (amount == 0) revert ZeroAmount();
+        uint256 opex = opexBalance;
+        uint256 bond = bondHeld;
+        if (opex + bond == 0) revert ZeroAmount();
         opexBalance = 0;
+        bondHeld = 0;
+        token.safeTransfer(ownerPayout, opex + bond);
+        if (opex > 0) emit RemainderWithdrawn(opex);
+        if (bond > 0) emit BondReturned(bond);
+    }
+
+    /// Refunded: the raise failed, so the bond goes back to the owner.
+    function withdrawBond() external {
+        if (msg.sender != ownerPq) revert NotOwner();
+        if (state() != State.Refunded) revert WrongState();
+        uint256 amount = bondHeld;
+        if (amount == 0) revert ZeroAmount();
+        bondHeld = 0;
         token.safeTransfer(ownerPayout, amount);
-        emit RemainderWithdrawn(amount);
+        emit BondReturned(amount);
     }
 
     // ------------------------------------------------------- policy orders

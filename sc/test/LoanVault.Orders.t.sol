@@ -22,7 +22,7 @@ contract LoanVaultOrdersTest is Base {
     }
 
     function test_buyBeforeActivationReverts() public {
-        LoanVault fresh = new LoanVault(_init());
+        LoanVault fresh = _create(_init());
         vm.prank(buyer);
         vm.expectRevert(LoanVault.WrongState.selector);
         fresh.buy(0, bytes32(0));
@@ -120,8 +120,7 @@ contract LoanVaultOrdersTest is Base {
         uint256 d = _buy(1);
         vm.prank(operator);
         vault.decline(d, 0);
-        (uint256 e, uint256 l, uint256 o, uint256 x, uint256 h) = vault.books();
-        assertEq(e + l + o + x + h, fusd.balanceOf(address(vault)));
+        assertEq(_booksSum(), fusd.balanceOf(address(vault)));
     }
 
     function test_deliverAtDeadlineOkAndReclaimRefused() public {

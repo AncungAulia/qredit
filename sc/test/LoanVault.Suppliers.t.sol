@@ -77,7 +77,7 @@ contract LoanVaultSuppliersTest is Base {
     }
 
     function test_noPaymentsBeforeActivation() public {
-        LoanVault fresh = new LoanVault(_init());
+        LoanVault fresh = _create(_init());
         vm.prank(spender);
         vm.expectRevert(LoanVault.WrongState.selector);
         fresh.paySupplier(supplierA, 1, 1);

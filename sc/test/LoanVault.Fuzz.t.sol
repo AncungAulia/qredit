@@ -26,8 +26,7 @@ contract LoanVaultFuzzTest is Base {
         assertEq(toLenders + toOwner + toOpex, price, "split must conserve the price");
         assertLe(toLenders, owed, "lender part above what is owed");
         if (trapped) assertEq(toOwner, 0);
-        (uint256 e, uint256 l, uint256 o, uint256 x, uint256 h) = vault.books();
-        assertEq(e + l + o + x + h, fusd.balanceOf(address(vault)));
+        assertEq(_booksSum(), fusd.balanceOf(address(vault)));
     }
 
     function testFuzz_lenderClaimsNeverExceedProRata(uint256 depositA, uint256 deliveries) public {

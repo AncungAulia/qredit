@@ -18,7 +18,6 @@ contract CreateSmokeVault is Script {
         uint256[] memory prices = new uint256[](1);
         prices[0] = 1e5;
         LoanVault.Init memory init = LoanVault.Init({
-            token: IERC20(0x97143B771D34ddb9130b807b135Ae675A5a963CA),
             spender: vm.envAddress("SPENDER"),
             operator: vm.envAddress("OPERATOR"),
             ownerPq: vm.envAddress("OWNER_PQ"),
@@ -34,14 +33,20 @@ contract CreateSmokeVault is Script {
                 raiseDeadline: uint64(block.timestamp + 30 days),
                 period: 1 days,
                 grace: 1 days,
-                installment: 1e5
+                installment: 1e5,
+                maturity: 11 days,
+                maturityGrace: 1 days,
+                defaultAfterMissed: 3
             }),
             suppliers: sup,
             supplierCaps: caps,
             servicePrices: prices
         });
+        address factory = vm.envAddress("FACTORY");
+        uint256 bond = init.loan.target * 1000 / 10_000; // LoanVault.BOND_BPS
         vm.startBroadcast(vm.envUint("PRIVATE_KEY"));
-        LoanVault v = VaultFactory(vm.envAddress("FACTORY")).create(init);
+        IERC20(0x97143B771D34ddb9130b807b135Ae675A5a963CA).approve(factory, bond);
+        LoanVault v = VaultFactory(factory).create(init);
         vm.stopBroadcast();
         console.log("SmokeVault", address(v));
     }

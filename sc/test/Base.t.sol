@@ -4,6 +4,7 @@ pragma solidity 0.8.28;
 import {Test} from "forge-std/Test.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {LoanVault} from "../src/LoanVault.sol";
+import {VaultFactory} from "../src/VaultFactory.sol";
 import {MockPqcKeys, MockPqcVerify} from "./mocks/MockPqc.sol";
 import {MockToken} from "./mocks/MockToken.sol";
 
@@ -16,6 +17,12 @@ abstract contract Base is Test {
     uint256 internal constant INSTALLMENT = 10e18;
     uint64 internal constant PERIOD = 1 days;
     uint64 internal constant GRACE = 1 days;
+    // 12 installments of 10 fUSD reach the 110 fUSD owed, so the schedule check passes.
+    uint64 internal constant MATURITY = 12 days;
+    uint64 internal constant MATURITY_GRACE = 1 days;
+    uint16 internal constant MISSED = 3;
+    // BOND_BPS = 1000: 10 % of the target.
+    uint256 internal constant BOND = TARGET / 10;
     uint64 internal constant TTL = 1 hours;
     uint256 internal constant DAILY = 20e18;
     uint256 internal constant CAP_A = 10e18;
@@ -28,6 +35,7 @@ abstract contract Base is Test {
     uint256 internal constant PRICE2 = 100e18;
 
     MockToken internal fusd;
+    VaultFactory internal factory;
     LoanVault internal vault;
     uint64 internal raiseDeadline;
 
@@ -35,6 +43,7 @@ abstract contract Base is Test {
     address internal operator = makeAddr("operator");
     address internal ownerPq = makeAddr("ownerPq");
     address internal ownerPayout = makeAddr("ownerPayout");
+    address internal creator = makeAddr("creator");
     address internal lenderA = makeAddr("lenderA");
     address internal lenderB = makeAddr("lenderB");
     address internal buyer = makeAddr("buyer");
@@ -46,8 +55,12 @@ abstract contract Base is Test {
         vm.etch(PQC_VERIFY, address(new MockPqcVerify()).code);
         vm.etch(PQC_KEYS, address(new MockPqcKeys()).code);
         fusd = new MockToken();
+        factory = new VaultFactory(IERC20(address(fusd)));
+        fusd.mint(creator, 10_000e18);
+        vm.prank(creator);
+        fusd.approve(address(factory), type(uint256).max);
         raiseDeadline = uint64(block.timestamp + 7 days);
-        vault = new LoanVault(_init());
+        vault = _create(_init());
         address[3] memory funded = [lenderA, lenderB, buyer];
         for (uint256 i; i < funded.length; i++) {
             fusd.mint(funded[i], 10_000e18);
@@ -68,7 +81,6 @@ abstract contract Base is Test {
         prices[1] = PRICE1;
         prices[2] = PRICE2;
         i = LoanVault.Init({
-            token: IERC20(address(fusd)),
             spender: spender,
             operator: operator,
             ownerPq: ownerPq,
@@ -84,12 +96,26 @@ abstract contract Base is Test {
                 raiseDeadline: raiseDeadline,
                 period: PERIOD,
                 grace: GRACE,
-                installment: INSTALLMENT
+                installment: INSTALLMENT,
+                maturity: MATURITY,
+                maturityGrace: MATURITY_GRACE,
+                defaultAfterMissed: MISSED
             }),
             suppliers: sup,
             supplierCaps: caps,
             servicePrices: prices
         });
+    }
+
+    /// Creates a vault through the factory; `creator` pays the bond.
+    function _create(LoanVault.Init memory i) internal returns (LoanVault v) {
+        vm.prank(creator);
+        v = factory.create(i);
+    }
+
+    function _booksSum() internal view returns (uint256) {
+        (uint256 e, uint256 l, uint256 o, uint256 x, uint256 h, uint256 b) = vault.books();
+        return e + l + o + x + h + b;
     }
 
     function _activate() internal {
@@ -137,7 +163,7 @@ abstract contract Base is Test {
     }
 
     function _freshWith(LoanVault.Init memory i, uint256 amountA, uint256 amountB) internal {
-        vault = new LoanVault(i);
+        vault = _create(i);
         address[3] memory funded = [lenderA, lenderB, buyer];
         for (uint256 k; k < funded.length; k++) {
             vm.prank(funded[k]);

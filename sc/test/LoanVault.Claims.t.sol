@@ -103,7 +103,8 @@ contract LoanVaultClaimsTest is Base {
         uint256 opex = vault.opexBalance();
         vm.prank(ownerPq);
         vault.withdrawRemainder();
-        assertEq(fusd.balanceOf(ownerPayout), opex);
+        assertEq(fusd.balanceOf(ownerPayout), opex + BOND, "opex and bond go back");
+        assertEq(vault.bondHeld(), 0);
     }
 
     function test_sumOfLenderClaimsNeverExceedsPool() public {
@@ -112,8 +113,7 @@ contract LoanVaultClaimsTest is Base {
         vault.claimLender();
         vm.prank(lenderB);
         vault.claimLender();
-        (uint256 e, uint256 l, uint256 o, uint256 x, uint256 h) = vault.books();
-        assertEq(e + l + o + x + h, fusd.balanceOf(address(vault)));
+        assertEq(_booksSum(), fusd.balanceOf(address(vault)));
     }
 
     function test_oddDepositsAndPricesRoundDownSafely() public {
@@ -135,8 +135,7 @@ contract LoanVaultClaimsTest is Base {
         assertLe(claimed, delivered, "claims exceed lender part");
         assertLe(delivered - claimed, 2, "dust must not exceed the number of lenders");
         assertEq(vault.lenderPool(), delivered - claimed);
-        (uint256 e, uint256 l, uint256 o, uint256 x, uint256 h) = vault.books();
-        assertEq(e + l + o + x + h, fusd.balanceOf(address(vault)));
+        assertEq(_booksSum(), fusd.balanceOf(address(vault)));
     }
 
     function test_oddDepositsAndPricesAtSixDecimalScale() public {
@@ -166,8 +165,7 @@ contract LoanVaultClaimsTest is Base {
         uint256 claimed = vault.lenderClaimed(lenderA) + vault.lenderClaimed(lenderB);
         assertLe(claimed, delivered, "claims exceed lender part");
         assertLe(delivered - claimed, 2, "dust must not exceed the number of lenders");
-        (uint256 e, uint256 l, uint256 o, uint256 x, uint256 h) = vault.books();
-        assertEq(e + l + o + x + h, fusd.balanceOf(address(vault)));
+        assertEq(_booksSum(), fusd.balanceOf(address(vault)));
     }
 
     function test_claimLenderAndOwnerWorkAfterRepaid() public {
