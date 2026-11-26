@@ -122,6 +122,11 @@ contract LoanVault {
     // Orders
     uint256 public orderCount;
     mapping(uint256 => Order) public orders;
+    /// What the spender paid suppliers for each order; never above the order's price.
+    mapping(uint256 => uint256) public supplierCost;
+    /// Buyers counted once each; the owner's own roles and the suppliers cannot buy.
+    uint256 public uniqueBuyers;
+    mapping(address => bool) public seenBuyer;
 
     event Deposited(address indexed lender, uint256 amount);
     event Activated(uint256 at);
@@ -164,6 +169,8 @@ contract LoanVault {
     error WideningLocked();
     error NotNarrowing();
     error BadOrder();
+    error OverOrderPrice();
+    error BuyerNotAllowed();
 
     constructor(IERC20 token_, Init memory init) {
         if (
@@ -290,6 +297,13 @@ contract LoanVault {
         if (activatedAt == 0) revert WrongState();
         if (paused) revert Paused();
         if (serviceId >= servicePrices.length) revert UnknownService();
+        if (_isRole(msg.sender, spender, operator, ownerPq, ownerPayout) || suppliers[msg.sender].allowed) {
+            revert BuyerNotAllowed();
+        }
+        if (!seenBuyer[msg.sender]) {
+            seenBuyer[msg.sender] = true;
+            uniqueBuyers++;
+        }
         uint256 price = servicePrices[serviceId];
         token.safeTransferFrom(msg.sender, address(this), price);
         id = ++orderCount;
@@ -350,6 +364,8 @@ contract LoanVault {
 
     // ------------------------------------------------------------ suppliers
 
+    /// Pays a listed supplier for one open order. The spend on an order never exceeds its price, so moving principal
+    /// to a supplier needs real buyer money of at least the same amount.
     function paySupplier(address supplier, uint256 amount, uint256 orderId) external {
         if (msg.sender != spender) revert NotSpender();
         if (activatedAt == 0) revert WrongState();
@@ -358,6 +374,10 @@ contract LoanVault {
         if (!s.allowed) revert SupplierNotAllowed();
         if (amount == 0) revert ZeroAmount();
         if (amount > s.perTxCap) revert OverSupplierCap();
+        Order storage o = orders[orderId];
+        if (o.status != OrderStatus.Open) revert OrderNotOpen();
+        uint256 cost = supplierCost[orderId] + amount;
+        if (cost > o.price) revert OverOrderPrice();
         uint64 today = uint64(block.timestamp / 1 days);
         if (today != dayIndex) {
             dayIndex = today;
@@ -365,6 +385,7 @@ contract LoanVault {
         }
         if (spentToday + amount > dailyCap) revert OverDailyCap();
         if (amount > opexBalance) revert InsufficientOpex();
+        supplierCost[orderId] = cost;
         spentToday += amount;
         opexBalance -= amount;
         token.safeTransfer(supplier, amount);

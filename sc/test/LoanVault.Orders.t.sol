@@ -149,4 +149,30 @@ contract LoanVaultOrdersTest is Base {
         (,,, LoanVault.OrderStatus st,,) = vault.orders(id);
         assertEq(uint8(st), uint8(LoanVault.OrderStatus.Reclaimed));
     }
+
+    function test_rolesAndSuppliersCannotBuy() public {
+        address[6] memory refused = [ownerPq, ownerPayout, spender, operator, supplierA, supplierB];
+        for (uint256 k; k < refused.length; k++) {
+            fusd.mint(refused[k], PRICE0);
+            vm.startPrank(refused[k]);
+            fusd.approve(address(vault), PRICE0);
+            vm.expectRevert(LoanVault.BuyerNotAllowed.selector);
+            vault.buy(0, bytes32(0));
+            vm.stopPrank();
+        }
+        assertEq(vault.orderCount(), 0);
+    }
+
+    function test_uniqueBuyersCountsFirstPurchasesOnly() public {
+        _buy(0);
+        _buy(1);
+        assertEq(vault.uniqueBuyers(), 1);
+        assertTrue(vault.seenBuyer(buyer));
+        fusd.mint(stranger, PRICE0);
+        vm.startPrank(stranger);
+        fusd.approve(address(vault), PRICE0);
+        vault.buy(0, bytes32(0));
+        vm.stopPrank();
+        assertEq(vault.uniqueBuyers(), 2);
+    }
 }

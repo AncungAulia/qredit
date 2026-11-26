@@ -74,9 +74,11 @@ contract VaultHandler is Test {
     }
 
     function pay(uint256 amount) external {
+        uint256 id = vault.orderCount();
+        if (id == 0) return;
         amount = bound(amount, 1, 10e18);
         vm.prank(spender);
-        try vault.paySupplier(supplier, amount, 0) {
+        try vault.paySupplier(supplier, amount, id) {
             supplierPayments++;
         } catch {}
     }
