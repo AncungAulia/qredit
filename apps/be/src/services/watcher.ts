@@ -52,8 +52,12 @@ export function toVaultEvent(vault: string, version: VaultVersion, l: RawLog): V
         ...order, kind: "OrderPlaced", buyer: String(a.buyer).toLowerCase(), serviceId: Number(a.serviceId), price: String(a.price),
         requestRef: String(a.requestRef).toLowerCase(), deadline: Number(a.deadline),
       };
-    case "Delivered":
-      return { ...order, kind: "Delivered", envelopeHash: String(a.envelopeHash).toLowerCase(), reviewEnds: version === 1 ? null : Number(a.reviewEnds) };
+    case "Delivered": {
+      // A v2 delivery without a usable review end would store a broken deadline, so it is dropped (and warned about by the caller).
+      const reviewEnds = version === 1 ? null : a.reviewEnds === undefined || a.reviewEnds === null ? NaN : Number(a.reviewEnds);
+      if (reviewEnds !== null && !Number.isFinite(reviewEnds)) return null;
+      return { ...order, kind: "Delivered", envelopeHash: String(a.envelopeHash).toLowerCase(), reviewEnds };
+    }
     case "Settled":
       return { ...order, kind: "Settled" };
     case "Rejected":

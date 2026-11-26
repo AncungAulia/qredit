@@ -2,7 +2,9 @@ import { beforeEach, describe, expect, test } from "bun:test";
 import { type Db } from "../../src/db/client.ts";
 import { useTestDb } from "../helpers/db.ts";
 import { getWatchState, listOrders, type VaultEvent } from "../../src/db/store/index.ts";
-import { type LogSource, syncVault, toVaultEvent } from "../../src/services/watcher.ts";
+import { VAULT_EVENTS, VAULT_EVENTS_V1 } from "@qredit/qore";
+import type { PublicClient } from "viem";
+import { type LogSource, syncVault, toVaultEvent, viemLogSource } from "../../src/services/watcher.ts";
 
 const V = "0x00000000000000000000000000000000000000aa";
 const testDb = useTestDb();
@@ -92,5 +94,22 @@ describe("syncVault per version", () => {
     const src: LogSource = { latestBlock: async () => 10, events: async (_v, _f, _t, version) => { seen.push(version); return []; } };
     await syncVault(db, src, V, 5, 2);
     expect(seen).toEqual([2]);
+  });
+});
+
+describe("v2 delivery guard and ABI choice", () => {
+  test("a v2 delivery without a usable review end is dropped", () => {
+    const args = { orderId: 3n, envelopeHash: `0x${"ab".repeat(32)}` };
+    expect(toVaultEvent(V, 2, raw("Delivered", args))).toBeNull();
+    expect(toVaultEvent(V, 2, raw("Delivered", { ...args, reviewEnds: "x" }))).toBeNull();
+  });
+  test("viemLogSource reads each version with its own event ABI", async () => {
+    const used: unknown[] = [];
+    const client = { getBlockNumber: async () => 1n, getLogs: async (o: { events: unknown }) => { used.push(o.events); return []; } } as unknown as PublicClient;
+    const src = viemLogSource(client);
+    await src.events(V, 1, 2, 1);
+    await src.events(V, 1, 2, 2);
+    expect(used[0]).toBe(VAULT_EVENTS_V1);
+    expect(used[1]).toBe(VAULT_EVENTS);
   });
 });
