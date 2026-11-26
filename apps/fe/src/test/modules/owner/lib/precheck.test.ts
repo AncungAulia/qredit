@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import type { Rules } from "@/modules/owner/api/owner.api";
-import { precheck } from "@/modules/owner/lib/precheck";
+import { ENDED_SENTENCE, precheck } from "@/modules/owner/lib/precheck";
 import type { PolicyKind } from "@/modules/owner/schemas/policyOrder.schema";
 
 const fusd = (n: number) => BigInt(n) * 1_000_000n;
@@ -11,6 +11,11 @@ const rules = (over: Partial<Rules> = {}): Rules => ({
   totalOwed: fusd(100),
   dailyCap: fusd(50),
   spentToday: 0n,
+  ownerPending: 0n,
+  bondHeld: 0n,
+  claimAhead: false,
+  spender: "0x01",
+  operator: "0x02",
   ...over,
 });
 
@@ -35,4 +40,18 @@ const cases: [string, PolicyKind, bigint | null, Partial<Rules>, string | null][
 
 test.each(cases)("%s", (_name, kind, value, over, expected) => {
   expect(precheck(kind, value, rules(over))).toBe(expected);
+});
+
+test("an ended vault refuses every order", () => {
+  for (const state of ["Defaulted", "Closed"] as const) {
+    expect(precheck("Pause", null, rules({ state }))).toBe(ENDED_SENTENCE);
+    expect(precheck("RotateAgent", null, rules({ state }))).toBe(ENDED_SENTENCE);
+  }
+});
+
+test("Close only while the loan runs", () => {
+  expect(precheck("Close", null, rules({ state: "Active" }))).toBeNull();
+  expect(precheck("Close", null, rules({ state: "Trapped" }))).toBeNull();
+  expect(precheck("Close", null, rules({ state: "Repaid" }))).toBe("A repaid loan cannot be closed.");
+  expect(precheck("Close", null, rules({ state: "Raising" }))).toBe("The loan can be closed only once it is funded and running.");
 });

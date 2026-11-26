@@ -61,9 +61,21 @@ test("ownedVaults fails as a whole when one vault cannot be read", async () => {
   await expect(ownedVaults(OWNER, [biz(V1, "a"), biz(V2, "b")])).rejects.toThrow("rpc down");
 });
 
-test("readRules joins the snapshot with the daily cap and the spend of today", async () => {
-  snapshot.mockResolvedValue({ state: "Active", paused: false, repaid: 29n, totalOwed: 100n });
-  readVault.mockImplementation(async (_v: string, fn: string) => (fn === "dailyCap" ? 50_000_000n : 18_000_000n));
+const READS: Record<string, bigint | string> = {
+  dailyCap: 50_000_000n,
+  spentToday: 18_000_000n,
+  ownerPending: 3_000_000n,
+  expectedRepaid: 20_000_000n,
+  spender: "0x01",
+  operator: "0x02",
+};
+const setReads = (over: Record<string, bigint | string> = {}) =>
+  readVault.mockImplementation(async (_v: string, fn: string) => ({ ...READS, ...over })[fn]);
+
+test("readRules joins the snapshot with the daily cap, the spend of today and the owner share", async () => {
+  getBlock.mockResolvedValue({ timestamp: 1_800_000_000n });
+  snapshot.mockResolvedValue({ state: "Active", paused: false, repaid: 29n, totalOwed: 100n, period: 86_400n, bondHeld: 7n });
+  setReads();
   expect(await readRules(V1)).toEqual({
     state: "Active",
     paused: false,
@@ -71,7 +83,24 @@ test("readRules joins the snapshot with the daily cap and the spend of today", a
     totalOwed: 100n,
     dailyCap: 50_000_000n,
     spentToday: 18_000_000n,
+    ownerPending: 3_000_000n,
+    bondHeld: 7n,
+    claimAhead: false,
+    spender: "0x01",
+    operator: "0x02",
   });
+});
+
+test("the owner claim is allowed only one installment ahead", async () => {
+  getBlock.mockResolvedValue({ timestamp: 1_800_000_000n });
+  snapshot.mockResolvedValue({ state: "Active", paused: false, repaid: 20_000_000n, totalOwed: 100_000_000n, period: 86_400n });
+  setReads();
+  expect((await readRules(V1)).claimAhead).toBe(true);
+  expect(readVault).toHaveBeenCalledWith(V1, "expectedRepaid", [1_800_086_400n]);
+  snapshot.mockResolvedValue({ state: "Active", paused: false, repaid: 19_000_000n, totalOwed: 100_000_000n, period: 86_400n });
+  expect((await readRules(V1)).claimAhead).toBe(false);
+  snapshot.mockResolvedValue({ state: "Repaid", paused: false, repaid: 1n, totalOwed: 100_000_000n, period: 86_400n });
+  expect((await readRules(V1)).claimAhead).toBe(true);
 });
 
 test("buildOrder reads the nonce and the text the vault wants signed", async () => {

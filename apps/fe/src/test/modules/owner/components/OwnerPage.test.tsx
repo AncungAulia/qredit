@@ -81,7 +81,14 @@ beforeEach(() => {
   market.isError = false;
   owned.data = [business("a", "Counterparty Check")];
   owned.isError = false;
-  rules.data = { state: "Active", paused: false, repaid: fusd(29), totalOwed: fusd(100), dailyCap: fusd(50), spentToday: fusd(18) };
+  rules.data = { state: "Active", paused: false, repaid: fusd(29), totalOwed: fusd(100), dailyCap: fusd(50),
+    spentToday: fusd(18),
+    ownerPending: fusd(3),
+    bondHeld: fusd(1200),
+    claimAhead: false,
+    spender: "0x00000000000000000000000000000000000000c1",
+    operator: "0x00000000000000000000000000000000000000c2",
+  };
   rules.isError = false;
   actions.build.mockResolvedValue(built());
   actions.sign.mockResolvedValue(SIG);
@@ -143,6 +150,31 @@ test("the console shows the current rules read from the vault", () => {
   const card = screen.getByRole("region", { name: "Current rules" });
   expect(within(card).getByText("50.00 fUSD")).toBeInTheDocument();
   expect(within(card).getByText("Active")).toBeInTheDocument();
+  expect(within(card).getByText("Claimable when one installment ahead")).toBeInTheDocument();
+  expect(within(card).getByText("1,200.00 fUSD, back when repaid")).toBeInTheDocument();
+});
+
+test("Close is confirmed as irreversible and needs no field; Rotate asks for both keys", async () => {
+  const user = userEvent.setup();
+  render(<OwnerPage />);
+  await user.click(screen.getByRole("radio", { name: /Close the business/ }));
+  expect(screen.getByText("This cannot be undone")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Sign with QoreX" })).toBeEnabled();
+  await user.click(screen.getByRole("radio", { name: /Rotate the agent keys/ }));
+  expect(screen.getByRole("button", { name: "Sign with QoreX" })).toBeDisabled();
+  await user.click(screen.getByLabelText("New spending key"));
+  await user.paste("0x00000000000000000000000000000000000000c1");
+  await user.click(screen.getByLabelText("New operator key"));
+  await user.paste("0x00000000000000000000000000000000000000c2");
+  expect(screen.getByRole("button", { name: "Sign with QoreX" })).toBeEnabled();
+});
+
+test("the claim card shows the owner share and the rule that releases it", () => {
+  render(<OwnerPage />);
+  const card = screen.getByRole("region", { name: "Your share to claim" });
+  expect(within(card).getByText("3.00 fUSD")).toBeInTheDocument();
+  expect(within(card).getByText(/only while the loan is one installment ahead/)).toBeInTheDocument();
+  expect(within(card).queryByRole("button")).toBeNull();
 });
 
 test("the signing buttons stay off until the order is complete", async () => {

@@ -1,5 +1,6 @@
 import { expect, test } from "vitest";
 import {
+  ZERO_ADDRESS,
   KIND_INFO,
   POLICY_KINDS,
   orderInput,
@@ -9,7 +10,7 @@ import {
 } from "@/modules/owner/schemas/policyOrder.schema";
 
 const SUPPLIER = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
-const base = { kind: "Pause", target: "", value: "", expiryMinutes: "30" } as const;
+const base = { kind: "Pause", target: "", value: "", operator: "", expiryMinutes: "30" } as const;
 const parse = (over: Record<string, string>) => policyOrderSchema.safeParse({ ...base, ...over });
 const message = (over: Record<string, string>) => {
   const r = parse(over);
@@ -26,6 +27,8 @@ test("the kinds keep the order of the contract enum", () => {
     "AddSupplier",
     "RaiseSupplierCap",
     "RaiseDailyCap",
+    "Close",
+    "RotateAgent",
   ]);
 });
 
@@ -68,20 +71,20 @@ test("the validity is 5 to 1440 whole minutes", () => {
 });
 
 test("orderInput turns the form values into the contract values", () => {
-  expect(orderInput({ kind: "LowerDailyCap", target: "", value: "40.5", expiryMinutes: "30" })).toEqual({
+  expect(orderInput({ kind: "LowerDailyCap", target: "", value: "40.5", operator: "", expiryMinutes: "30" })).toEqual({
     kind: 2,
     target: "0x0000000000000000000000000000000000000000",
     value: 40_500_000n,
     expiryMinutes: 30,
   });
-  const supplier = orderInput({ kind: "RemoveSupplier", target: SUPPLIER, value: "", expiryMinutes: "5" });
+  const supplier = orderInput({ kind: "RemoveSupplier", target: SUPPLIER, value: "", operator: "", expiryMinutes: "5" });
   expect(supplier.kind).toBe(0);
   expect(supplier.target).toBe(SUPPLIER.toLowerCase());
   expect(supplier.value).toBe(0n);
 });
 
 test("a field a kind does not use is ignored even when it holds text", () => {
-  expect(orderInput({ kind: "Pause", target: SUPPLIER, value: "9", expiryMinutes: "30" })).toMatchObject({
+  expect(orderInput({ kind: "Pause", target: SUPPLIER, value: "9", operator: "", expiryMinutes: "30" })).toMatchObject({
     kind: 3,
     target: "0x0000000000000000000000000000000000000000",
     value: 0n,
@@ -109,4 +112,25 @@ test("isBareHex spots hex without 0x so the form can ask for the prefix", () => 
   expect(isBareHex("abc")).toBe(false); // odd length
   expect(isBareHex("CgsM")).toBe(false);
   expect(isBareHex("")).toBe(false);
+});
+
+const NEW_SPENDER = "0x00000000000000000000000000000000000000c1";
+const NEW_OPERATOR = "0x00000000000000000000000000000000000000c2";
+
+test("Close and RotateAgent follow the contract's kind numbers", () => {
+  expect(POLICY_KINDS.indexOf("Close")).toBe(8);
+  expect(POLICY_KINDS.indexOf("RotateAgent")).toBe(9);
+});
+
+test("RotateAgent needs both new keys and carries the operator in value", () => {
+  const missing = policyOrderSchema.safeParse({ kind: "RotateAgent", target: NEW_SPENDER, value: "", operator: "", expiryMinutes: "30" });
+  expect(missing.success).toBe(false);
+  const ok = policyOrderSchema.parse({ kind: "RotateAgent", target: NEW_SPENDER, value: "", operator: NEW_OPERATOR, expiryMinutes: "30" });
+  expect(orderInput(ok)).toEqual({ kind: 9, target: NEW_SPENDER, value: BigInt(NEW_OPERATOR), expiryMinutes: 30 });
+});
+
+test("Close needs no address and no amount", () => {
+  const v = policyOrderSchema.parse({ kind: "Close", target: "", value: "", operator: "", expiryMinutes: "30" });
+  expect(orderInput(v)).toEqual({ kind: 8, target: ZERO_ADDRESS, value: 0n, expiryMinutes: 30 });
+  expect(KIND_INFO.Close.irreversible).toBe(true);
 });

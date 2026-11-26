@@ -10,15 +10,17 @@ import { TxLink } from "@/components/shared/TxLink";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { QOREX_INSTALL_URL } from "@/config/links";
-import { formatFusd } from "@/lib/format";
+import { formatFusd, shortAddress } from "@/lib/format";
 import type { Business } from "@/lib/schemas";
 import { cn, focusRing } from "@/lib/utils";
 import { useMarketQuery } from "@/modules/market";
 import type { Rules } from "@/modules/owner/api/owner.api";
+import { OwnerClaimCard } from "@/modules/owner/components/OwnerClaimCard";
 import { useOwnedVaultsQuery, useRulesQuery } from "@/modules/owner/api/useOwner";
 import { OrderSignature, type AppliedOrder } from "@/modules/owner/components/OrderSignature";
 import { PolicyOrderForm, type SignVia } from "@/modules/owner/components/PolicyOrderForm";
 import type { PolicyOrderValues } from "@/modules/owner/schemas/policyOrder.schema";
+import { testWalletOf } from "@/modules/wallet/signer";
 import { ConnectDialog } from "@/modules/wallet/components/ConnectDialog";
 import { useWallet } from "@/modules/wallet/WalletProvider";
 
@@ -128,6 +130,9 @@ function RulesCard({ rules }: { rules: Rules }) {
     ["Agent", rules.paused ? "Paused" : "Active"],
     ["Loan", `${rules.state}, ${percent(rules.repaid, rules.totalOwed)} repaid`],
     ["Loosening rules", rules.state === "Repaid" ? "Allowed" : "Locked during the loan"],
+    ["Your share", rules.claimAhead ? "Claimable now" : "Claimable when one installment ahead"],
+    ["Your bond", `${formatFusd(rules.bondHeld)}, back when repaid`],
+    ["Agent keys", `${shortAddress(rules.spender)}, ${shortAddress(rules.operator)}`],
   ];
   return (
     <section aria-labelledby="owner-rules" className="flex flex-col gap-4 rounded-3xl bg-surface p-5 md:p-6 xl:sticky xl:top-[100px]">
@@ -154,6 +159,7 @@ type Draft = { values: PolicyOrderValues; via: SignVia; attempt: number };
 function Console({ owned, qorexAddress }: { owned: Business[]; qorexAddress: string }) {
   const [slug, setSlug] = useState(owned[0].slug);
   const business = owned.find((b) => b.slug === slug) ?? owned[0];
+  const session = useWallet((s) => s.session);
   const rules = useRulesQuery(business.vault);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [applied, setApplied] = useState<AppliedOrder | null>(null);
@@ -243,7 +249,10 @@ function Console({ owned, qorexAddress }: { owned: Business[]; qorexAddress: str
                 }
               />
             </section>
-            <RulesCard rules={rules.data} />
+            <div className="flex flex-col gap-6">
+              <RulesCard rules={rules.data} />
+              <OwnerClaimCard business={business} rules={rules.data} canSend={testWalletOf(session) !== null} />
+            </div>
           </div>
         </>
       )}

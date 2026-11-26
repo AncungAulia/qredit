@@ -23,6 +23,10 @@ export function orderSentence(order: PolicyOrder): string {
       return `Raise the limit of ${supplier} to ${amount} for each payment`;
     case "AddSupplier":
       return `Add the supplier ${supplier} with a limit of ${amount} for each payment`;
+    case "Close":
+      return "Close the loan and move the operating funds, the owner share and the bond to lenders";
+    case "RotateAgent":
+      return `Replace the agent keys with spending key ${supplier} and operator key ${shortAddress(`0x${order.value.toString(16).padStart(40, "0")}`)}`;
     default:
       return KIND_INFO.Pause.label;
   }
@@ -49,7 +53,20 @@ export function appliedTitle(order: PolicyOrder): string {
       return `Supplier limit raised to ${amount}`;
     case "AddSupplier":
       return `Supplier added with a limit of ${amount}`;
+    case "Close":
+      return "The loan is closed";
+    case "RotateAgent":
+      return "The agent keys are replaced";
     default:
       return "Policy order applied";
   }
+}
+
+/** What the Apply confirmation says. An irreversible order says so before anything is sent. */
+export function applyBody(order: PolicyOrder): string {
+  const base =
+    "The vault checks your signature and then changes its rules. This sends one transaction from your test wallet, and the network fee is paid in QOR by that wallet.";
+  return KIND_INFO[POLICY_KINDS[order.kind]]?.irreversible
+    ? `${base} Closing ends the loan for good: the business stops selling and its operating funds, owner share and bond go to lenders. This cannot be undone.`
+    : base;
 }

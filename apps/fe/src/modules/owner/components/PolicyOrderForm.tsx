@@ -5,7 +5,9 @@ import { Controller, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   CircleAlert,
+  KeyRound,
   Pause,
+  Power,
   Play,
   TrendingDown,
   TrendingUp,
@@ -44,6 +46,8 @@ const ICONS: Record<PolicyKind, LucideIcon> = {
   RaiseDailyCap: TrendingUp,
   RaiseSupplierCap: TrendingUp,
   AddSupplier: UserPlus,
+  Close: Power,
+  RotateAgent: KeyRound,
 };
 
 type Props = {
@@ -55,7 +59,7 @@ type Props = {
   flow?: ReactNode;
 };
 
-const DEFAULTS = { target: "", value: "", expiryMinutes: "30" };
+const DEFAULTS = { target: "", value: "", operator: "", expiryMinutes: "30" };
 
 /** The Owner form of the design: pick a change, fill the field it needs, then sign it with QoreX or paste a CLI signature. */
 export function PolicyOrderForm({ rules, locked, onSubmit, flow }: Props) {
@@ -106,10 +110,12 @@ export function PolicyOrderForm({ rules, locked, onSubmit, flow }: Props) {
               )}
             >
               <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-surface">
-                <Icon className="size-[18px] text-text-secondary" aria-hidden />
+                <Icon className={cn("size-[18px]", KIND_INFO[k].irreversible ? "text-danger" : "text-text-secondary")} aria-hidden />
               </span>
               <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <span className="text-[15px] font-medium text-text-primary">{KIND_INFO[k].label}</span>
+                <span className={cn("text-[15px] font-medium", KIND_INFO[k].irreversible ? "text-danger" : "text-text-primary")}>
+                  {KIND_INFO[k].label}
+                </span>
                 <span className="text-[13px] leading-normal text-text-secondary">{KIND_INFO[k].description}</span>
               </span>
               <span
@@ -132,11 +138,17 @@ export function PolicyOrderForm({ rules, locked, onSubmit, flow }: Props) {
         </Notice>
       )}
 
+      {info?.irreversible && !blocked && (
+        <Notice tone="danger" title="This cannot be undone">
+          Closing ends the loan for good. The business stops selling, and the vault&apos;s cash, your unclaimed share and your bond go to lenders.
+        </Notice>
+      )}
+
       {info && (
         <div className="flex flex-col gap-5">
           {info.target && (
             <Field data-invalid={errors.target ? true : undefined}>
-              <FieldLabel htmlFor="owner-target">Supplier address</FieldLabel>
+              <FieldLabel htmlFor="owner-target">{info.targetLabel ?? "Supplier address"}</FieldLabel>
               <Controller
                 control={control}
                 name="target"
@@ -159,7 +171,40 @@ export function PolicyOrderForm({ rules, locked, onSubmit, flow }: Props) {
                   {errors.target.message}
                 </FieldError>
               ) : (
-                <FieldDescription className={fieldHelpClass}>The address the agent pays, starting with qor1 or 0x.</FieldDescription>
+                <FieldDescription className={fieldHelpClass}>
+                  {info.operator
+                    ? "The new spending key of the agent, starting with qor1 or 0x."
+                    : "The address the agent pays, starting with qor1 or 0x."}
+                </FieldDescription>
+              )}
+            </Field>
+          )}
+          {info.operator && (
+            <Field data-invalid={errors.operator ? true : undefined}>
+              <FieldLabel htmlFor="owner-operator">New operator key</FieldLabel>
+              <Controller
+                control={control}
+                name="operator"
+                render={({ field }) => (
+                  <Input
+                    id="owner-operator"
+                    {...field}
+                    disabled={locked}
+                    placeholder="qor1… or 0x…"
+                    autoComplete="off"
+                    spellCheck={false}
+                    aria-invalid={errors.operator ? true : undefined}
+                    className={cn(controlClass, "font-mono text-[15px]")}
+                  />
+                )}
+              />
+              {errors.operator ? (
+                <FieldError className={fieldErrorClass}>
+                  <CircleAlert className="mt-px size-3.5 shrink-0" aria-hidden />
+                  {errors.operator.message}
+                </FieldError>
+              ) : (
+                <FieldDescription className={fieldHelpClass}>The new operator key of the agent, starting with qor1 or 0x.</FieldDescription>
               )}
             </Field>
           )}

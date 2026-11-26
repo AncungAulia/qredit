@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { formatDateTime } from "@/lib/format";
 import type { Business } from "@/lib/schemas";
 import { useOwnerActions } from "@/modules/owner/api/useOwner";
-import { appliedTitle, orderSentence } from "@/modules/owner/lib/describe";
+import { applyBody, appliedTitle, orderSentence } from "@/modules/owner/lib/describe";
 import type { SignVia } from "@/modules/owner/components/PolicyOrderForm";
 import {
   isBareHex,
@@ -286,7 +286,7 @@ export function OrderSignature({ business, qorexAddress, values, via, onCancel, 
           }
         }}
         title="Apply this policy order"
-        body="The vault checks your signature and then changes its rules. This sends one transaction from your test wallet, and the network fee is paid in QOR by that wallet."
+        body={applyBody(built.order)}
         confirmLabel="Apply order"
         pendingLabel="Applying the order"
         successTitle={appliedTitle(built.order)}

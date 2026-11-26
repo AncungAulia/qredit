@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Business } from "@/lib/schemas";
 import { marketKeys } from "@/modules/market";
-import { applyOrder, buildOrder, ownedVaults, readRules, simulateApply } from "@/modules/owner/api/owner.api";
+import { applyOrder, buildOrder, claimOwnerShare, ownedVaults, readRules, simulateApply } from "@/modules/owner/api/owner.api";
 import { ownerKeys } from "@/modules/owner/api/owner.keys";
 import type { OrderInput, PolicyOrder } from "@/modules/owner/schemas/policyOrder.schema";
 import { testWalletOf } from "@/modules/wallet/signer";
@@ -49,6 +49,11 @@ export function useOwnerActions() {
         void client.invalidateQueries({ queryKey: marketKeys.all });
         // The business page shows the same rules and the supplier list.
         void client.invalidateQueries({ queryKey: BUSINESS_KEYS });
+        return hash;
+      },
+      claim: async (vault: Hex) => {
+        const hash = await claimOwnerShare(session, vault);
+        void client.invalidateQueries({ queryKey: ownerKeys.all });
         return hash;
       },
     };

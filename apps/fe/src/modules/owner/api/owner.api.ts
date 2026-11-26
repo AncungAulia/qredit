@@ -20,6 +20,14 @@ export type Rules = {
   totalOwed: bigint;
   dailyCap: bigint;
   spentToday: bigint;
+  /** The owner share waiting in the vault. */
+  ownerPending: bigint;
+  /** The owner bond held by the vault; it goes back to the owner when the loan is repaid. */
+  bondHeld: bigint;
+  /** The vault would pay the owner share now: Repaid, or Active and one installment ahead of schedule. */
+  claimAhead: boolean;
+  spender: Hex;
+  operator: Hex;
 };
 
 /** The vaults of `businesses` whose owner key address is `ownerEvm`. Fails as a whole when one vault cannot be read. */
@@ -31,11 +39,17 @@ export async function ownedVaults(ownerEvm: Hex, businesses: Business[]): Promis
 
 /** The rules the owner is about to change, read from the vault. */
 export async function readRules(vault: Hex): Promise<Rules> {
-  const [snapshot, dailyCap, spentToday] = await Promise.all([
+  const [snapshot, dailyCap, spentToday, ownerPending, spender, operator, block] = await Promise.all([
     readVaultSnapshot(vault),
     readVault(vault, "dailyCap"),
     readVault(vault, "spentToday"),
+    readVault(vault, "ownerPending"),
+    readVault(vault, "spender"),
+    readVault(vault, "operator"),
+    publicClient.getBlock(),
   ]);
+  // The vault's rule: repaid >= expectedRepaid(now + period), with now the block time it compares against.
+  const ahead = await readVault(vault, "expectedRepaid", [block.timestamp + snapshot.period]);
   return {
     state: snapshot.state,
     paused: snapshot.paused,
@@ -43,6 +57,11 @@ export async function readRules(vault: Hex): Promise<Rules> {
     totalOwed: snapshot.totalOwed,
     dailyCap,
     spentToday,
+    ownerPending,
+    bondHeld: snapshot.bondHeld,
+    spender,
+    operator,
+    claimAhead: snapshot.state === "Repaid" || (snapshot.state === "Active" && snapshot.repaid >= ahead),
   };
 }
 
@@ -99,3 +118,7 @@ export async function applyOrder(session: WalletSession, vault: Hex, order: Poli
     throw e;
   }
 }
+
+/** Sends the owner share to the payout address. Anyone may send it; the vault pays only `ownerPayout`. */
+export const claimOwnerShare = (session: WalletSession, vault: Hex): Promise<Hex> =>
+  act(session, [vault], (signer) => signer.send(vault, encodeFunctionData({ abi: LOAN_VAULT_ABI, functionName: "claimOwner" })));

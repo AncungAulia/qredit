@@ -12,6 +12,8 @@ export const POLICY_KINDS = [
   "AddSupplier",
   "RaiseSupplierCap",
   "RaiseDailyCap",
+  "Close",
+  "RotateAgent",
 ] as const;
 export type PolicyKind = (typeof POLICY_KINDS)[number];
 
@@ -29,6 +31,12 @@ type KindInfo = {
   valueLabel: string;
   /** The vault refuses these until the loan is repaid. */
   widening: boolean;
+  /** The order names a second address: the new operator key (RotateAgent). */
+  operator?: boolean;
+  /** The label of the first address field; "Supplier address" when unset. */
+  targetLabel?: string;
+  /** Applying it cannot be undone. */
+  irreversible?: boolean;
 };
 
 /** What each kind means for the owner. `target` and `value` follow what `applyOrder` reads for that kind. */
@@ -97,6 +105,26 @@ export const KIND_INFO: Record<PolicyKind, KindInfo> = {
     valueLabel: "Limit for each payment",
     widening: true,
   },
+  Close: {
+    label: "Close the business",
+    description:
+      "Stops selling for good. The vault's cash, your unclaimed share and your bond go to lenders. Cannot be undone.",
+    target: false,
+    value: false,
+    valueLabel: "",
+    widening: false,
+    irreversible: true,
+  },
+  RotateAgent: {
+    label: "Rotate the agent keys",
+    description: "Replace the spender and operator keys if one is lost or leaked. Allowed during the loan.",
+    target: true,
+    targetLabel: "New spending key",
+    operator: true,
+    value: false,
+    valueLabel: "",
+    widening: false,
+  },
 };
 
 /** The order the kinds are listed in: what narrows the rules first, what widens them last. */
@@ -106,6 +134,8 @@ export const KIND_LIST: PolicyKind[] = [
   "LowerDailyCap",
   "LowerSupplierCap",
   "RemoveSupplier",
+  "RotateAgent",
+  "Close",
   "RaiseDailyCap",
   "RaiseSupplierCap",
   "AddSupplier",
@@ -114,7 +144,7 @@ export const KIND_LIST: PolicyKind[] = [
 export const ADDRESS_ERROR = "This is not a valid address. Enter one that starts with qor1 or 0x.";
 export const EXPIRY_ERROR = `Enter a whole number of minutes from ${EXPIRY_MIN} to ${EXPIRY_MAX.toLocaleString("en-US")}.`;
 
-/** The address of a supplier as 0x text, from a 0x or qor1 address; null when it is neither. */
+/** An address as 0x text, from a 0x or qor1 address; null when it is neither. */
 export function supplierAddress(text: string): `0x${string}` | null {
   const t = text.trim();
   if (/^0x[0-9a-fA-F]{40}$/.test(t)) return t.toLowerCase() as `0x${string}`;
@@ -134,6 +164,7 @@ export const policyOrderSchema = z
     kind: z.enum(POLICY_KINDS),
     target: z.string(),
     value: z.string(),
+    operator: z.string(),
     expiryMinutes: z.string(),
   })
   .superRefine((v, ctx) => {
@@ -142,6 +173,10 @@ export const policyOrderSchema = z
     if (info.target) {
       if (v.target.trim() === "") issue("target", "Enter the address of the supplier.");
       else if (supplierAddress(v.target) === null) issue("target", ADDRESS_ERROR);
+    }
+    if (info.operator) {
+      if (v.operator.trim() === "") issue("operator", "Enter the address of the new operator key.");
+      else if (supplierAddress(v.operator) === null) issue("operator", ADDRESS_ERROR);
     }
     if (info.value) {
       if (v.value.trim() === "") issue("value", "Enter an amount.");
@@ -167,7 +202,7 @@ export function orderInput(values: PolicyOrderValues): OrderInput {
   return {
     kind: POLICY_KINDS.indexOf(values.kind),
     target: (info.target ? supplierAddress(values.target) : null) ?? ZERO_ADDRESS,
-    value: info.value ? (amountUnits(values.value) ?? 0n) : 0n,
+    value: info.operator ? BigInt(supplierAddress(values.operator) ?? ZERO_ADDRESS) : info.value ? (amountUnits(values.value) ?? 0n) : 0n,
     expiryMinutes: Number(values.expiryMinutes),
   };
 }
