@@ -135,9 +135,20 @@ abstract contract Base is Test {
         vault.deliver(id, keccak256(abi.encode("envelope", id)));
     }
 
+    function _accept(uint256 id) internal {
+        vm.prank(buyer);
+        vault.accept(id);
+    }
+
+    /// Delivers and lets the buyer accept at once: the sale is split now.
+    function _settleNow(uint256 id) internal {
+        _deliver(id);
+        _accept(id);
+    }
+
     function _sell(uint256 serviceId, uint256 n) internal {
         for (uint256 k; k < n; k++) {
-            _deliver(_buy(serviceId));
+            _settleNow(_buy(serviceId));
         }
     }
 

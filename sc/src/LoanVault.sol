@@ -23,10 +23,12 @@ contract LoanVault {
     bytes32 internal constant POLICY_TAG = keccak256("qredit-policy-v1");
     /// The owner's bond in basis points of the loan target; the factory pulls it from the creator.
     uint256 public constant BOND_BPS = 1000;
+    /// How long the buyer may reject a delivered report; afterwards anyone settles the sale.
+    uint64 public constant REVIEW_WINDOW = 24 hours;
 
     enum State { Raising, Active, Trapped, Repaid, Refunded, Defaulted, Closed }
     enum EndKind { None, Defaulted, Closed }
-    enum OrderStatus { None, Open, Delivered, Declined, Reclaimed }
+    enum OrderStatus { None, Open, InReview, Settled, Rejected, Declined, Reclaimed }
     enum Kind { RemoveSupplier, LowerSupplierCap, LowerDailyCap, Pause, Unpause, AddSupplier, RaiseSupplierCap, RaiseDailyCap }
 
     struct LoanTerms {
@@ -69,6 +71,8 @@ contract LoanVault {
         OrderStatus status;
         uint256 price;
         bytes32 requestRef;
+        /// Set by deliver: until then the buyer may reject; after it anyone may settle.
+        uint64 reviewEnds;
     }
 
     struct PolicyOrder {
@@ -132,7 +136,9 @@ contract LoanVault {
     event Activated(uint256 at);
     event Refunded(address indexed lender, uint256 amount);
     event OrderPlaced(uint256 indexed orderId, address indexed buyer, uint256 serviceId, uint256 price, bytes32 requestRef, uint256 deadline);
-    event Delivered(uint256 indexed orderId, bytes32 envelopeHash, uint256 toLenders, uint256 toOwner, uint256 toOpex);
+    event Delivered(uint256 indexed orderId, bytes32 envelopeHash, uint256 reviewEnds);
+    event Settled(uint256 indexed orderId, uint256 toLenders, uint256 toOwner, uint256 toOpex);
+    event Rejected(uint256 indexed orderId, uint256 refund, uint256 cost);
     event Declined(uint256 indexed orderId, uint8 reasonCode);
     event Reclaimed(uint256 indexed orderId);
     event SupplierPaid(address indexed supplier, uint256 amount, uint256 indexed orderId);
@@ -171,6 +177,9 @@ contract LoanVault {
     error BadOrder();
     error OverOrderPrice();
     error BuyerNotAllowed();
+    error NotInReview();
+    error ReviewOpen();
+    error ReviewOver();
 
     constructor(IERC20 token_, Init memory init) {
         if (
@@ -308,30 +317,75 @@ contract LoanVault {
         token.safeTransferFrom(msg.sender, address(this), price);
         id = ++orderCount;
         uint64 deadline = uint64(block.timestamp) + orderTtl;
-        orders[id] = Order(msg.sender, uint32(serviceId), deadline, OrderStatus.Open, price, requestRef);
+        orders[id] = Order(msg.sender, uint32(serviceId), deadline, OrderStatus.Open, price, requestRef, 0);
         escrowTotal += price;
         emit OrderPlaced(id, msg.sender, serviceId, price, requestRef, deadline);
     }
 
+    /// The operator hands over the sealed report. The payment stays in escrow while the buyer reviews it.
     function deliver(uint256 id, bytes32 envelopeHash) external {
         if (msg.sender != operator) revert NotOperator();
         Order storage o = orders[id];
         if (o.status != OrderStatus.Open) revert OrderNotOpen();
         if (block.timestamp > o.deadline) revert OrderExpired();
-        o.status = OrderStatus.Delivered;
-        escrowTotal -= o.price;
-        (uint256 toLenders, uint256 toOwner, uint256 toOpex) = _split(o.price);
-        emit Delivered(id, envelopeHash, toLenders, toOwner, toOpex);
+        uint64 ends = uint64(block.timestamp) + REVIEW_WINDOW;
+        o.status = OrderStatus.InReview;
+        o.reviewEnds = ends;
+        emit Delivered(id, envelopeHash, ends);
     }
 
+    /// The buyer accepts the report: the sale settles at once.
+    function accept(uint256 id) external {
+        Order storage o = orders[id];
+        if (msg.sender != o.buyer) revert NotBuyer();
+        if (o.status != OrderStatus.InReview) revert NotInReview();
+        _settle(id, o);
+    }
+
+    /// Anyone settles a delivered order once its review has ended without a rejection.
+    function settle(uint256 id) external {
+        Order storage o = orders[id];
+        if (o.status != OrderStatus.InReview) revert NotInReview();
+        if (block.timestamp <= o.reviewEnds) revert ReviewOpen();
+        _settle(id, o);
+    }
+
+    /// The buyer rejects the report during the review: the price comes back less what the agent already spent on it.
+    function reject(uint256 id) external {
+        Order storage o = orders[id];
+        if (msg.sender != o.buyer) revert NotBuyer();
+        if (o.status != OrderStatus.InReview) revert NotInReview();
+        if (block.timestamp > o.reviewEnds) revert ReviewOver();
+        o.status = OrderStatus.Rejected;
+        (uint256 refund, uint256 cost) = _refundKeepingCost(id, o);
+        emit Rejected(id, refund, cost);
+    }
+
+    /// The operator refuses an open order: the buyer gets the price back less what the agent spent before declining.
     function decline(uint256 id, uint8 reasonCode) external {
         if (msg.sender != operator) revert NotOperator();
         Order storage o = orders[id];
         if (o.status != OrderStatus.Open) revert OrderNotOpen();
         o.status = OrderStatus.Declined;
-        escrowTotal -= o.price;
-        token.safeTransfer(o.buyer, o.price);
+        _refundKeepingCost(id, o);
         emit Declined(id, reasonCode);
+    }
+
+    function _settle(uint256 id, Order storage o) internal {
+        o.status = OrderStatus.Settled;
+        escrowTotal -= o.price;
+        (uint256 toLenders, uint256 toOwner, uint256 toOpex) = _split(o.price);
+        emit Settled(id, toLenders, toOwner, toOpex);
+    }
+
+    /// Releases an order's escrow: the supplier cost spent on it stays in the vault, the rest goes back to the buyer.
+    function _refundKeepingCost(uint256 id, Order storage o) internal returns (uint256 refund, uint256 cost) {
+        uint256 spent = supplierCost[id];
+        cost = spent < o.price ? spent : o.price;
+        refund = o.price - cost;
+        escrowTotal -= o.price;
+        opexBalance += cost;
+        if (refund > 0) token.safeTransfer(o.buyer, refund);
     }
 
     function reclaim(uint256 id) external {

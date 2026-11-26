@@ -46,9 +46,10 @@ contract LoanVaultClaimsTest is Base {
     function test_trappedRedirectsOwnerShareToLenders() public {
         vm.warp(block.timestamp + GRACE + PERIOD);
         uint256 id = _buy(1);
-        vm.expectEmit(address(vault));
-        emit LoanVault.Delivered(id, keccak256(abi.encode("envelope", id)), 2.5e18, 0, 2.5e18);
         _deliver(id);
+        vm.expectEmit(address(vault));
+        emit LoanVault.Settled(id, 2.5e18, 0, 2.5e18);
+        _accept(id);
         assertEq(vault.ownerPending(), 0);
     }
 
@@ -70,9 +71,10 @@ contract LoanVaultClaimsTest is Base {
         _sell(2, 3); // 3 × 30 = 90
         assertEq(vault.repaid(), 90e18);
         uint256 id = _buy(2);
-        vm.expectEmit(address(vault));
-        emit LoanVault.Delivered(id, keccak256(abi.encode("envelope", id)), 20e18, 20e18, 60e18);
         _deliver(id);
+        vm.expectEmit(address(vault));
+        emit LoanVault.Settled(id, 20e18, 20e18, 60e18);
+        _accept(id);
         assertEq(vault.repaid(), OWED);
         assertEq(uint8(vault.state()), uint8(LoanVault.State.Repaid));
         _sell(2, 1); // after repayment lenders get nothing more
@@ -85,9 +87,9 @@ contract LoanVaultClaimsTest is Base {
         uint256 pool = vault.lenderPool();
         uint256 repaidBefore = vault.repaid();
         uint256 id = _buy(0);
-        _deliver(id);
-        (,,, LoanVault.OrderStatus st,,) = vault.orders(id);
-        assertEq(uint8(st), uint8(LoanVault.OrderStatus.Delivered));
+        _settleNow(id);
+        (,,, LoanVault.OrderStatus st,,,) = vault.orders(id);
+        assertEq(uint8(st), uint8(LoanVault.OrderStatus.Settled));
         assertEq(vault.lenderPool(), pool, "lender part must be 0");
         assertEq(vault.repaid(), repaidBefore);
     }
@@ -123,7 +125,7 @@ contract LoanVaultClaimsTest is Base {
         prices[2] = 1_000_000_000_000_000_001;
         _fresh(prices, 33e18, 67e18);
         for (uint256 k; k < 9; k++) {
-            _deliver(_buy(k % 3));
+            _settleNow(_buy(k % 3));
         }
         uint256 delivered = vault.repaid();
         assertGt(delivered, 0);
@@ -154,7 +156,7 @@ contract LoanVaultClaimsTest is Base {
         _freshWith(i, 33e6, 67e6);
         // buyer's 18-decimal balance is plenty for these small prices
         for (uint256 k; k < 30; k++) {
-            _deliver(_buy(k % 3));
+            _settleNow(_buy(k % 3));
         }
         uint256 delivered = vault.repaid();
         assertGt(delivered, 0);

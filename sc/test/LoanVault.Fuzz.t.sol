@@ -19,7 +19,7 @@ contract LoanVaultFuzzTest is Base {
         uint256 owner0 = vault.ownerPending();
         uint256 opex0 = vault.opexBalance();
         uint256 owed = OWED - vault.repaid();
-        _deliver(_buy(0));
+        _settleNow(_buy(0));
         uint256 toLenders = vault.lenderPool() - pool0;
         uint256 toOwner = vault.ownerPending() - owner0;
         uint256 toOpex = vault.opexBalance() - opex0;
@@ -37,7 +37,7 @@ contract LoanVaultFuzzTest is Base {
         prices[1] = 7e18 + 13;
         _fresh(prices, depositA, TARGET - depositA);
         for (uint256 k; k < deliveries; k++) {
-            _deliver(_buy(k % 2));
+            _settleNow(_buy(k % 2));
             uint256 repaid = vault.repaid();
             uint256 a = vault.lenderClaimable(lenderA);
             uint256 b = vault.lenderClaimable(lenderB);

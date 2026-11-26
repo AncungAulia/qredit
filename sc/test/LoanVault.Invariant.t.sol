@@ -44,11 +44,22 @@ contract VaultHandler is Test {
         } catch {}
     }
 
+    uint256 public settlements;
+
     function _deliver(uint256 id) internal {
-        (,,,, uint256 price,) = vault.orders(id);
         vm.prank(operator);
         try vault.deliver(id, bytes32(id)) {
             deliveries++;
+        } catch {}
+    }
+
+    function accept(uint256 id) external {
+        if (vault.orderCount() == 0) return;
+        id = bound(id, 1, vault.orderCount());
+        (,,,, uint256 price,,) = vault.orders(id);
+        vm.prank(buyer);
+        try vault.accept(id) {
+            settlements++;
             ownerEntitledMax += price * vault.ownerBps() / 10_000;
         } catch {}
     }

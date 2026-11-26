@@ -12,7 +12,7 @@ contract LoanVaultOrdersTest is Base {
 
     function test_buyEscrowsPayment() public {
         uint256 id = _buy(1);
-        (address b, uint32 sid, uint64 deadline, LoanVault.OrderStatus st, uint256 price,) = vault.orders(id);
+        (address b, uint32 sid, uint64 deadline, LoanVault.OrderStatus st, uint256 price,,) = vault.orders(id);
         assertEq(b, buyer);
         assertEq(sid, 1);
         assertEq(deadline, block.timestamp + TTL);
@@ -32,18 +32,6 @@ contract LoanVaultOrdersTest is Base {
         vm.prank(buyer);
         vm.expectRevert(LoanVault.UnknownService.selector);
         vault.buy(3, bytes32(0));
-    }
-
-    function test_deliverSplitsLendersFirst() public {
-        uint256 id = _buy(1); // 5 fUSD
-        vm.expectEmit(address(vault));
-        emit LoanVault.Delivered(id, keccak256(abi.encode("envelope", id)), 1.5e18, 1e18, 2.5e18);
-        _deliver(id);
-        assertEq(vault.repaid(), 1.5e18);
-        assertEq(vault.lenderPool(), 1.5e18);
-        assertEq(vault.ownerPending(), 1e18);
-        assertEq(vault.opexBalance(), TARGET + 2.5e18);
-        assertEq(vault.escrowTotal(), 0);
     }
 
     function test_onlyOperatorDelivers() public {
@@ -79,7 +67,7 @@ contract LoanVaultOrdersTest is Base {
         vault.decline(id, 2);
         assertEq(fusd.balanceOf(buyer), before);
         assertEq(vault.escrowTotal(), 0);
-        (,,, LoanVault.OrderStatus st,,) = vault.orders(id);
+        (,,, LoanVault.OrderStatus st,,,) = vault.orders(id);
         assertEq(uint8(st), uint8(LoanVault.OrderStatus.Declined));
     }
 
@@ -125,20 +113,20 @@ contract LoanVaultOrdersTest is Base {
 
     function test_deliverAtDeadlineOkAndReclaimRefused() public {
         uint256 id = _buy(1);
-        (,, uint64 deadline,,,) = vault.orders(id);
+        (,, uint64 deadline,,,,) = vault.orders(id);
         uint256 t = deadline;
         vm.warp(t);
         vm.prank(buyer);
         vm.expectRevert(LoanVault.OrderNotExpired.selector);
         vault.reclaim(id);
         _deliver(id);
-        (,,, LoanVault.OrderStatus st,,) = vault.orders(id);
-        assertEq(uint8(st), uint8(LoanVault.OrderStatus.Delivered));
+        (,,, LoanVault.OrderStatus st,,,) = vault.orders(id);
+        assertEq(uint8(st), uint8(LoanVault.OrderStatus.InReview));
     }
 
     function test_reclaimAfterDeadlinePlusOneAndDeliverRefused() public {
         uint256 id = _buy(1);
-        (,, uint64 deadline,,,) = vault.orders(id);
+        (,, uint64 deadline,,,,) = vault.orders(id);
         uint256 t = uint256(deadline) + 1;
         vm.warp(t);
         vm.prank(operator);
@@ -146,7 +134,7 @@ contract LoanVaultOrdersTest is Base {
         vault.deliver(id, bytes32(0));
         vm.prank(buyer);
         vault.reclaim(id);
-        (,,, LoanVault.OrderStatus st,,) = vault.orders(id);
+        (,,, LoanVault.OrderStatus st,,,) = vault.orders(id);
         assertEq(uint8(st), uint8(LoanVault.OrderStatus.Reclaimed));
     }
 
