@@ -62,11 +62,14 @@ export function appliedTitle(order: PolicyOrder): string {
   }
 }
 
+/** True for an order that cannot be undone once applied. */
+export const isIrreversible = (order: PolicyOrder): boolean => KIND_INFO[POLICY_KINDS[order.kind]]?.irreversible === true;
+
 /** What the Apply confirmation says. An irreversible order says so before anything is sent. */
 export function applyBody(order: PolicyOrder): string {
   const base =
     "The vault checks your signature and then changes its rules. This sends one transaction from your test wallet, and the network fee is paid in QOR by that wallet.";
-  return KIND_INFO[POLICY_KINDS[order.kind]]?.irreversible
+  return isIrreversible(order)
     ? `${base} Closing ends the loan for good: the business stops selling and its operating funds, owner share and bond go to lenders. This cannot be undone.`
     : base;
 }

@@ -48,6 +48,7 @@ const actions = vi.hoisted(() => ({
   sign: vi.fn(),
   simulate: vi.fn(),
   apply: vi.fn(),
+  claim: vi.fn(),
 }));
 vi.mock("@/modules/owner/api/useOwner", () => ({
   useOwnedVaultsQuery: () => owned,
@@ -88,6 +89,9 @@ beforeEach(() => {
     claimAhead: false,
     spender: "0x00000000000000000000000000000000000000c1",
     operator: "0x00000000000000000000000000000000000000c2",
+    vault: "0x00000000000000000000000000000000000000aa",
+    ownerPq: "0x00000000000000000000000000000000000000bb",
+    ownerPayout: "0x00000000000000000000000000000000000000cc",
   };
   rules.isError = false;
   actions.build.mockResolvedValue(built());
@@ -336,4 +340,52 @@ test("a send that the chain refuses returns to the form with the reason and offe
   await user.click(within(dialog).getByRole("button", { name: "Close" }));
   expect(await screen.findByText("The vault refused this order")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Back to the form" })).toBeInTheDocument();
+});
+
+test("an ended loan says the share and the bond went to lenders", () => {
+  rules.data = { ...(rules.data as object), state: "Closed" };
+  render(<OwnerPage />);
+  const card = screen.getByRole("region", { name: "Current rules" });
+  expect(within(card).getAllByText("Sent to lenders")).toHaveLength(2);
+  expect(within(card).queryByText(/back when repaid/)).not.toBeInTheDocument();
+  expect(within(card).queryByText(/Claimable when/)).not.toBeInTheDocument();
+  const claim = screen.getByRole("region", { name: "Your share to claim" });
+  expect(within(claim).queryByText(/if the loan ends/)).not.toBeInTheDocument();
+});
+
+test("Rotate refuses a key that is the owner payout address before signing", async () => {
+  const user = userEvent.setup();
+  render(<OwnerPage />);
+  await user.click(screen.getByRole("radio", { name: /Rotate the agent keys/ }));
+  await user.click(screen.getByLabelText("New spending key"));
+  await user.paste("0x00000000000000000000000000000000000000cc");
+  await user.click(screen.getByLabelText("New operator key"));
+  await user.paste("0x00000000000000000000000000000000000000c2");
+  expect(screen.getByText("An agent key cannot be an owner address.")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Sign with QoreX" })).toBeDisabled();
+});
+
+test("Close is applied through a destructive confirmation", async () => {
+  wallet.session = { kind: "qorex", address: "qor1owner", evm: OWNER, testWallet: testWallet };
+  actions.build.mockResolvedValue(built({ order: { kind: 8, target: "0x0000000000000000000000000000000000000000", value: 0n, nonce: 4n, expiry: 1_800_000_000n } }));
+  const user = userEvent.setup();
+  render(<OwnerPage />);
+  await user.click(screen.getByRole("radio", { name: /Close the business/ }));
+  await user.click(screen.getByRole("button", { name: "Sign with QoreX" }));
+  await user.click(await screen.findByRole("button", { name: "Apply order" }));
+  const dialog = await screen.findByRole("alertdialog");
+  expect(within(dialog).getByText(/This cannot be undone/)).toBeInTheDocument();
+  expect(within(dialog).getByRole("button", { name: "Apply order" }).className).toMatch(/destructive|danger/);
+});
+
+test("the owner claim goes through the claim action when the loan is one installment ahead", async () => {
+  wallet.session = { kind: "qorex", address: "qor1owner", evm: OWNER, testWallet: testWallet };
+  rules.data = { ...(rules.data as object), claimAhead: true };
+  actions.claim.mockResolvedValue("0xdef");
+  const user = userEvent.setup();
+  render(<OwnerPage />);
+  await user.click(screen.getByRole("button", { name: "Claim 3.00 fUSD" }));
+  const dialog = await screen.findByRole("alertdialog");
+  await user.click(within(dialog).getByRole("button", { name: "Claim 3.00 fUSD" }));
+  await waitFor(() => expect(actions.claim).toHaveBeenCalledWith(expect.stringMatching(/^0x/)));
 });

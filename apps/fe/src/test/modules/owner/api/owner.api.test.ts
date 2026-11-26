@@ -68,6 +68,8 @@ const READS: Record<string, bigint | string> = {
   expectedRepaid: 20_000_000n,
   spender: "0x01",
   operator: "0x02",
+  ownerPq: "0x03",
+  ownerPayout: "0x04",
 };
 const setReads = (over: Record<string, bigint | string> = {}) =>
   readVault.mockImplementation(async (_v: string, fn: string) => ({ ...READS, ...over })[fn]);
@@ -88,6 +90,9 @@ test("readRules joins the snapshot with the daily cap, the spend of today and th
     claimAhead: false,
     spender: "0x01",
     operator: "0x02",
+    vault: V1,
+    ownerPq: "0x03",
+    ownerPayout: "0x04",
   });
 });
 

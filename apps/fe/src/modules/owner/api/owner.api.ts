@@ -28,6 +28,10 @@ export type Rules = {
   claimAhead: boolean;
   spender: Hex;
   operator: Hex;
+  /** The vault itself, the owner key address and the payout address: none of them may become an agent key. */
+  vault: Hex;
+  ownerPq: Hex;
+  ownerPayout: Hex;
 };
 
 /** The vaults of `businesses` whose owner key address is `ownerEvm`. Fails as a whole when one vault cannot be read. */
@@ -39,13 +43,15 @@ export async function ownedVaults(ownerEvm: Hex, businesses: Business[]): Promis
 
 /** The rules the owner is about to change, read from the vault. */
 export async function readRules(vault: Hex): Promise<Rules> {
-  const [snapshot, dailyCap, spentToday, ownerPending, spender, operator, block] = await Promise.all([
+  const [snapshot, dailyCap, spentToday, ownerPending, spender, operator, ownerPq, ownerPayout, block] = await Promise.all([
     readVaultSnapshot(vault),
     readVault(vault, "dailyCap"),
     readVault(vault, "spentToday"),
     readVault(vault, "ownerPending"),
     readVault(vault, "spender"),
     readVault(vault, "operator"),
+    readVault(vault, "ownerPq"),
+    readVault(vault, "ownerPayout"),
     publicClient.getBlock(),
   ]);
   // The vault's rule: repaid >= expectedRepaid(now + period), with now the block time it compares against.
@@ -61,6 +67,9 @@ export async function readRules(vault: Hex): Promise<Rules> {
     bondHeld: snapshot.bondHeld,
     spender,
     operator,
+    vault,
+    ownerPq,
+    ownerPayout,
     claimAhead: snapshot.state === "Repaid" || (snapshot.state === "Active" && snapshot.repaid >= ahead),
   };
 }

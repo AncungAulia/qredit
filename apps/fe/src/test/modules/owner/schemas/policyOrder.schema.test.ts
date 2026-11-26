@@ -134,3 +134,13 @@ test("Close needs no address and no amount", () => {
   expect(orderInput(v)).toEqual({ kind: 8, target: ZERO_ADDRESS, value: 0n, expiryMinutes: 30 });
   expect(KIND_INFO.Close.irreversible).toBe(true);
 });
+
+test("RotateAgent refuses the zero address for either new key", () => {
+  const zero = "0x0000000000000000000000000000000000000000";
+  const sp = policyOrderSchema.safeParse({ kind: "RotateAgent", target: zero, value: "", operator: NEW_OPERATOR, expiryMinutes: "30" });
+  const op = policyOrderSchema.safeParse({ kind: "RotateAgent", target: NEW_SPENDER, value: "", operator: zero, expiryMinutes: "30" });
+  for (const r of [sp, op]) {
+    expect(r.success).toBe(false);
+    expect(r.error?.issues[0].message).toBe("The zero address cannot be an agent key.");
+  }
+});

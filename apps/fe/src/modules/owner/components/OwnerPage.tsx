@@ -10,6 +10,7 @@ import { TxLink } from "@/components/shared/TxLink";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { QOREX_INSTALL_URL } from "@/config/links";
+import { isEnded } from "@/lib/vaultState";
 import { formatFusd, shortAddress } from "@/lib/format";
 import type { Business } from "@/lib/schemas";
 import { cn, focusRing } from "@/lib/utils";
@@ -124,14 +125,15 @@ function BusinessPicker({
 const percent = (part: bigint, whole: bigint) => (whole > 0n ? `${(part * 100n) / whole}%` : "0%");
 
 function RulesCard({ rules }: { rules: Rules }) {
+  const ended = isEnded(rules.state);
   const rows: [string, string][] = [
     ["Daily spending cap", formatFusd(rules.dailyCap)],
     ["Spent today", formatFusd(rules.spentToday)],
     ["Agent", rules.paused ? "Paused" : "Active"],
     ["Loan", `${rules.state}, ${percent(rules.repaid, rules.totalOwed)} repaid`],
     ["Loosening rules", rules.state === "Repaid" ? "Allowed" : "Locked during the loan"],
-    ["Your share", rules.claimAhead ? "Claimable now" : "Claimable when one installment ahead"],
-    ["Your bond", `${formatFusd(rules.bondHeld)}, back when repaid`],
+    ["Your share", ended ? "Sent to lenders" : rules.claimAhead ? "Claimable now" : "Claimable when one installment ahead"],
+    ["Your bond", ended ? "Sent to lenders" : `${formatFusd(rules.bondHeld)}, back when repaid`],
     ["Agent keys", `${shortAddress(rules.spender)}, ${shortAddress(rules.operator)}`],
   ];
   return (

@@ -16,6 +16,9 @@ const rules = (over: Partial<Rules> = {}): Rules => ({
   claimAhead: false,
   spender: "0x01",
   operator: "0x02",
+  vault: "0x00000000000000000000000000000000000000aa",
+  ownerPq: "0x00000000000000000000000000000000000000bb",
+  ownerPayout: "0x00000000000000000000000000000000000000cc",
   ...over,
 });
 
@@ -54,4 +57,15 @@ test("Close only while the loan runs", () => {
   expect(precheck("Close", null, rules({ state: "Trapped" }))).toBeNull();
   expect(precheck("Close", null, rules({ state: "Repaid" }))).toBe("A repaid loan cannot be closed.");
   expect(precheck("Close", null, rules({ state: "Raising" }))).toBe("The loan can be closed only once it is funded and running.");
+});
+
+test("RotateAgent refuses the vault, the owner key and the payout address as an agent key", () => {
+  const key = (a: string) => ({ spender: "0x00000000000000000000000000000000000000d1", operator: a });
+  const r = rules();
+  expect(precheck("RotateAgent", null, r, key("0x00000000000000000000000000000000000000AA"))).toBe("An agent key cannot be the vault itself.");
+  expect(precheck("RotateAgent", null, r, key("0x00000000000000000000000000000000000000bb"))).toBe("An agent key cannot be an owner address.");
+  expect(precheck("RotateAgent", null, r, { spender: "0x00000000000000000000000000000000000000CC", operator: null })).toBe(
+    "An agent key cannot be an owner address.",
+  );
+  expect(precheck("RotateAgent", null, r, key("0x00000000000000000000000000000000000000d2"))).toBeNull();
 });

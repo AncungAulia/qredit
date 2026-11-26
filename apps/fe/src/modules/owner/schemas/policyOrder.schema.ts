@@ -142,6 +142,7 @@ export const KIND_LIST: PolicyKind[] = [
 ];
 
 export const ADDRESS_ERROR = "This is not a valid address. Enter one that starts with qor1 or 0x.";
+export const ZERO_KEY_ERROR = "The zero address cannot be an agent key.";
 export const EXPIRY_ERROR = `Enter a whole number of minutes from ${EXPIRY_MIN} to ${EXPIRY_MAX.toLocaleString("en-US")}.`;
 
 /** An address as 0x text, from a 0x or qor1 address; null when it is neither. */
@@ -173,10 +174,12 @@ export const policyOrderSchema = z
     if (info.target) {
       if (v.target.trim() === "") issue("target", "Enter the address of the supplier.");
       else if (supplierAddress(v.target) === null) issue("target", ADDRESS_ERROR);
+      else if (info.operator && supplierAddress(v.target) === ZERO_ADDRESS) issue("target", ZERO_KEY_ERROR);
     }
     if (info.operator) {
       if (v.operator.trim() === "") issue("operator", "Enter the address of the new operator key.");
       else if (supplierAddress(v.operator) === null) issue("operator", ADDRESS_ERROR);
+      else if (supplierAddress(v.operator) === ZERO_ADDRESS) issue("operator", ZERO_KEY_ERROR);
     }
     if (info.value) {
       if (v.value.trim() === "") issue("value", "Enter an amount.");

@@ -31,6 +31,7 @@ import {
   KIND_INFO,
   KIND_LIST,
   policyOrderSchema,
+  supplierAddress,
   type PolicyKind,
   type PolicyOrderValues,
 } from "@/modules/owner/schemas/policyOrder.schema";
@@ -77,7 +78,7 @@ export function PolicyOrderForm({ rules, locked, onSubmit, flow }: Props) {
   const kind = values.kind;
   const info = kind ? KIND_INFO[kind] : null;
   const units = parseFusd((values.value ?? "").replace(/\.$/, ""));
-  const blocked = kind && rules ? precheck(kind, units, rules) : null;
+  const blocked = kind && rules ? precheck(kind, units, rules, { spender: supplierAddress(values.target ?? ""), operator: supplierAddress(values.operator ?? "") }) : null;
   const valid = policyOrderSchema.safeParse(values).success && blocked === null;
   const submit = (via: SignVia) => handleSubmit((v) => onSubmit(v, via))();
 

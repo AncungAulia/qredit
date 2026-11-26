@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { formatDateTime } from "@/lib/format";
 import type { Business } from "@/lib/schemas";
 import { useOwnerActions } from "@/modules/owner/api/useOwner";
-import { applyBody, appliedTitle, orderSentence } from "@/modules/owner/lib/describe";
+import { applyBody, appliedTitle, isIrreversible, orderSentence } from "@/modules/owner/lib/describe";
 import type { SignVia } from "@/modules/owner/components/PolicyOrderForm";
 import {
   isBareHex,
@@ -277,6 +277,7 @@ export function OrderSignature({ business, qorexAddress, values, via, onCancel, 
       <ChainAction
         open={apply}
         retryable={false}
+        destructive={isIrreversible(built.order)}
         onOpenChange={(open) => {
           setApply(open);
           if (!open && sendRefusal.current !== null) {

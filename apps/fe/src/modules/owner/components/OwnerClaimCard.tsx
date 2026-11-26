@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ChainAction } from "@/components/shared/ChainAction";
 import { Button } from "@/components/ui/button";
+import { isEnded } from "@/lib/vaultState";
 import { formatFusd } from "@/lib/format";
 import type { Business } from "@/lib/schemas";
 import type { Rules } from "@/modules/owner/api/owner.api";
@@ -13,7 +14,9 @@ export function OwnerClaimCard({ business, rules, canSend }: { business: Busines
   const [open, setOpen] = useState(false);
   const actions = useOwnerActions();
   const amount = formatFusd(rules.ownerPending);
-  const rule = rules.claimAhead
+  const rule = isEnded(rules.state)
+    ? "The loan has ended. The unclaimed share went to lenders."
+    : rules.claimAhead
     ? "The loan is one installment ahead of its schedule, so the share can be claimed now."
     : "The share can be claimed only while the loan is one installment ahead of its schedule, or once it is repaid. Until then it stays in the vault, and if the loan ends it goes to lenders.";
   return (

@@ -71,6 +71,7 @@ export const VAULT_ABI = parseAbi([
   "function spender() view returns (address)",
   "function operator() view returns (address)",
   "function ownerPq() view returns (address)",
+  "function ownerPayout() view returns (address)",
   "function paused() view returns (bool)",
   "function dailyCap() view returns (uint256)",
   "function spentToday() view returns (uint256)",
