@@ -50,6 +50,7 @@ const vault = {
   installment: 1n,
   period: 3600n,
   raiseDeadline: new Date(0),
+  uniqueBuyers: null,
 } as never;
 
 test("orders that were loaded stay on screen when a refresh fails", () => {

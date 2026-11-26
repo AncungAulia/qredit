@@ -11,8 +11,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError } from "@/lib/apiClient";
 import type { Business } from "@/lib/schemas";
 import { cn, focusRing } from "@/lib/utils";
-import { useDecisionsQuery, useRulesQuery } from "@/modules/business/api/useBusinessPage";
+import { useDecisionsQuery, useRulesQuery, useUnverifiedQuery } from "@/modules/business/api/useBusinessPage";
 import { countDelivered, useBusinessQuery, useOrdersQuery, useVaultQuery } from "@/modules/market";
+import { rejectionText } from "@/modules/market/lib/trackRecord";
 import { ProvenCard } from "@/modules/proof";
 import { ActivityTable } from "@/modules/business/components/ActivityTable";
 import { BusinessHeader } from "@/modules/business/components/BusinessHeader";
@@ -52,6 +53,7 @@ function BusinessBody({ business }: { business: Business }) {
   const orders = useOrdersQuery(business.vault);
   const rules = useRulesQuery(business);
   const decisions = useDecisionsQuery(business.vault);
+  const unverified = useUnverifiedQuery(business);
 
   const [lendOpen, setLendOpen] = useState(false);
   const snapshot = vault.data;
@@ -83,6 +85,7 @@ function BusinessBody({ business }: { business: Business }) {
         business={business}
         state={snapshot?.state}
         stateFailed={vaultFailed}
+        unverified={unverified}
         action={raising ? lendButton("h-11 px-5") : selling ? buyButton("h-11 px-5") : undefined}
       />
       {vaultFailed ? (
@@ -115,7 +118,7 @@ function BusinessBody({ business }: { business: Business }) {
           >
             {snapshot ? (
               <div className="animate-in duration-200 fade-in">
-                <LoanTerms vault={snapshot} />
+                <LoanTerms vault={snapshot} stats={business.stats} />
               </div>
             ) : (
               <SectionLoading className="h-64" />
@@ -126,7 +129,7 @@ function BusinessBody({ business }: { business: Business }) {
         <Section
           id="orders"
           title="Orders"
-          description="The newest orders placed with this business."
+          description={`The newest orders placed with this business. ${rejectionText(business.stats)}.`}
           className="xl:col-start-1"
         >
           <ActivityTable

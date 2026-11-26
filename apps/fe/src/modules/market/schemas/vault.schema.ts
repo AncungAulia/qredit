@@ -23,4 +23,8 @@ export type VaultSnapshot = {
   uniqueBuyers: number | null;
   /** Activation plus maturity; null before activation and for v1 vaults. */
   maturityAt: Date | null;
+  /** Seconds past maturity before anyone can end the loan; absent for v1 vaults. */
+  maturityGrace?: number;
+  /** Missed installments after which anyone can end the loan; absent for v1 vaults. */
+  defaultAfterMissed?: number;
 };

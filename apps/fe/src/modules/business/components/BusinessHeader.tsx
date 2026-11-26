@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { BusinessMark } from "@/components/shared/BusinessMark";
+import { UnverifiedSuppliersBadge } from "@/components/shared/UnverifiedSuppliersBadge";
 import { StateBadge } from "@/components/shared/StateBadge";
 import type { VaultStateName } from "@/lib/vaultState";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -14,11 +15,14 @@ export function BusinessHeader({
   business,
   state,
   stateFailed,
+  unverified,
   action,
 }: {
   business: Business;
   state: VaultStateName | undefined;
   stateFailed: boolean;
+  /** A supplier the vault was created with is not in Qredit's list. */
+  unverified?: boolean;
   /** The primary action of the page (from tablet up); a phone gets its own sticky bar. */
   action?: ReactNode;
 }) {
@@ -41,6 +45,7 @@ export function BusinessHeader({
         </h1>
         <span className="col-span-2 flex justify-self-start md:col-span-1" aria-live="polite">
           {badge}
+          {unverified && <UnverifiedSuppliersBadge />}
         </span>
       </div>
       <p className="col-span-2 text-sm leading-normal text-text-secondary md:col-span-1 md:col-start-2 md:text-[15px]">

@@ -2,9 +2,12 @@ import Link from "next/link";
 import { BusinessMark } from "@/components/shared/BusinessMark";
 import { LoanBar } from "@/components/shared/LoanBar";
 import { StateBadge } from "@/components/shared/StateBadge";
-import { Button } from "@/components/ui/button";
+import { UnverifiedSuppliersBadge } from "@/components/shared/UnverifiedSuppliersBadge";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { formatBps, formatFusd } from "@/lib/format";
+import { isEnded } from "@/lib/vaultState";
 import { cn, focusRing } from "@/lib/utils";
+import { buyersText, rejectionBps } from "@/modules/market/lib/trackRecord";
 import type { FailedEntry, MarketEntry } from "@/modules/market/api/market.api";
 
 // On a phone the facts stack as label and value rows; from tablet up they sit side by side.
@@ -35,6 +38,8 @@ function deliveredText({ ordersDelivered: n, deliveredCapped }: MarketEntry): st
 /** One business on the Market (BusinessCard in the design). The whole card opens the business page. */
 export function BusinessCard({ entry }: { entry: MarketEntry }) {
   const { business: b, vault: v } = entry;
+  const rejected = rejectionBps(b.stats);
+  const ended = isEnded(v.state);
   return (
     <Link
       href={`/agents/${b.slug}`}
@@ -58,13 +63,24 @@ export function BusinessCard({ entry }: { entry: MarketEntry }) {
         repaid={v.repaid}
         totalOwed={v.totalOwed}
       />
-      <div className="mt-auto flex flex-col gap-2 md:flex-row md:gap-6">
-        <Fact label="Price" value={priceText(b.services)} />
-        <Fact label="Lender share" value={`${formatBps(v.lenderBps)} of sales`} />
-        <Fact
-          label="Orders"
-          value={deliveredText(entry)}
-        />
+      <div className="mt-auto flex flex-col gap-3">
+        <div className="flex flex-col gap-2 md:flex-row md:gap-6">
+          <Fact label="Price" value={priceText(b.services)} />
+          <Fact label="Lender share" value={`${formatBps(v.lenderBps)} of sales`} />
+          <Fact label="Orders" value={deliveredText(entry)} />
+        </div>
+        <div className="flex flex-col gap-2 md:flex-row md:gap-6">
+          <Fact label="Bond" value={formatFusd(v.bondHeld)} />
+          <Fact label="Buyers" value={buyersText(v.uniqueBuyers)} />
+          <Fact label="Rejected" value={rejected === null ? "No reports yet" : formatBps(rejected)} />
+        </div>
+        {(entry.unverified || ended) && (
+          <div className="flex items-center justify-between gap-3">
+            {entry.unverified ? <UnverifiedSuppliersBadge /> : <span />}
+            {/* The whole card is the link, so the button is its look only. */}
+            {ended && <span className={cn(buttonVariants({ variant: "secondary", size: "sm" }))}>View</span>}
+          </div>
+        )}
       </div>
     </Link>
   );

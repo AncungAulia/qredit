@@ -13,6 +13,8 @@ vi.mock("@/lib/chain", () => ({
     readContract({ address, functionName, args, v1: true }),
 }));
 const get = vi.fn();
+const creation = vi.fn();
+vi.mock("@/lib/creationSuppliers", () => ({ readCreationSuppliers: (...a: unknown[]) => creation(...a) }));
 vi.mock("@/lib/apiClient", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/apiClient")>()),
   api: { get: (...a: unknown[]) => get(...a) },
@@ -30,7 +32,10 @@ import {
   toMarketEntry,
 } from "@/modules/market/api/market.api";
 
-beforeEach(() => vi.resetAllMocks());
+beforeEach(() => {
+  vi.resetAllMocks();
+  creation.mockResolvedValue([]);
+});
 
 const business = (slug: string, vault = "0x1") =>
   ({
@@ -184,4 +189,22 @@ test("a v1 snapshot reads loan() with the v1 ABI and has no bond", async () => {
     functionName === "loan" ? (v1 ? v1Loan : Promise.reject(new Error("v2 loan() on a v1 vault"))) : VAULT_VALUES[functionName]);
   const v = await readVaultSnapshot("0x1", 1);
   expect(v).toMatchObject({ version: 1, bondHeld: 0n, swept: 0n, uniqueBuyers: null, maturityAt: null, target: 50_000_000n });
+});
+
+test("a market row says whether its suppliers are all in the Qredit list; a failed lookup says nothing", async () => {
+  get.mockImplementation(async (path: string) => ({ data: path === "/v1/businesses" ? [wire("a", "0x1"), wire("b", "0x2")] : [] }));
+  readContract.mockImplementation(async ({ functionName }: { functionName: string }) => VAULT_VALUES[functionName]);
+  creation.mockImplementation(async (b: { vault: string }) => {
+    if (b.vault === "0x2") throw new Error("log not found");
+    return ["0x00000000000000000000000000000000000000ee"];
+  });
+  const rows = await getMarket();
+  expect(rows.map((r) => ("unverified" in r ? r.unverified : "failed"))).toEqual([true, null]);
+});
+
+test("the snapshot carries the maturity grace and the missed-installment limit of a v2 vault", async () => {
+  readContract.mockImplementation(({ functionName }: { functionName: string }) => Promise.resolve(VAULT_VALUES[functionName]));
+  const s = await readVaultSnapshot("0x1");
+  expect(s.maturityGrace).toBe(86_400);
+  expect(s.defaultAfterMissed).toBe(3);
 });

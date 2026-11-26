@@ -1,5 +1,9 @@
 import { LoanBar } from "@/components/shared/LoanBar";
-import { formatBps, formatDateTime, formatFusd } from "@/lib/format";
+import { BOND_BPS } from "@qredit/qore/abi";
+import { formatBps, formatDateTime, formatDuration, formatFusd } from "@/lib/format";
+import { isEnded } from "@/lib/vaultState";
+import type { Business } from "@/lib/schemas";
+import { buyersTerm } from "@/modules/market/lib/trackRecord";
 import { everyPeriod, lenderReturnBps } from "@/modules/business/lib/loanFacts";
 import type { VaultSnapshot } from "@/modules/market";
 
@@ -14,7 +18,7 @@ function Term({ label, value }: { label: string; value: string }) {
 }
 
 /** The loan card (LoanCard in the design): the ledger bar and the terms of the loan. */
-export function LoanTerms({ vault }: { vault: VaultSnapshot }) {
+export function LoanTerms({ vault, stats }: { vault: VaultSnapshot; stats?: Business["stats"] }) {
   const raising = vault.state === "Raising";
   const bps = lenderReturnBps(vault.target, vault.totalOwed);
   return (
@@ -36,6 +40,28 @@ export function LoanTerms({ vault }: { vault: VaultSnapshot }) {
           label="Repayment"
           value={`${formatFusd(vault.installment)}. ${everyPeriod(Number(vault.period))}.`}
         />
+        {vault.version === 2 && (
+          <>
+            <Term
+              label="Owner bond"
+              value={
+                vault.bondHeld > 0n
+                  ? `${formatFusd(vault.bondHeld)} held, ${formatBps(Number(BOND_BPS))} of the loan`
+                  : isEnded(vault.state)
+                    ? "Moved to lenders when the loan ended"
+                    : "Returned to the owner"
+              }
+            />
+            <Term label="Maturity" value={vault.maturityAt ? formatDateTime(vault.maturityAt) : "Counted from the moment the raise completes"} />
+            {vault.defaultAfterMissed !== undefined && vault.maturityGrace !== undefined && (
+              <Term
+                label="Default"
+                value={`After ${vault.defaultAfterMissed} missed installments or ${formatDuration(vault.maturityGrace)} past maturity`}
+              />
+            )}
+            {stats && <Term label="Buyers" value={buyersTerm(stats)} />}
+          </>
+        )}
         {raising && (
           <>
             <Term label="Raise closes" value={formatDateTime(vault.raiseDeadline)} />

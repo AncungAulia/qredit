@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { api, parseResponse } from "@/lib/apiClient";
 import { publicClient, readVault, readVaultV1 } from "@/lib/chain";
+import { readCreationSuppliers } from "@/lib/creationSuppliers";
+import { hasUnverifiedSuppliers } from "@/lib/supplierCheck";
 import { hasReport } from "@/lib/orderStatus";
 import type { VaultVersion } from "@qredit/qore/abi";
 import { serviceName } from "@/lib/serviceName";
@@ -62,10 +64,11 @@ export async function readVaultSnapshot(vault: Hex, version: VaultVersion = 2): 
     readVault(vault, "uniqueBuyers"),
   ]);
   // v2 loan() adds maturity, maturityGrace and defaultAfterMissed after the installment.
-  const [target, totalOwed, raiseDeadline, period, , installment, maturity] = loan;
+  const [target, totalOwed, raiseDeadline, period, , installment, maturity, maturityGrace, defaultAfterMissed] = loan;
   return {
     ...common, version: 2, target, totalOwed, installment, period, raiseDeadline: new Date(Number(raiseDeadline) * 1000),
     bondHeld, swept, uniqueBuyers: Number(uniqueBuyers),
+    maturityGrace: Number(maturityGrace), defaultAfterMissed: Number(defaultAfterMissed),
     maturityAt: activatedAt > 0n ? new Date(Number(activatedAt + maturity) * 1000) : null,
   };
 }
@@ -77,6 +80,8 @@ export type MarketEntry = {
   /** True when the order list hit the backend limit, so the delivered count is a lower bound. */
   deliveredCapped: boolean;
   orders: Order[];
+  /** True when a supplier is not in Qredit's list; null when the creation call could not be read. */
+  unverified: boolean | null;
 };
 
 /** A business whose vault or orders could not be read. It stays in the list so the others still show. */
@@ -90,6 +95,7 @@ export function toMarketEntry(
   business: Business,
   vault: VaultSnapshot,
   orders: Order[],
+  unverified: boolean | null = null,
 ): MarketEntry {
   const delivered = countDelivered(orders);
   return {
@@ -98,6 +104,7 @@ export function toMarketEntry(
     orders,
     ordersDelivered: delivered.count,
     deliveredCapped: delivered.capped,
+    unverified,
   };
 }
 
@@ -111,12 +118,15 @@ export async function getMarket(): Promise<MarketRow[]> {
   let firstError: unknown;
   const rows = await Promise.all(
     businesses.map(async (b): Promise<MarketRow> => {
-      const [vault, orders] = await Promise.allSettled([
+      const [vault, orders, created] = await Promise.allSettled([
         readVaultSnapshot(b.vault, b.version),
         getOrders(b.vault),
+        readCreationSuppliers(b),
       ]);
       if (vault.status === "fulfilled" && orders.status === "fulfilled") {
-        return toMarketEntry(b, vault.value, orders.value);
+        // A creation call that cannot be read gives no label, never a guess.
+        const unverified = created.status === "fulfilled" ? hasUnverifiedSuppliers(created.value) : null;
+        return toMarketEntry(b, vault.value, orders.value, unverified);
       }
       firstError ??=
         vault.status === "rejected" ? vault.reason : (orders as PromiseRejectedResult).reason;

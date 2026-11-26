@@ -1,4 +1,5 @@
 import { KpiTile } from "@/components/shared/KpiTile";
+import { buyersText } from "@/modules/market/lib/trackRecord";
 import { formatBps, formatCount, formatDate, formatFusd } from "@/lib/format";
 import { lenderReturnBps } from "@/modules/business/lib/loanFacts";
 import { KPI_GRID, ORDERS_LIMIT, type VaultSnapshot } from "@/modules/market";
@@ -60,7 +61,13 @@ export function BusinessKpis({
       <KpiTile
         variant="soft"
         label="Orders delivered"
-        unit={ordersCapped ? `in the latest ${ORDERS_LIMIT} orders` : undefined}
+        unit={
+          ordersCapped
+            ? `in the latest ${ORDERS_LIMIT} orders`
+            : vault.uniqueBuyers !== null
+              ? `from ${buyersText(vault.uniqueBuyers)}`
+              : undefined
+        }
         value={
           typeof delivered === "number"
             ? formatCount(delivered)

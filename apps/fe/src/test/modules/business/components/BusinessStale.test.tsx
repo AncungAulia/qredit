@@ -54,6 +54,7 @@ const vault = {
   installment: 1n,
   period: 3600n,
   raiseDeadline: new Date(0),
+  uniqueBuyers: null,
 };
 vi.mock("@/modules/market", async (orig) => ({
   ...(await orig<object>()),
@@ -64,6 +65,7 @@ vi.mock("@/modules/market", async (orig) => ({
 vi.mock("@/modules/business/api/useBusinessPage", () => ({
   useRulesQuery: () => q("rules", { dailyCap: 1n, suppliers: [] }),
   useDecisionsQuery: () => q("decisions", [decision]),
+  useUnverifiedQuery: () => undefined,
 }));
 vi.mock("@/modules/proof", () => ({ ProvenCard: () => null }));
 vi.mock("@/modules/business/components/VaultRules", () => ({ VaultRules: () => <p>rules body</p> }));

@@ -1,6 +1,7 @@
 import { Address } from "@/components/shared/Address";
 import { formatDuration, formatFusd } from "@/lib/format";
 import type { VaultRules as Rules } from "@/modules/business/api/business.api";
+import { unknownSuppliers } from "@/lib/supplierCheck";
 import { splitText } from "@/modules/business/lib/loanFacts";
 import { supplierName } from "@/modules/business/lib/supplierNames";
 
@@ -49,6 +50,11 @@ export function VaultRules({ rules }: { rules: Rules }) {
               </li>
             ))}
           </ul>
+        )}
+        {unknownSuppliers(rules.suppliers.map((s) => s.address)).length > 0 && (
+          <p className="text-sm text-text-secondary">
+            One or more of these suppliers is not in the Qredit supplier list. The vault cannot tell a real supplier from an address the owner controls, so a payment to it is bounded only by the order price and the caps.
+          </p>
         )}
       </div>
     </div>

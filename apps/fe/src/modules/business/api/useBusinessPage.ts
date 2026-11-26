@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { hasUnverifiedSuppliers } from "@/lib/supplierCheck";
 import type { Business } from "@/lib/schemas";
 import { businessKeys } from "@/modules/business/api/business.keys";
 import {
@@ -43,3 +44,9 @@ export const useDecisionsQuery = (vault: `0x${string}`) =>
     queryFn: () => getDecisions(vault),
     refetchInterval: DECISIONS_REFRESH_MS,
   });
+
+/** True when a supplier the vault was created with is not in Qredit's list; undefined while unknown. */
+export function useUnverifiedQuery(business: Business): boolean | undefined {
+  const suppliers = useCreationSuppliersQuery(business);
+  return suppliers.data ? hasUnverifiedSuppliers(suppliers.data) : undefined;
+}

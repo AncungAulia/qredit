@@ -23,6 +23,7 @@ const vault = {
   installment: 1_000_000n,
   period: 3600n,
   raiseDeadline: new Date(0),
+  uniqueBuyers: null,
 };
 const decision = {
   id: 1,
@@ -43,6 +44,7 @@ vi.mock("@/modules/market", async (orig) => ({
 }));
 vi.mock("@/modules/business/api/useBusinessPage", () => ({
   useRulesQuery: () => ({ data: undefined, isError: true, refetch: vi.fn() }),
+  useUnverifiedQuery: () => undefined,
   useDecisionsQuery: () => ({ data: [decision], isError: false, refetch: vi.fn() }),
 }));
 import { BusinessPage } from "@/modules/business/components/BusinessPage";

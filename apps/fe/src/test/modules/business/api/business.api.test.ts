@@ -105,7 +105,7 @@ test("given supplier addresses skip the creation lookup", async () => {
 
 test("a creation that cannot be found rejects", async () => {
   chain.getLogs.mockResolvedValue([]);
-  await expect(readCreationSuppliers({ vault: VAULT, startBlock: 100 })).rejects.toThrow();
+  await expect(readCreationSuppliers({ vault: "0xaaaa", startBlock: 100 })).rejects.toThrow();
 });
 
 test("decisions parse suppliers and cost sent as text", async () => {
@@ -134,7 +134,7 @@ test("a vault not created by a direct create call is an error, never a guess", a
   chain.getTransaction.mockResolvedValue({
     input: encodeFunctionData({ abi: VAULT_FACTORY_ABI, functionName: "vaultAt", args: [0n] }),
   });
-  await expect(readCreationSuppliers({ vault: VAULT, startBlock: 100 } as never)).rejects.toThrow(
+  await expect(readCreationSuppliers({ vault: "0xbbbb", startBlock: 100 } as never)).rejects.toThrow(
     "The vault was not created by a direct factory call.",
   );
 });
