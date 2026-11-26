@@ -45,7 +45,7 @@ describe("orders", () => {
     await store.applyVaultEvent(db, placed("1", 100));
     await store.applyVaultEvent(db, placed("1", 100)); // duplicate log is ignored
     expect((await store.listOrders(db, V)).map((o) => o.status)).toEqual(["open"]);
-    await store.applyVaultEvent(db, { kind: "Delivered", vault: V, orderId: "1", block: 101, logIndex: 0, tx: "0xd", envelopeHash: `0x${"ab".repeat(32)}` });
+    await store.applyVaultEvent(db, { kind: "Delivered", vault: V, orderId: "1", block: 101, logIndex: 0, tx: "0xd", envelopeHash: `0x${"ab".repeat(32)}`, reviewEnds: null });
     const [o] = await store.listOrders(db, V);
     expect(o.status).toBe("delivered");
     expect(o.envelopeHash).toBe(`0x${"ab".repeat(32)}`);
@@ -54,7 +54,7 @@ describe("orders", () => {
   test("a closed order is not reopened and an unknown order returns false", async () => {
     await store.applyVaultEvent(db, placed("1", 100));
     const hash = `0x${"ab".repeat(32)}`;
-    expect(await store.applyVaultEvent(db, { kind: "Delivered", vault: V, orderId: "1", block: 101, logIndex: 0, tx: "0xd", envelopeHash: hash })).toBe(true);
+    expect(await store.applyVaultEvent(db, { kind: "Delivered", vault: V, orderId: "1", block: 101, logIndex: 0, tx: "0xd", envelopeHash: hash, reviewEnds: null })).toBe(true);
     expect(await store.applyVaultEvent(db, { kind: "Declined", vault: V, orderId: "1", block: 102, logIndex: 0, tx: "0xe" })).toBe(false);
     expect((await store.listOrders(db, V))[0].status).toBe("delivered");
     expect(await store.applyVaultEvent(db, { kind: "Reclaimed", vault: V, orderId: "99", block: 103, logIndex: 0, tx: "0xf" })).toBe(false);
@@ -144,5 +144,79 @@ describe("cards, decisions, watcher state, grants", () => {
     expect(await store.lastGrant(db, "qor1a", "ip2")).toBeInstanceOf(Date);
     expect(await store.lastGrant(db, "qor1b", "ip1")).toBeInstanceOf(Date);
     expect(await store.lastGrant(db, "qor1b", "ip2")).toBeNull();
+  });
+});
+
+const V2 = "0x00000000000000000000000000000000000000a2";
+const biz = (vault: string, version?: 1 | 2) => ({
+  slug: "counterparty", vault, name: "Counterparty Check", tagline: "t", services: [{ id: 0 }], operator: V, spender: V, startBlock: 10,
+  ...(version ? { version } : {}),
+});
+const delivered = (orderId: string, reviewEnds: number | null) => ({
+  kind: "Delivered" as const, vault: V, orderId, block: 20, logIndex: 0, tx: "0xd", envelopeHash: `0x${"2".repeat(64)}`, reviewEnds,
+});
+
+describe("vault v2 businesses", () => {
+  test("a slug keeps its v1 vault and gains a v2 vault; the page reads the newest", async () => {
+    await store.upsertBusiness(db, biz(V));
+    await store.upsertBusiness(db, biz(V2, 2));
+    const all = await store.listBusinesses(db);
+    expect(all.map((b) => [b.vault, b.version])).toEqual([[V, 1], [V2, 2]]);
+    expect((await store.getBusiness(db, "counterparty"))?.vault).toBe(V2);
+    await expect(store.upsertBusiness(db, biz("0x00000000000000000000000000000000000000a3", 2))).rejects.toThrow();
+  });
+
+  test("LoanEnded marks the business once; AgentRotated moves the agent keys", async () => {
+    await store.upsertBusiness(db, biz(V2, 2));
+    expect(await store.applyVaultEvent(db, { kind: "LoanEnded", vault: V2, block: 30, logIndex: 0, tx: "0xe", ended: "defaulted" })).toBe(true);
+    expect(await store.applyVaultEvent(db, { kind: "LoanEnded", vault: V2, block: 31, logIndex: 0, tx: "0xf", ended: "closed" })).toBe(false);
+    expect((await store.getBusiness(db, "counterparty"))?.ended).toBe("defaulted");
+    const S = "0x00000000000000000000000000000000000000c1";
+    const O = "0x00000000000000000000000000000000000000c2";
+    expect(await store.applyVaultEvent(db, { kind: "AgentRotated", vault: V2, block: 32, logIndex: 0, tx: "0x1", spender: S, operator: O })).toBe(true);
+    const b = await store.getBusiness(db, "counterparty");
+    expect([b?.spender, b?.operator]).toEqual([S, O]);
+  });
+});
+
+describe("vault v2 orders", () => {
+  test("a v2 delivery opens the review; the review ends in a settlement", async () => {
+    await store.applyVaultEvent(db, placed("1", 10));
+    expect(await store.applyVaultEvent(db, delivered("1", 1_900_000_000))).toBe(true);
+    let [o] = await store.listOrders(db, V);
+    expect([o!.status, o!.reviewEnds]).toEqual(["in_review", 1_900_000_000]);
+    expect(await store.claimNextOrder(db, [V])).toBeNull();
+    expect(await store.applyVaultEvent(db, { kind: "Settled", vault: V, orderId: "1", block: 21, logIndex: 0, tx: "0xs" })).toBe(true);
+    expect(await store.applyVaultEvent(db, { kind: "Settled", vault: V, orderId: "1", block: 22, logIndex: 0, tx: "0xs" })).toBe(false);
+    [o] = await store.listOrders(db, V);
+    expect(o!.status).toBe("settled");
+  });
+
+  test("a rejection records the refund and cannot be settled", async () => {
+    await store.applyVaultEvent(db, placed("1", 10));
+    await store.applyVaultEvent(db, delivered("1", 1_900_000_000));
+    expect(await store.applyVaultEvent(db, { kind: "Rejected", vault: V, orderId: "1", block: 21, logIndex: 0, tx: "0xr", refund: "150000" })).toBe(true);
+    expect(await store.applyVaultEvent(db, { kind: "Settled", vault: V, orderId: "1", block: 22, logIndex: 0, tx: "0xs" })).toBe(false);
+    const [o] = await store.listOrders(db, V);
+    expect([o!.status, o!.refund]).toEqual(["rejected", "150000"]);
+  });
+
+  test("a v1 delivery stays final", async () => {
+    await store.applyVaultEvent(db, placed("1", 10));
+    await store.applyVaultEvent(db, delivered("1", null));
+    expect(await store.applyVaultEvent(db, { kind: "Settled", vault: V, orderId: "1", block: 21, logIndex: 0, tx: "0xs" })).toBe(false);
+    const [o] = await store.listOrders(db, V);
+    expect([o!.status, o!.reviewEnds]).toEqual(["delivered", null]);
+  });
+
+  test("orderStats counts deliveries, rejections and unique buyers per vault", async () => {
+    await store.applyVaultEvent(db, placed("1", 10));
+    await store.applyVaultEvent(db, placed("2", 11));
+    await store.applyVaultEvent(db, { ...placed("3", 12), buyer: "0x00000000000000000000000000000000000000cc" });
+    await store.applyVaultEvent(db, delivered("1", 1_900_000_000));
+    await store.applyVaultEvent(db, delivered("2", 1_900_000_000));
+    await store.applyVaultEvent(db, { kind: "Rejected", vault: V, orderId: "2", block: 21, logIndex: 0, tx: "0xr", refund: "0" });
+    expect((await store.orderStats(db)).get(V)).toEqual({ delivered: 2, rejected: 1, uniqueBuyers: 2 });
+    expect((await store.orderStats(db, V2)).get(V)).toBeUndefined();
   });
 });

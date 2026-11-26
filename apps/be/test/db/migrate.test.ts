@@ -53,4 +53,26 @@ describe("runMigrations", () => {
     expect(rows.every((r) => r.relrowsecurity)).toBe(true);
     await db.close();
   });
+
+  test("003 accepts the v2 statuses and versions and refuses others", async () => {
+    const db = await memoryDb();
+    await runMigrations(db, MIGRATIONS_DIR);
+    const order = (id: string, status: string) =>
+      db.query(
+        "insert into qredit.orders (vault, order_id, buyer, service_id, price, request_ref, deadline, status, placed_tx, placed_block) values ($1, $2, $3, 0, '5', $4, 1, $5, '0x', 1)",
+        [`0x${"a".repeat(40)}`, id, `0x${"b".repeat(40)}`, `0x${"1".repeat(64)}`, status],
+      );
+    for (const [i, s] of ["in_review", "settled", "rejected", "delivered"].entries()) await order(String(i + 1), s);
+    await expect(order("9", "bogus")).rejects.toThrow();
+    const business = (vault: string, version: number) =>
+      db.query(
+        "insert into qredit.businesses (slug, vault, name, tagline, services, operator, spender, start_block, version) values ('sl', $1, 'n', 't', '[]', $1, $1, 1, $2)",
+        [vault, version],
+      );
+    await business(`0x${"1".repeat(40)}`, 1);
+    await business(`0x${"2".repeat(40)}`, 2);
+    await expect(business(`0x${"3".repeat(40)}`, 3)).rejects.toThrow();
+    await expect(business(`0x${"4".repeat(40)}`, 2)).rejects.toThrow(); // one v2 vault per slug
+    await db.close();
+  });
 });

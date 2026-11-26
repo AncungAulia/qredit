@@ -30,7 +30,7 @@ const placed = (id: string, block: number, logIndex = 0): VaultEvent => ({
 
 describe("syncVault", () => {
   test("scans from the start block in ranges and remembers where it stopped", async () => {
-    const { src, calls } = fakeSource(4500, [placed("1", 1500), { kind: "Delivered", vault: V, orderId: "1", block: 3100, logIndex: 0, tx: "0xd", envelopeHash: `0x${"2".repeat(64)}` }]);
+    const { src, calls } = fakeSource(4500, [placed("1", 1500), { kind: "Delivered", vault: V, orderId: "1", block: 3100, logIndex: 0, tx: "0xd", envelopeHash: `0x${"2".repeat(64)}`, reviewEnds: null }]);
     expect(await syncVault(db, src, V, 1000, 2000)).toBe(4500);
     expect(calls).toEqual([[1000, 2999], [3000, 4500]]);
     expect(await getWatchState(db, V)).toBe(4500);

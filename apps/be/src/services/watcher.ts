@@ -24,7 +24,7 @@ export async function syncVault(db: Db, src: LogSource, vault: string, startBloc
     // Events of one range and the saved position commit together, or not at all.
     await db.transaction(async (q) => {
       for (const e of events) {
-        if (!(await applyVaultEvent(q, e))) console.warn(`watcher: ignored ${e.kind} for order ${e.orderId} in block ${e.block} (duplicate or order not open)`);
+        if (!(await applyVaultEvent(q, e))) console.warn(`watcher: ignored ${e.kind} for ${"orderId" in e ? `order ${e.orderId}` : "vault"} in block ${e.block} (duplicate or did not fit the state)`);
       }
       await setWatchState(q, vault, to);
     });
@@ -47,7 +47,7 @@ export function viemLogSource(client: PublicClient): LogSource {
             out.push({ ...base, kind: "OrderPlaced", buyer: l.args.buyer!.toLowerCase(), serviceId: Number(l.args.serviceId), price: String(l.args.price), requestRef: l.args.requestRef!.toLowerCase(), deadline: Number(l.args.deadline) });
             break;
           case "Delivered":
-            out.push({ ...base, kind: "Delivered", envelopeHash: l.args.envelopeHash!.toLowerCase() });
+            out.push({ ...base, kind: "Delivered", envelopeHash: l.args.envelopeHash!.toLowerCase(), reviewEnds: null });
             break;
           case "Declined":
             out.push({ ...base, kind: "Declined" });
