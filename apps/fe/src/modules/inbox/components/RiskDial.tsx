@@ -1,3 +1,5 @@
+import type { CSSProperties } from "react";
+
 import { cn } from "@/lib/utils";
 
 const GRADES = ["A", "B", "C", "D", "E", "F"];
@@ -6,6 +8,8 @@ const SWEEP = 270;
 const CENTER = 120;
 const OUTER = 100;
 const INNER = 84;
+/** Lit ticks pump in one after another, left to right, when the report opens. */
+const TICK_STAGGER_MS = 35;
 const VIEW_Y = 10;
 const VIEW_H = 190;
 /** Where the ring centre sits, as a share of the box height. */
@@ -24,18 +28,28 @@ export function RiskDial({ grade, className }: { grade: string; className?: stri
           const angle = ((-SWEEP / 2 + (SWEEP * i) / (TICKS - 1)) * Math.PI) / 180;
           const sin = Math.sin(angle);
           const cos = -Math.cos(angle);
+          const line = {
+            x1: CENTER + INNER * sin,
+            y1: CENTER + INNER * cos,
+            x2: CENTER + OUTER * sin,
+            y2: CENTER + OUTER * cos,
+            strokeWidth: 5,
+            strokeLinecap: "round" as const,
+          };
+          const opacity = 0.35 + (0.65 * (i + 1)) / lit;
           return (
-            <line
-              key={i}
-              x1={CENTER + INNER * sin}
-              y1={CENTER + INNER * cos}
-              x2={CENTER + OUTER * sin}
-              y2={CENTER + OUTER * cos}
-              strokeWidth={5}
-              strokeLinecap="round"
-              className={i < lit ? "stroke-accent-strong" : "stroke-surface-muted"}
-              opacity={i < lit ? 0.35 + (0.65 * (i + 1)) / lit : 1}
-            />
+            <g key={i}>
+              <line {...line} className="stroke-surface-muted" />
+              {i < lit && (
+                <line
+                  {...line}
+                  data-lit
+                  className="animate-tick-pump stroke-accent-strong"
+                  opacity={opacity}
+                  style={{ "--tick-opacity": opacity, animationDelay: `${i * TICK_STAGGER_MS}ms` } as CSSProperties}
+                />
+              )}
+            </g>
           );
         })}
       </svg>

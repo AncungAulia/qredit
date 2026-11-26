@@ -190,6 +190,20 @@
 
 @theme {
   --animate-shimmer: shimmer 1.6s linear infinite;
+  /* RiskDial: each lit tick flashes full, then settles at its own opacity (--tick-opacity). */
+  --animate-tick-pump: tick-pump 420ms cubic-bezier(0.23, 1, 0.32, 1) both;
+
+  @keyframes tick-pump {
+    0% {
+      opacity: 0;
+    }
+    55% {
+      opacity: 1;
+    }
+    100% {
+      opacity: var(--tick-opacity);
+    }
+  }
 
   @keyframes shimmer {
     from {
