@@ -109500,33 +109500,15 @@
                                   "fontWeight": "normal"
                                 },
                                 {
-                                  "type": "frame",
-                                  "id": "oO0rC",
-                                  "name": "Link",
-                                  "gap": 6,
-                                  "alignItems": "center",
-                                  "children": [
-                                    {
-                                      "type": "text",
-                                      "id": "zMxB8",
-                                      "name": "Label",
-                                      "fill": "$text-primary",
-                                      "content": "View proof",
-                                      "fontFamily": "$font-body",
-                                      "fontSize": 14,
-                                      "fontWeight": "500"
-                                    },
-                                    {
-                                      "type": "icon",
-                                      "id": "bzFyd",
-                                      "name": "Chevron",
-                                      "width": 16,
-                                      "height": 16,
-                                      "icon": "arrow-right",
-                                      "library": "lucide",
-                                      "fill": "$text-primary"
+                                  "id": "MCg6r",
+                                  "type": "ref",
+                                  "ref": "aS0yC",
+                                  "name": "ViewProof",
+                                  "descendants": {
+                                    "xQr9H": {
+                                      "content": "View proof"
                                     }
-                                  ]
+                                  }
                                 }
                               ]
                             }
@@ -109703,33 +109685,15 @@
                                   "fontWeight": "normal"
                                 },
                                 {
-                                  "type": "frame",
-                                  "id": "iemL2",
-                                  "name": "Link",
-                                  "gap": 6,
-                                  "alignItems": "center",
-                                  "children": [
-                                    {
-                                      "type": "text",
-                                      "id": "eSVZY",
-                                      "name": "Label",
-                                      "fill": "$text-primary",
-                                      "content": "View proof",
-                                      "fontFamily": "$font-body",
-                                      "fontSize": 14,
-                                      "fontWeight": "500"
-                                    },
-                                    {
-                                      "type": "icon",
-                                      "id": "nkxAo",
-                                      "name": "Chevron",
-                                      "width": 16,
-                                      "height": 16,
-                                      "icon": "arrow-right",
-                                      "library": "lucide",
-                                      "fill": "$text-primary"
+                                  "id": "RVdcF",
+                                  "type": "ref",
+                                  "ref": "aS0yC",
+                                  "name": "ViewProof",
+                                  "descendants": {
+                                    "xQr9H": {
+                                      "content": "View proof"
                                     }
-                                  ]
+                                  }
                                 }
                               ]
                             }
@@ -109912,33 +109876,15 @@
                                   "fontWeight": "normal"
                                 },
                                 {
-                                  "type": "frame",
-                                  "id": "L2twY",
-                                  "name": "Link",
-                                  "gap": 6,
-                                  "alignItems": "center",
-                                  "children": [
-                                    {
-                                      "type": "text",
-                                      "id": "dLzOS",
-                                      "name": "Label",
-                                      "fill": "$text-primary",
-                                      "content": "View proof",
-                                      "fontFamily": "$font-body",
-                                      "fontSize": 14,
-                                      "fontWeight": "500"
-                                    },
-                                    {
-                                      "type": "icon",
-                                      "id": "FBmuS",
-                                      "name": "Chevron",
-                                      "width": 16,
-                                      "height": 16,
-                                      "icon": "arrow-right",
-                                      "library": "lucide",
-                                      "fill": "$text-primary"
+                                  "id": "z1bBU",
+                                  "type": "ref",
+                                  "ref": "aS0yC",
+                                  "name": "ViewProof",
+                                  "descendants": {
+                                    "xQr9H": {
+                                      "content": "View proof"
                                     }
-                                  ]
+                                  }
                                 }
                               ]
                             }
@@ -110115,33 +110061,15 @@
                                   "fontWeight": "normal"
                                 },
                                 {
-                                  "type": "frame",
-                                  "id": "T9mMa",
-                                  "name": "Link",
-                                  "gap": 6,
-                                  "alignItems": "center",
-                                  "children": [
-                                    {
-                                      "type": "text",
-                                      "id": "ANUyC",
-                                      "name": "Label",
-                                      "fill": "$text-primary",
-                                      "content": "View proof",
-                                      "fontFamily": "$font-body",
-                                      "fontSize": 14,
-                                      "fontWeight": "500"
-                                    },
-                                    {
-                                      "type": "icon",
-                                      "id": "RXn0K",
-                                      "name": "Chevron",
-                                      "width": 16,
-                                      "height": 16,
-                                      "icon": "arrow-right",
-                                      "library": "lucide",
-                                      "fill": "$text-primary"
+                                  "id": "XkadE",
+                                  "type": "ref",
+                                  "ref": "aS0yC",
+                                  "name": "ViewProof",
+                                  "descendants": {
+                                    "xQr9H": {
+                                      "content": "View proof"
                                     }
-                                  ]
+                                  }
                                 }
                               ]
                             }
@@ -111428,33 +111356,15 @@
                                   "fontWeight": "normal"
                                 },
                                 {
-                                  "type": "frame",
-                                  "id": "WMeck",
-                                  "name": "Link",
-                                  "gap": 6,
-                                  "alignItems": "center",
-                                  "children": [
-                                    {
-                                      "type": "text",
-                                      "id": "Y4xfgW",
-                                      "name": "Label",
-                                      "fill": "$text-primary",
-                                      "content": "View proof",
-                                      "fontFamily": "$font-body",
-                                      "fontSize": 14,
-                                      "fontWeight": "500"
-                                    },
-                                    {
-                                      "type": "icon",
-                                      "id": "yFDZX",
-                                      "name": "Chevron",
-                                      "width": 16,
-                                      "height": 16,
-                                      "icon": "arrow-right",
-                                      "library": "lucide",
-                                      "fill": "$text-primary"
+                                  "id": "cX7hF",
+                                  "type": "ref",
+                                  "ref": "aS0yC",
+                                  "name": "ViewProof",
+                                  "descendants": {
+                                    "xQr9H": {
+                                      "content": "View proof"
                                     }
-                                  ]
+                                  }
                                 }
                               ]
                             }
@@ -111631,33 +111541,15 @@
                                   "fontWeight": "normal"
                                 },
                                 {
-                                  "type": "frame",
-                                  "id": "OR7ps",
-                                  "name": "Link",
-                                  "gap": 6,
-                                  "alignItems": "center",
-                                  "children": [
-                                    {
-                                      "type": "text",
-                                      "id": "f9s0f",
-                                      "name": "Label",
-                                      "fill": "$text-primary",
-                                      "content": "View proof",
-                                      "fontFamily": "$font-body",
-                                      "fontSize": 14,
-                                      "fontWeight": "500"
-                                    },
-                                    {
-                                      "type": "icon",
-                                      "id": "vpVZd",
-                                      "name": "Chevron",
-                                      "width": 16,
-                                      "height": 16,
-                                      "icon": "arrow-right",
-                                      "library": "lucide",
-                                      "fill": "$text-primary"
+                                  "id": "rdq7D",
+                                  "type": "ref",
+                                  "ref": "aS0yC",
+                                  "name": "ViewProof",
+                                  "descendants": {
+                                    "xQr9H": {
+                                      "content": "View proof"
                                     }
-                                  ]
+                                  }
                                 }
                               ]
                             }
@@ -111840,33 +111732,15 @@
                                   "fontWeight": "normal"
                                 },
                                 {
-                                  "type": "frame",
-                                  "id": "Ml3EE",
-                                  "name": "Link",
-                                  "gap": 6,
-                                  "alignItems": "center",
-                                  "children": [
-                                    {
-                                      "type": "text",
-                                      "id": "e0XRm6",
-                                      "name": "Label",
-                                      "fill": "$text-primary",
-                                      "content": "View proof",
-                                      "fontFamily": "$font-body",
-                                      "fontSize": 14,
-                                      "fontWeight": "500"
-                                    },
-                                    {
-                                      "type": "icon",
-                                      "id": "FoXv6",
-                                      "name": "Chevron",
-                                      "width": 16,
-                                      "height": 16,
-                                      "icon": "arrow-right",
-                                      "library": "lucide",
-                                      "fill": "$text-primary"
+                                  "id": "A3C2B",
+                                  "type": "ref",
+                                  "ref": "aS0yC",
+                                  "name": "ViewProof",
+                                  "descendants": {
+                                    "xQr9H": {
+                                      "content": "View proof"
                                     }
-                                  ]
+                                  }
                                 }
                               ]
                             }
@@ -112043,33 +111917,15 @@
                                   "fontWeight": "normal"
                                 },
                                 {
-                                  "type": "frame",
-                                  "id": "HkM22",
-                                  "name": "Link",
-                                  "gap": 6,
-                                  "alignItems": "center",
-                                  "children": [
-                                    {
-                                      "type": "text",
-                                      "id": "zGLGu",
-                                      "name": "Label",
-                                      "fill": "$text-primary",
-                                      "content": "View proof",
-                                      "fontFamily": "$font-body",
-                                      "fontSize": 14,
-                                      "fontWeight": "500"
-                                    },
-                                    {
-                                      "type": "icon",
-                                      "id": "QTyHR",
-                                      "name": "Chevron",
-                                      "width": 16,
-                                      "height": 16,
-                                      "icon": "arrow-right",
-                                      "library": "lucide",
-                                      "fill": "$text-primary"
+                                  "id": "WWXXR",
+                                  "type": "ref",
+                                  "ref": "aS0yC",
+                                  "name": "ViewProof",
+                                  "descendants": {
+                                    "xQr9H": {
+                                      "content": "View proof"
                                     }
-                                  ]
+                                  }
                                 }
                               ]
                             }
@@ -113290,33 +113146,15 @@
                                   "fontWeight": "normal"
                                 },
                                 {
-                                  "type": "frame",
-                                  "id": "r7PWKM",
-                                  "name": "Link",
-                                  "gap": 6,
-                                  "alignItems": "center",
-                                  "children": [
-                                    {
-                                      "type": "text",
-                                      "id": "nrobp",
-                                      "name": "Label",
-                                      "fill": "$text-primary",
-                                      "content": "View proof",
-                                      "fontFamily": "$font-body",
-                                      "fontSize": 14,
-                                      "fontWeight": "500"
-                                    },
-                                    {
-                                      "type": "icon",
-                                      "id": "XcLMC",
-                                      "name": "Chevron",
-                                      "width": 16,
-                                      "height": 16,
-                                      "icon": "arrow-right",
-                                      "library": "lucide",
-                                      "fill": "$text-primary"
+                                  "id": "KoTlG",
+                                  "type": "ref",
+                                  "ref": "aS0yC",
+                                  "name": "ViewProof",
+                                  "descendants": {
+                                    "xQr9H": {
+                                      "content": "View proof"
                                     }
-                                  ]
+                                  }
                                 }
                               ]
                             }
@@ -113502,33 +113340,15 @@
                                   "fontWeight": "normal"
                                 },
                                 {
-                                  "type": "frame",
-                                  "id": "wy0rt",
-                                  "name": "Link",
-                                  "gap": 6,
-                                  "alignItems": "center",
-                                  "children": [
-                                    {
-                                      "type": "text",
-                                      "id": "LAfmR",
-                                      "name": "Label",
-                                      "fill": "$text-primary",
-                                      "content": "View proof",
-                                      "fontFamily": "$font-body",
-                                      "fontSize": 14,
-                                      "fontWeight": "500"
-                                    },
-                                    {
-                                      "type": "icon",
-                                      "id": "tP7ZG",
-                                      "name": "Chevron",
-                                      "width": 16,
-                                      "height": 16,
-                                      "icon": "arrow-right",
-                                      "library": "lucide",
-                                      "fill": "$text-primary"
+                                  "id": "PhbSd",
+                                  "type": "ref",
+                                  "ref": "aS0yC",
+                                  "name": "ViewProof",
+                                  "descendants": {
+                                    "xQr9H": {
+                                      "content": "View proof"
                                     }
-                                  ]
+                                  }
                                 }
                               ]
                             }
@@ -113711,33 +113531,15 @@
                                   "fontWeight": "normal"
                                 },
                                 {
-                                  "type": "frame",
-                                  "id": "kXsmF",
-                                  "name": "Link",
-                                  "gap": 6,
-                                  "alignItems": "center",
-                                  "children": [
-                                    {
-                                      "type": "text",
-                                      "id": "yerkH",
-                                      "name": "Label",
-                                      "fill": "$text-primary",
-                                      "content": "View proof",
-                                      "fontFamily": "$font-body",
-                                      "fontSize": 14,
-                                      "fontWeight": "500"
-                                    },
-                                    {
-                                      "type": "icon",
-                                      "id": "QFLnT",
-                                      "name": "Chevron",
-                                      "width": 16,
-                                      "height": 16,
-                                      "icon": "arrow-right",
-                                      "library": "lucide",
-                                      "fill": "$text-primary"
+                                  "id": "LrFfo",
+                                  "type": "ref",
+                                  "ref": "aS0yC",
+                                  "name": "ViewProof",
+                                  "descendants": {
+                                    "xQr9H": {
+                                      "content": "View proof"
                                     }
-                                  ]
+                                  }
                                 }
                               ]
                             }
@@ -113923,33 +113725,15 @@
                                   "fontWeight": "normal"
                                 },
                                 {
-                                  "type": "frame",
-                                  "id": "l8Yng",
-                                  "name": "Link",
-                                  "gap": 6,
-                                  "alignItems": "center",
-                                  "children": [
-                                    {
-                                      "type": "text",
-                                      "id": "LHGzM",
-                                      "name": "Label",
-                                      "fill": "$text-primary",
-                                      "content": "View proof",
-                                      "fontFamily": "$font-body",
-                                      "fontSize": 14,
-                                      "fontWeight": "500"
-                                    },
-                                    {
-                                      "type": "icon",
-                                      "id": "ADzjI",
-                                      "name": "Chevron",
-                                      "width": 16,
-                                      "height": 16,
-                                      "icon": "arrow-right",
-                                      "library": "lucide",
-                                      "fill": "$text-primary"
+                                  "id": "Z62Ehh",
+                                  "type": "ref",
+                                  "ref": "aS0yC",
+                                  "name": "ViewProof",
+                                  "descendants": {
+                                    "xQr9H": {
+                                      "content": "View proof"
                                     }
-                                  ]
+                                  }
                                 }
                               ]
                             }
@@ -238494,33 +238278,15 @@
                                   "fontWeight": "normal"
                                 },
                                 {
-                                  "type": "frame",
-                                  "id": "Xtgzp",
-                                  "name": "Link",
-                                  "gap": 6,
-                                  "alignItems": "center",
-                                  "children": [
-                                    {
-                                      "type": "text",
-                                      "id": "afKoK",
-                                      "name": "Label",
-                                      "fill": "$text-primary",
-                                      "content": "View proof",
-                                      "fontFamily": "$font-body",
-                                      "fontSize": 14,
-                                      "fontWeight": "500"
-                                    },
-                                    {
-                                      "type": "icon",
-                                      "id": "KiPKV",
-                                      "name": "Chevron",
-                                      "width": 16,
-                                      "height": 16,
-                                      "icon": "arrow-right",
-                                      "library": "lucide",
-                                      "fill": "$text-primary"
+                                  "id": "K3k1L",
+                                  "type": "ref",
+                                  "ref": "aS0yC",
+                                  "name": "ViewProof",
+                                  "descendants": {
+                                    "xQr9H": {
+                                      "content": "View proof"
                                     }
-                                  ]
+                                  }
                                 }
                               ]
                             }
@@ -238697,33 +238463,15 @@
                                   "fontWeight": "normal"
                                 },
                                 {
-                                  "type": "frame",
-                                  "id": "Z5OYS",
-                                  "name": "Link",
-                                  "gap": 6,
-                                  "alignItems": "center",
-                                  "children": [
-                                    {
-                                      "type": "text",
-                                      "id": "qzYW4",
-                                      "name": "Label",
-                                      "fill": "$text-primary",
-                                      "content": "View proof",
-                                      "fontFamily": "$font-body",
-                                      "fontSize": 14,
-                                      "fontWeight": "500"
-                                    },
-                                    {
-                                      "type": "icon",
-                                      "id": "ug96p",
-                                      "name": "Chevron",
-                                      "width": 16,
-                                      "height": 16,
-                                      "icon": "arrow-right",
-                                      "library": "lucide",
-                                      "fill": "$text-primary"
+                                  "id": "EwYmA",
+                                  "type": "ref",
+                                  "ref": "aS0yC",
+                                  "name": "ViewProof",
+                                  "descendants": {
+                                    "xQr9H": {
+                                      "content": "View proof"
                                     }
-                                  ]
+                                  }
                                 }
                               ]
                             }
@@ -238906,33 +238654,15 @@
                                   "fontWeight": "normal"
                                 },
                                 {
-                                  "type": "frame",
-                                  "id": "f9PT7b",
-                                  "name": "Link",
-                                  "gap": 6,
-                                  "alignItems": "center",
-                                  "children": [
-                                    {
-                                      "type": "text",
-                                      "id": "Yr1tp",
-                                      "name": "Label",
-                                      "fill": "$text-primary",
-                                      "content": "View proof",
-                                      "fontFamily": "$font-body",
-                                      "fontSize": 14,
-                                      "fontWeight": "500"
-                                    },
-                                    {
-                                      "type": "icon",
-                                      "id": "G2GsXO",
-                                      "name": "Chevron",
-                                      "width": 16,
-                                      "height": 16,
-                                      "icon": "arrow-right",
-                                      "library": "lucide",
-                                      "fill": "$text-primary"
+                                  "id": "ztAbd",
+                                  "type": "ref",
+                                  "ref": "aS0yC",
+                                  "name": "ViewProof",
+                                  "descendants": {
+                                    "xQr9H": {
+                                      "content": "View proof"
                                     }
-                                  ]
+                                  }
                                 }
                               ]
                             }
@@ -239109,33 +238839,15 @@
                                   "fontWeight": "normal"
                                 },
                                 {
-                                  "type": "frame",
-                                  "id": "WwoCl",
-                                  "name": "Link",
-                                  "gap": 6,
-                                  "alignItems": "center",
-                                  "children": [
-                                    {
-                                      "type": "text",
-                                      "id": "YG0lo",
-                                      "name": "Label",
-                                      "fill": "$text-primary",
-                                      "content": "View proof",
-                                      "fontFamily": "$font-body",
-                                      "fontSize": 14,
-                                      "fontWeight": "500"
-                                    },
-                                    {
-                                      "type": "icon",
-                                      "id": "S5krId",
-                                      "name": "Chevron",
-                                      "width": 16,
-                                      "height": 16,
-                                      "icon": "arrow-right",
-                                      "library": "lucide",
-                                      "fill": "$text-primary"
+                                  "id": "QyEwP",
+                                  "type": "ref",
+                                  "ref": "aS0yC",
+                                  "name": "ViewProof",
+                                  "descendants": {
+                                    "xQr9H": {
+                                      "content": "View proof"
                                     }
-                                  ]
+                                  }
                                 }
                               ]
                             }
@@ -240422,33 +240134,15 @@
                                   "fontWeight": "normal"
                                 },
                                 {
-                                  "type": "frame",
-                                  "id": "f5tcgK",
-                                  "name": "Link",
-                                  "gap": 6,
-                                  "alignItems": "center",
-                                  "children": [
-                                    {
-                                      "type": "text",
-                                      "id": "RR5XO",
-                                      "name": "Label",
-                                      "fill": "$text-primary",
-                                      "content": "View proof",
-                                      "fontFamily": "$font-body",
-                                      "fontSize": 14,
-                                      "fontWeight": "500"
-                                    },
-                                    {
-                                      "type": "icon",
-                                      "id": "SsGp8",
-                                      "name": "Chevron",
-                                      "width": 16,
-                                      "height": 16,
-                                      "icon": "arrow-right",
-                                      "library": "lucide",
-                                      "fill": "$text-primary"
+                                  "id": "cSDVA",
+                                  "type": "ref",
+                                  "ref": "aS0yC",
+                                  "name": "ViewProof",
+                                  "descendants": {
+                                    "xQr9H": {
+                                      "content": "View proof"
                                     }
-                                  ]
+                                  }
                                 }
                               ]
                             }
@@ -240625,33 +240319,15 @@
                                   "fontWeight": "normal"
                                 },
                                 {
-                                  "type": "frame",
-                                  "id": "CU502",
-                                  "name": "Link",
-                                  "gap": 6,
-                                  "alignItems": "center",
-                                  "children": [
-                                    {
-                                      "type": "text",
-                                      "id": "OYSV4",
-                                      "name": "Label",
-                                      "fill": "$text-primary",
-                                      "content": "View proof",
-                                      "fontFamily": "$font-body",
-                                      "fontSize": 14,
-                                      "fontWeight": "500"
-                                    },
-                                    {
-                                      "type": "icon",
-                                      "id": "pSJJs",
-                                      "name": "Chevron",
-                                      "width": 16,
-                                      "height": 16,
-                                      "icon": "arrow-right",
-                                      "library": "lucide",
-                                      "fill": "$text-primary"
+                                  "id": "PqwJY",
+                                  "type": "ref",
+                                  "ref": "aS0yC",
+                                  "name": "ViewProof",
+                                  "descendants": {
+                                    "xQr9H": {
+                                      "content": "View proof"
                                     }
-                                  ]
+                                  }
                                 }
                               ]
                             }
@@ -240834,33 +240510,15 @@
                                   "fontWeight": "normal"
                                 },
                                 {
-                                  "type": "frame",
-                                  "id": "G5Anaf",
-                                  "name": "Link",
-                                  "gap": 6,
-                                  "alignItems": "center",
-                                  "children": [
-                                    {
-                                      "type": "text",
-                                      "id": "cIRmV",
-                                      "name": "Label",
-                                      "fill": "$text-primary",
-                                      "content": "View proof",
-                                      "fontFamily": "$font-body",
-                                      "fontSize": 14,
-                                      "fontWeight": "500"
-                                    },
-                                    {
-                                      "type": "icon",
-                                      "id": "Q8Gv2s",
-                                      "name": "Chevron",
-                                      "width": 16,
-                                      "height": 16,
-                                      "icon": "arrow-right",
-                                      "library": "lucide",
-                                      "fill": "$text-primary"
+                                  "id": "aUFTZ",
+                                  "type": "ref",
+                                  "ref": "aS0yC",
+                                  "name": "ViewProof",
+                                  "descendants": {
+                                    "xQr9H": {
+                                      "content": "View proof"
                                     }
-                                  ]
+                                  }
                                 }
                               ]
                             }
@@ -241037,33 +240695,15 @@
                                   "fontWeight": "normal"
                                 },
                                 {
-                                  "type": "frame",
-                                  "id": "Nk5zF",
-                                  "name": "Link",
-                                  "gap": 6,
-                                  "alignItems": "center",
-                                  "children": [
-                                    {
-                                      "type": "text",
-                                      "id": "gA0pg",
-                                      "name": "Label",
-                                      "fill": "$text-primary",
-                                      "content": "View proof",
-                                      "fontFamily": "$font-body",
-                                      "fontSize": 14,
-                                      "fontWeight": "500"
-                                    },
-                                    {
-                                      "type": "icon",
-                                      "id": "rQaJW",
-                                      "name": "Chevron",
-                                      "width": 16,
-                                      "height": 16,
-                                      "icon": "arrow-right",
-                                      "library": "lucide",
-                                      "fill": "$text-primary"
+                                  "id": "NLuos",
+                                  "type": "ref",
+                                  "ref": "aS0yC",
+                                  "name": "ViewProof",
+                                  "descendants": {
+                                    "xQr9H": {
+                                      "content": "View proof"
                                     }
-                                  ]
+                                  }
                                 }
                               ]
                             }
@@ -242284,33 +241924,15 @@
                                   "fontWeight": "normal"
                                 },
                                 {
-                                  "type": "frame",
-                                  "id": "n4Esfy",
-                                  "name": "Link",
-                                  "gap": 6,
-                                  "alignItems": "center",
-                                  "children": [
-                                    {
-                                      "type": "text",
-                                      "id": "l9lxtL",
-                                      "name": "Label",
-                                      "fill": "$text-primary",
-                                      "content": "View proof",
-                                      "fontFamily": "$font-body",
-                                      "fontSize": 14,
-                                      "fontWeight": "500"
-                                    },
-                                    {
-                                      "type": "icon",
-                                      "id": "RIoNe",
-                                      "name": "Chevron",
-                                      "width": 16,
-                                      "height": 16,
-                                      "icon": "arrow-right",
-                                      "library": "lucide",
-                                      "fill": "$text-primary"
+                                  "id": "n3OYh4",
+                                  "type": "ref",
+                                  "ref": "aS0yC",
+                                  "name": "ViewProof",
+                                  "descendants": {
+                                    "xQr9H": {
+                                      "content": "View proof"
                                     }
-                                  ]
+                                  }
                                 }
                               ]
                             }
@@ -242496,33 +242118,15 @@
                                   "fontWeight": "normal"
                                 },
                                 {
-                                  "type": "frame",
-                                  "id": "L39Kf",
-                                  "name": "Link",
-                                  "gap": 6,
-                                  "alignItems": "center",
-                                  "children": [
-                                    {
-                                      "type": "text",
-                                      "id": "VwDfw",
-                                      "name": "Label",
-                                      "fill": "$text-primary",
-                                      "content": "View proof",
-                                      "fontFamily": "$font-body",
-                                      "fontSize": 14,
-                                      "fontWeight": "500"
-                                    },
-                                    {
-                                      "type": "icon",
-                                      "id": "gVIag",
-                                      "name": "Chevron",
-                                      "width": 16,
-                                      "height": 16,
-                                      "icon": "arrow-right",
-                                      "library": "lucide",
-                                      "fill": "$text-primary"
+                                  "id": "tyHYI",
+                                  "type": "ref",
+                                  "ref": "aS0yC",
+                                  "name": "ViewProof",
+                                  "descendants": {
+                                    "xQr9H": {
+                                      "content": "View proof"
                                     }
-                                  ]
+                                  }
                                 }
                               ]
                             }
@@ -242705,33 +242309,15 @@
                                   "fontWeight": "normal"
                                 },
                                 {
-                                  "type": "frame",
-                                  "id": "nYreQ",
-                                  "name": "Link",
-                                  "gap": 6,
-                                  "alignItems": "center",
-                                  "children": [
-                                    {
-                                      "type": "text",
-                                      "id": "Obffh",
-                                      "name": "Label",
-                                      "fill": "$text-primary",
-                                      "content": "View proof",
-                                      "fontFamily": "$font-body",
-                                      "fontSize": 14,
-                                      "fontWeight": "500"
-                                    },
-                                    {
-                                      "type": "icon",
-                                      "id": "j4Azu",
-                                      "name": "Chevron",
-                                      "width": 16,
-                                      "height": 16,
-                                      "icon": "arrow-right",
-                                      "library": "lucide",
-                                      "fill": "$text-primary"
+                                  "id": "Gg0Il",
+                                  "type": "ref",
+                                  "ref": "aS0yC",
+                                  "name": "ViewProof",
+                                  "descendants": {
+                                    "xQr9H": {
+                                      "content": "View proof"
                                     }
-                                  ]
+                                  }
                                 }
                               ]
                             }
@@ -242917,33 +242503,15 @@
                                   "fontWeight": "normal"
                                 },
                                 {
-                                  "type": "frame",
-                                  "id": "EzOni",
-                                  "name": "Link",
-                                  "gap": 6,
-                                  "alignItems": "center",
-                                  "children": [
-                                    {
-                                      "type": "text",
-                                      "id": "rdYdv",
-                                      "name": "Label",
-                                      "fill": "$text-primary",
-                                      "content": "View proof",
-                                      "fontFamily": "$font-body",
-                                      "fontSize": 14,
-                                      "fontWeight": "500"
-                                    },
-                                    {
-                                      "type": "icon",
-                                      "id": "B091C1",
-                                      "name": "Chevron",
-                                      "width": 16,
-                                      "height": 16,
-                                      "icon": "arrow-right",
-                                      "library": "lucide",
-                                      "fill": "$text-primary"
+                                  "id": "l3pt8",
+                                  "type": "ref",
+                                  "ref": "aS0yC",
+                                  "name": "ViewProof",
+                                  "descendants": {
+                                    "xQr9H": {
+                                      "content": "View proof"
                                     }
-                                  ]
+                                  }
                                 }
                               ]
                             }
