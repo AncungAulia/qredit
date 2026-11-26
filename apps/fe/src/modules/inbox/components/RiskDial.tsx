@@ -15,7 +15,7 @@ export function RiskDial({ grade, className }: { grade: string; className?: stri
   const lit = Math.max(1, Math.round(TICKS * litShare(grade)));
   return (
     <div className={cn("relative mx-auto aspect-[240/190] w-full max-w-[260px]", className)}>
-      <svg viewBox="0 0 240 190" aria-hidden className="absolute inset-0 size-full">
+      <svg viewBox="0 10 240 190" aria-hidden className="absolute inset-0 size-full">
         {Array.from({ length: TICKS }, (_, i) => {
           const angle = ((-SWEEP / 2 + (SWEEP * i) / (TICKS - 1)) * Math.PI) / 180;
           const sin = Math.sin(angle);
@@ -35,7 +35,7 @@ export function RiskDial({ grade, className }: { grade: string; className?: stri
           );
         })}
       </svg>
-      <div className="absolute inset-x-0 top-[24%] flex flex-col items-center gap-1">
+      <div className="absolute inset-x-0 top-[19%] flex flex-col items-center gap-1">
         <span className="text-[84px] leading-none font-light text-text-primary">{grade}</span>
         <span className="text-sm font-medium text-accent-strong">Grade</span>
       </div>

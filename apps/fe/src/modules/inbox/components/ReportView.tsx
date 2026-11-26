@@ -113,7 +113,7 @@ export function ReportView({ parsed }: { parsed: ParsedReport }) {
         {grade && (
           <div className="flex flex-col gap-3 rounded-3xl bg-surface p-5 md:p-6 lg:w-[340px] lg:shrink-0">
             <CardHead title="Risk grade" sub="From A, the lowest risk, to F." />
-            <RiskDial grade={grade} />
+            <RiskDial grade={grade} className="my-auto" />
           </div>
         )}
         <Verdict parsed={parsed} />
