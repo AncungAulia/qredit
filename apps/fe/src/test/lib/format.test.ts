@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { formatBps, formatCount, formatDateTime, formatFusd, formatRelative, fusdToInput, parseFusd, shortAddress, shortHash } from "@/lib/format";
+import { formatBps, formatCount, formatDateTime, formatFusd, formatRelative, formatTimeLeft, fusdToInput, parseFusd, shortAddress, shortHash } from "@/lib/format";
 
 describe("fUSD", () => {
   test("formats 6-decimal units with two decimals", () => {
@@ -71,4 +71,12 @@ test("durations use the largest exact unit", async () => {
   expect(formatDuration(5400)).toBe("90 minutes");
   expect(formatDuration(86400)).toBe("1 day");
   expect(formatDuration(45)).toBe("45 seconds");
+});
+
+test("formatTimeLeft reads hours and minutes", () => {
+  const now = Date.parse("2026-11-26T12:00:00Z");
+  expect(formatTimeLeft(now + (23 * 60 + 14) * 60_000, now)).toBe("23 h 14 min left");
+  expect(formatTimeLeft(now + 14 * 60_000, now)).toBe("14 min left");
+  expect(formatTimeLeft(now + 20_000, now)).toBe("less than 1 min left");
+  expect(formatTimeLeft(now - 1, now)).toBe("no time left");
 });

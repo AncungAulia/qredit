@@ -178,6 +178,9 @@ type Props = {
   nextStep: NextStep;
   /** False when a refused run must not be offered again as it is (for example a stale signed order). */
   retryable?: boolean;
+  /** The confirm button is the danger button, and the closing button may be named. */
+  destructive?: boolean;
+  cancelLabel?: string;
 };
 
 /** A confirmation dialog that carries one chain action from the confirmation to its ending. */
@@ -195,6 +198,8 @@ export function ChainAction({
   summary,
   nextStep,
   retryable = true,
+  destructive,
+  cancelLabel,
 }: Props) {
   const action = useChainAction(run);
   const { phase, reset } = action;
@@ -226,6 +231,8 @@ export function ChainAction({
       body={body}
       confirmLabel={confirmLabel}
       onConfirm={() => void confirm()}
+      destructive={destructive}
+      cancelLabel={cancelLabel}
       dismissible={!busy}
       status={phase === "refused" ? <ChainActionStatus phase="refused" reason={action.reason} hash={action.hash} maySpend={action.maySpend} nextStep={nextStep} /> : undefined}
       actions={

@@ -34,6 +34,10 @@ vi.mock("@/modules/inbox/api/useInbox", () => ({
   useInboxActions: () => ({ reclaim: reclaimFn }),
 }));
 
+vi.mock("@/modules/inbox/components/ReviewActions", () => ({
+  ReviewActions: ({ order }: { order: { orderId: string } }) => <div>review bar for order {order.orderId}</div>,
+}));
+
 import { ReportUnreadable } from "@qredit/qore";
 import { DeliveryNotFound, ReportDoesNotMatch } from "@/modules/inbox/api/inbox.api";
 import { ReportPage } from "@/modules/inbox/components/ReportPage";
@@ -241,13 +245,13 @@ test("a delivery that cannot be read is a load error with a retry, not a mismatc
 test("the delivery lookup starts at the block the order was placed in and ends by its deadline", () => {
   stateOf("delivered");
   render(<ReportPage vault={VAULT} orderId="5" />);
-  expect(deliveryArgs).toHaveBeenLastCalledWith(VAULT, "5", 100, FUTURE, true);
+  expect(deliveryArgs).toHaveBeenLastCalledWith(VAULT, "5", 100, FUTURE, true, 2);
 });
 
 test("a delivery lookup is not started for an order that is not delivered", () => {
   stateOf("open");
   render(<ReportPage vault={VAULT} orderId="5" />);
-  expect(deliveryArgs).toHaveBeenLastCalledWith(VAULT, "5", 100, FUTURE, false);
+  expect(deliveryArgs).toHaveBeenLastCalledWith(VAULT, "5", 100, FUTURE, false, 2);
 });
 
 test("no delivery record yet has its own sentence, not a service failure", async () => {
@@ -287,4 +291,35 @@ test("the checks stay inside the page and never show a key", async () => {
   const { container } = render(<ReportPage vault={VAULT} orderId="5" />);
   await waitFor(() => expect(within(container).getByText("Your report is sealed")).toBeInTheDocument());
   expect(container.textContent).not.toMatch(/sealKeys|secret|mnemonic/i);
+});
+
+const reviewState = (status: Order["status"], reviewEnds: Date | null, refund: bigint | null = null) => {
+  ctx.data = { business, order: { ...orderOf(status), reviewEnds, refund } };
+  delivery.data = DELIVERY;
+};
+
+test("a report in review shows the review bar", () => {
+  reviewState("in_review", new Date(Date.now() + 3_600_000));
+  render(<ReportPage vault={VAULT} orderId="5" />);
+  expect(screen.getByText("review bar for order 5")).toBeInTheDocument();
+});
+
+test("a report whose review has ended shows no bar and says the sale settles", () => {
+  reviewState("in_review", new Date(Date.now() - 1000));
+  render(<ReportPage vault={VAULT} orderId="5" />);
+  expect(screen.queryByText(/review bar/)).not.toBeInTheDocument();
+  expect(screen.getByText(/The review ended without a rejection/)).toBeInTheDocument();
+});
+
+test("a rejected report says what was returned and shows no bar", () => {
+  reviewState("rejected", new Date(Date.now() - 1000), 200_000n);
+  render(<ReportPage vault={VAULT} orderId="5" />);
+  expect(screen.queryByText(/review bar/)).not.toBeInTheDocument();
+  expect(screen.getByText(/You rejected this report, and 0\.20 fUSD was returned to your wallet/)).toBeInTheDocument();
+});
+
+test("a settled report shows no bar", () => {
+  reviewState("settled", new Date(Date.now() + 3_600_000));
+  render(<ReportPage vault={VAULT} orderId="5" />);
+  expect(screen.queryByText(/review bar/)).not.toBeInTheDocument();
 });

@@ -4,4 +4,5 @@ export const inboxKeys = {
   times: (blocks: number[]) => ["inbox", "times", ...blocks] as const,
   context: (vault: string, orderId: string) => ["inbox", "context", vault, orderId] as const,
   delivery: (vault: string, orderId: string) => ["inbox", "delivery", vault, orderId] as const,
+  refund: (vault: string, orderId: string) => ["inbox", "refund", vault, orderId] as const,
 };

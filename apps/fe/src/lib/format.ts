@@ -71,6 +71,15 @@ export function formatRelative(d: Date | number, now: Date | number = Date.now()
   return formatDate(d);
 }
 
+/** Time left to a moment, as the review bar reads it: "23 h 14 min left". Nothing is left at or after the moment. */
+export function formatTimeLeft(end: Date | number, now: Date | number = Date.now()): string {
+  const total = Math.max(0, Math.floor((+end - +now) / 60_000));
+  if (total === 0) return +end > +now ? "less than 1 min left" : "no time left";
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  return h === 0 ? `${m} min left` : `${h} h ${m} min left`;
+}
+
 export const shortAddress = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 export const shortHash = (h: string) => `${h.slice(0, 6)}…${h.slice(-4)}`;
 

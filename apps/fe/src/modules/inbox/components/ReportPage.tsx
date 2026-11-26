@@ -18,9 +18,10 @@ import { cn, focusRing } from "@/lib/utils";
 import { DeliveryNotFound, ReportDoesNotMatch, type Delivery, type OpenedReport } from "@/modules/inbox/api/inbox.api";
 import { useDeliveryQuery, useOpenReport, useReportContextQuery } from "@/modules/inbox/api/useInbox";
 import { ReclaimButton } from "@/modules/inbox/components/ReclaimButton";
+import { ReviewActions } from "@/modules/inbox/components/ReviewActions";
 import { ReportView } from "@/modules/inbox/components/ReportView";
 import { downloadReport } from "@/modules/inbox/lib/download";
-import { isLate } from "@/modules/inbox/lib/inboxOrders";
+import { inReview, isLate } from "@/modules/inbox/lib/inboxOrders";
 import { parseReport } from "@/modules/inbox/schemas/report.schema";
 import { ConnectPrompt } from "@/modules/wallet/components/ConnectPrompt";
 import { useWalletReadiness } from "@/modules/wallet/components/RequireReadyWallet";
@@ -186,6 +187,21 @@ function WaitingOrder({ ctx }: { ctx: Loaded }) {
   return <>{card}</>;
 }
 
+/** The review of a v2 delivery: the sticky bar until its end, then a note on how the sale ended. */
+function ReviewPanel({ order, business }: Loaded) {
+  const now = useNow();
+  const readiness = useWalletReadiness();
+  if (order.status === "rejected") {
+    return <Notice tone="info">You rejected this report{order.refund !== null ? `, and ${formatFusd(order.refund)} was returned to your wallet` : ""}.</Notice>;
+  }
+  if (order.status !== "in_review" || order.reviewEnds === null) return null;
+  if (!inReview(order, now)) {
+    return <Notice tone="info">The review ended without a rejection, so the sale settles and {business.name} is paid.</Notice>;
+  }
+  if (readiness.state !== "ready") return null;
+  return <ReviewActions order={{ ...order, reviewEnds: order.reviewEnds }} business={business} now={now} />;
+}
+
 function OpenedHeadAction({ opened, vault, orderId }: { opened: OpenedReport | null; vault: Hex; orderId: string }) {
   return (
     <Button
@@ -206,7 +222,7 @@ export function ReportPage({ vault, orderId }: { vault: Hex; orderId: string }) 
   const loaded = ctx.data as Loaded | undefined;
   const order = loaded?.order;
   const delivered = order ? hasReport(order.status) : false;
-  const delivery = useDeliveryQuery(vault, orderId, order?.placedBlock ?? 0, order?.deadline ?? new Date(0), Boolean(delivered));
+  const delivery = useDeliveryQuery(vault, orderId, order?.placedBlock ?? 0, order?.deadline ?? new Date(0), Boolean(delivered), loaded?.business.version ?? 2);
   const open = useOpenReport();
   const wallet = useWallet((s) => testWalletOf(s.session));
   const kind = useWallet((s) => s.session.kind);
@@ -369,8 +385,9 @@ export function ReportPage({ vault, orderId }: { vault: Hex; orderId: string }) 
     );
   }
 
+  const reviewing = order.status === "in_review" && inReview(order);
   return (
-    <div className={FRAME}>
+    <div className={cn(FRAME, reviewing && "pb-40 md:pb-28")}>
       <Breadcrumb />
       <Head title={title} description={description} icon={opened ? MailOpen : Mail} tone="accent" action={<OpenedHeadAction opened={opened} vault={vault} orderId={orderId} />} />
       <Checks
@@ -380,6 +397,7 @@ export function ReportPage({ vault, orderId }: { vault: Hex; orderId: string }) 
           opened: keyCheck,
         }}
       />
+      <ReviewPanel order={order} business={business} />
       {card}
     </div>
   );

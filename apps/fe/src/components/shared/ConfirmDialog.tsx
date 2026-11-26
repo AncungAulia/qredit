@@ -21,6 +21,8 @@ type Props = {
   body: string;
   confirmLabel: string;
   onConfirm: () => void;
+  /** Label of the button that closes without acting; "Cancel" by default. */
+  cancelLabel?: string;
   /** An irreversible action uses the danger button. */
   destructive?: boolean;
   /** Extra content between the body and the actions (a summary block). */
@@ -45,6 +47,7 @@ export function ConfirmDialog({
   confirmLabel,
   onConfirm,
   destructive,
+  cancelLabel = "Cancel",
   children,
   status,
   actions,
@@ -54,7 +57,7 @@ export function ConfirmDialog({
   const buttons = actions ?? (
     <div className="flex gap-2.5 max-md:flex-col-reverse md:justify-end">
       <Button variant="ghost" size="lg" className="h-11 px-4 max-md:w-full" onClick={() => onOpenChange(false)}>
-        Cancel
+        {cancelLabel}
       </Button>
       <Button
         variant={destructive ? "destructive" : "default"}

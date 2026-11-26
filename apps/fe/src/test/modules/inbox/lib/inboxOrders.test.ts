@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { inboxTotals, isLate } from "@/modules/inbox/lib/inboxOrders";
+import { inReview, inboxTotals, isLate } from "@/modules/inbox/lib/inboxOrders";
 
 const NOW = Date.parse("2026-11-26T12:00:00Z");
 const past = new Date(NOW - 1000);
@@ -31,4 +31,12 @@ test("v2 totals: a report in review is ready but not yet spent; a rejection retu
     { status: "declined", price: 250_000n, refund: 250_000n },
   ]);
   expect(totals).toEqual({ ready: 3, waiting: 0, spent: 300_000n, refunded: 450_000n });
+});
+
+test("an order is in review until its review ends", () => {
+  expect(inReview({ status: "in_review", reviewEnds: future }, NOW)).toBe(true);
+  expect(inReview({ status: "in_review", reviewEnds: new Date(NOW) }, NOW)).toBe(true);
+  expect(inReview({ status: "in_review", reviewEnds: past }, NOW)).toBe(false);
+  expect(inReview({ status: "settled", reviewEnds: future }, NOW)).toBe(false);
+  expect(inReview({ status: "in_review", reviewEnds: null }, NOW)).toBe(false);
 });

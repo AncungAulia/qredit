@@ -9,6 +9,9 @@ import {
   readMyOrders,
   readReportContext,
   reclaim,
+  accept,
+  reject,
+  readRejectRefund,
   DeliveryNotFound,
   ReportDoesNotMatch,
   type Delivery,
@@ -50,15 +53,19 @@ export const useReportContextQuery = (vault: Hex, orderId: string) =>
  * The delivery of an order: the Delivered log, the stored envelope and the hash check. A delivery never changes,
  * and a mismatch is final, so neither is read again on its own.
  */
-export const useDeliveryQuery = (vault: Hex, orderId: string, fromBlock: number, deadline: Date, enabled: boolean) =>
+export const useDeliveryQuery = (vault: Hex, orderId: string, fromBlock: number, deadline: Date, enabled: boolean, version: 1 | 2) =>
   useQuery({
     queryKey: inboxKeys.delivery(vault, orderId),
-    queryFn: () => readDelivery(vault, orderId, fromBlock, deadline),
+    queryFn: () => readDelivery(vault, orderId, fromBlock, deadline, version),
     enabled,
     staleTime: Infinity,
     // A mismatch is final and a missing record is an answer, not a failure; only a failed read is tried again.
     retry: (count, error) => !(error instanceof ReportDoesNotMatch || error instanceof DeliveryNotFound) && count < 2,
   });
+
+/** The refund a rejection would give now (price less the supplier cost), read while the review is open. */
+export const useRejectRefundQuery = (vault: Hex, orderId: string, price: bigint, enabled: boolean) =>
+  useQuery({ queryKey: inboxKeys.refund(vault, orderId), queryFn: () => readRejectRefund(vault, orderId, price), enabled, staleTime: 0 });
 
 /** Opens a checked delivery with the keys of the current session. The keys never leave the session. */
 export function useOpenReport() {
@@ -75,6 +82,19 @@ export function useInboxActions() {
   const client = useQueryClient();
   return useMemo(
     () => ({
+      accept: async (vault: Hex, orderId: string) => {
+        const hash = await accept(session, vault, orderId);
+        void client.invalidateQueries({ queryKey: inboxKeys.all });
+        void client.invalidateQueries({ queryKey: marketKeys.all });
+        return hash;
+      },
+      reject: async (vault: Hex, orderId: string) => {
+        const hash = await reject(session, vault, orderId);
+        void client.invalidateQueries({ queryKey: inboxKeys.all });
+        void client.invalidateQueries({ queryKey: marketKeys.all });
+        void client.invalidateQueries({ queryKey: walletKeys.all });
+        return hash;
+      },
       reclaim: async (vault: Hex, orderId: string) => {
         const hash = await reclaim(session, vault, orderId);
         void client.invalidateQueries({ queryKey: inboxKeys.all });

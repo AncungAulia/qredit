@@ -8,11 +8,13 @@ const getBlock = vi.fn();
 const getBlockNumber = vi.fn();
 const get = vi.fn();
 const send = vi.fn();
+const readContract = vi.fn();
 const ensureWindowFor = vi.fn();
 const signerFor = vi.fn();
 
 vi.mock("@/lib/chain", () => ({
   publicClient: { getLogs: (a: unknown) => getLogs(a), getBlock: (a: unknown) => getBlock(a), getBlockNumber: () => getBlockNumber() },
+  readVault: (address: string, functionName: string, args?: unknown[]) => readContract({ address, functionName, args }),
 }));
 vi.mock("@/lib/env", () => ({ env: { chainId: "qorechain-diana", apiUrl: "http://api" } }));
 vi.mock("@/lib/apiClient", async (orig) => ({
@@ -34,11 +36,14 @@ import {
   DeliveryNotFound,
   NoSealKeys,
   ReportDoesNotMatch,
+  accept,
   openMyReport,
   readDelivery,
   readMyOrders,
   readReportContext,
+  readRejectRefund,
   reclaim,
+  reject,
 } from "@/modules/inbox/api/inbox.api";
 import type { WalletSession } from "@/modules/wallet/session";
 import { TxFailed } from "@/modules/wallet/signer";
@@ -308,4 +313,49 @@ test("reclaim without a test wallet says so and sends nothing", async () => {
   signerFor.mockReturnValue(null);
   await expect(reclaim(sessionWith(null), VAULT, "5")).rejects.toBeInstanceOf(TxFailed);
   expect(send).not.toHaveBeenCalled();
+});
+
+describe("buyer review", () => {
+  test("the refund of a rejection is the price less the supplier cost", async () => {
+    readContract.mockResolvedValueOnce(50_000n);
+    expect(await readRejectRefund(VAULT, "7", 250_000n)).toBe(200_000n);
+    expect(readContract).toHaveBeenCalledWith({ address: VAULT, functionName: "supplierCost", args: [7n] });
+    readContract.mockResolvedValueOnce(900_000n); // never below zero
+    expect(await readRejectRefund(VAULT, "7", 250_000n)).toBe(0n);
+  });
+
+  test("accept and reject send the vault call for the order", async () => {
+    const sent: { functionName: string; args?: readonly unknown[] }[] = [];
+    signerFor.mockReturnValue({
+      address: ME,
+      send: async (_to: string, data: `0x${string}`) => {
+        sent.push(decodeFunctionData({ abi: LOAN_VAULT_ABI, data }));
+        return "0xhash";
+      },
+    });
+    ensureWindowFor.mockResolvedValue(null);
+    const session = sessionWith(myKeys);
+    expect(await accept(session, VAULT, "7")).toBe("0xhash");
+    expect(await reject(session, VAULT, "8")).toBe("0xhash");
+    expect(sent).toEqual([
+      { functionName: "accept", args: [7n] },
+      { functionName: "reject", args: [8n] },
+    ]);
+  });
+
+  test("a declined order of a v2 business gets its refund from the vault", async () => {
+    const v2 = { ...businessOf("a", VAULT), version: 2 } as Business;
+    get.mockResolvedValue({ data: [{ ...orderRow(VAULT, "5", ME, 100), status: "declined" }] });
+    readContract.mockResolvedValueOnce(50_000n);
+    const [o] = await readMyOrders(ME, [v2]);
+    expect(o!.refund).toBe(200_000n);
+  });
+
+  test("readDelivery of a v1 vault searches the v1 Delivered event", async () => {
+    await readDelivery(VAULT, "5", 10_000_000, undefined, 1);
+    const v1 = (getLogs.mock.calls[0]![0] as { event: { inputs: { name: string }[] } }).event.inputs.map((i) => i.name);
+    await readDelivery(VAULT, "5", 10_000_000);
+    const v2 = (getLogs.mock.calls[1]![0] as { event: { inputs: { name: string }[] } }).event.inputs.map((i) => i.name);
+    expect(v1).not.toEqual(v2);
+  });
 });

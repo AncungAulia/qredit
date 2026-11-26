@@ -1,10 +1,10 @@
-import { VAULT_EVENTS_V1 } from "@qredit/qore/abi";
+import { VAULT_EVENTS, VAULT_EVENTS_V1, type VaultVersion } from "@qredit/qore/abi";
 import { LOAN_VAULT_ABI } from "@qredit/qore/abis";
 import { envelopeHash } from "@qredit/qore/hash";
 import { encodeFunctionData, getAbiItem } from "viem";
 import { z } from "zod";
 import { api, ApiError, parseResponse } from "@/lib/apiClient";
-import { publicClient } from "@/lib/chain";
+import { publicClient, readVault } from "@/lib/chain";
 import { env } from "@/lib/env";
 import type { Business, Order } from "@/lib/schemas";
 import { getBlockTimes, getBusinesses, getOrders } from "@/modules/market/api/market.api";
@@ -59,21 +59,39 @@ export class NoSealKeys extends Error {
 
 const envelopeSchema = z.object({ kind: z.string(), body: z.string() });
 
-/** Orders placed by one buyer in every listed business, newest first. A vault that cannot be read fails the whole read. */
+/**
+ * Orders placed by one buyer in every listed business, newest first. A v2 decline returns the price less the supplier
+ * cost, which the backend does not know, so it is read from the vault. A vault that cannot be read fails the whole read.
+ */
 export async function readMyOrders(evm: Hex, businesses: Business[]): Promise<InboxOrder[]> {
   const me = evm.toLowerCase();
   const perBusiness = await Promise.all(
     businesses.map(async (business) => {
-      const orders = await getOrders(business.vault);
-      return orders.filter((o) => o.buyer.toLowerCase() === me).map((o): InboxOrder => ({ ...o, business }));
+      const mine = (await getOrders(business.vault)).filter((o) => o.buyer.toLowerCase() === me);
+      return Promise.all(
+        mine.map(
+          async (o): Promise<InboxOrder> =>
+            business.version === 2 && o.status === "declined" && o.refund === null
+              ? { ...o, business, refund: await readRejectRefund(business.vault, o.orderId, o.price) }
+              : { ...o, business },
+        ),
+      );
     }),
   );
   return perBusiness.flat().sort((a, b) => b.placedBlock - a.placedBlock);
 }
 
+/** What the buyer gets back from a rejection now: the price less what the agent already paid suppliers for the order. */
+export async function readRejectRefund(vault: Hex, orderId: string, price: bigint): Promise<bigint> {
+  const cost = await readVault(vault, "supplierCost", [BigInt(orderId)]);
+  return price - (cost < price ? cost : price);
+}
+
 export { getBlockTimes };
 
-const DELIVERED = getAbiItem({ abi: VAULT_EVENTS_V1, name: "Delivered" });
+/** The Delivered event of each vault version: v1 carries the split, v2 the end of the review. */
+const deliveredEvent = (version: VaultVersion) =>
+  version === 1 ? getAbiItem({ abi: VAULT_EVENTS_V1, name: "Delivered" }) : getAbiItem({ abi: VAULT_EVENTS, name: "Delivered" });
 
 // The node answers a log search over at most 10,000 blocks, so the search walks forward in windows of that size.
 const LOG_WINDOW = 10_000n;
@@ -101,14 +119,23 @@ async function searchEnd(latest: bigint, from: bigint, deadline: Date | undefine
   }
 }
 
+type DeliveredLog = { args: { envelopeHash: Hex }; blockNumber: bigint; transactionHash: Hex };
+
 /** The Delivered log of one order, searched from `fromBlock` (default: the newest window) to the deadline block or the newest block. */
-async function findDeliveredLog(vault: Hex, orderId: string, fromBlock?: number, deadline?: Date) {
+async function findDeliveredLog(vault: Hex, orderId: string, fromBlock?: number, deadline?: Date, version: VaultVersion = 2) {
   const head = await publicClient.getBlockNumber();
   let from = fromBlock === undefined ? (head >= LOG_WINDOW ? head - LOG_WINDOW + 1n : 0n) : BigInt(fromBlock);
   const latest = fromBlock === undefined ? head : await searchEnd(head, from, deadline);
   for (let i = 0; i < MAX_WINDOWS && from <= latest; i++) {
     const to = from + LOG_WINDOW - 1n < latest ? from + LOG_WINDOW - 1n : latest;
-    const logs = await publicClient.getLogs({ address: vault, event: DELIVERED, args: { orderId: BigInt(orderId) }, fromBlock: from, toBlock: to });
+    // The event differs per version, so viem cannot type the log; both carry orderId and envelopeHash.
+    const logs = (await publicClient.getLogs({
+      address: vault,
+      event: deliveredEvent(version) as never,
+      args: { orderId: BigInt(orderId) } as never,
+      fromBlock: from,
+      toBlock: to,
+    })) as unknown as DeliveredLog[];
     if (logs[0]) return logs[0];
     from = to + 1n;
   }
@@ -120,8 +147,8 @@ async function findDeliveredLog(vault: Hex, orderId: string, fromBlock?: number,
  * that the text hashes to it. The hash comes from the chain log, never from the backend. `fromBlock` is the
  * block the order was placed in and `deadline` its deadline, so the log search stays short.
  */
-export async function readDelivery(vault: Hex, orderId: string, fromBlock?: number, deadline?: Date): Promise<Delivery> {
-  const log = await findDeliveredLog(vault, orderId, fromBlock, deadline);
+export async function readDelivery(vault: Hex, orderId: string, fromBlock?: number, deadline?: Date, version: VaultVersion = 2): Promise<Delivery> {
+  const log = await findDeliveredLog(vault, orderId, fromBlock, deadline, version);
   if (!log) throw new DeliveryNotFound();
   const recorded = (log.args as { envelopeHash: Hex }).envelopeHash;
 
@@ -151,8 +178,8 @@ export async function openDelivery(session: WalletSession, vault: Hex, orderId: 
 }
 
 /** The whole path in one call: read the Delivered log, fetch and check the envelope, open it with the session keys. */
-export async function openMyReport(session: WalletSession, vault: Hex, orderId: string, fromBlock?: number): Promise<OpenedReport> {
-  const delivery = await readDelivery(vault, orderId, fromBlock);
+export async function openMyReport(session: WalletSession, vault: Hex, orderId: string, fromBlock?: number, version: VaultVersion = 2): Promise<OpenedReport> {
+  const delivery = await readDelivery(vault, orderId, fromBlock, undefined, version);
   return openDelivery(session, vault, orderId, delivery);
 }
 
@@ -170,3 +197,12 @@ export async function readReportContext(vault: Hex, orderId: string): Promise<{ 
 export async function reclaim(session: WalletSession, vault: Hex, orderId: string): Promise<Hex> {
   return act(session, [vault], (signer) => signer.send(vault, encodeFunctionData({ abi: LOAN_VAULT_ABI, functionName: "reclaim", args: [BigInt(orderId)] })));
 }
+
+const reviewCall = (session: WalletSession, vault: Hex, orderId: string, functionName: "accept" | "reject"): Promise<Hex> =>
+  act(session, [vault], (signer) => signer.send(vault, encodeFunctionData({ abi: LOAN_VAULT_ABI, functionName, args: [BigInt(orderId)] })));
+
+/** The buyer keeps the report: the sale settles at once and lenders are repaid first. */
+export const accept = (session: WalletSession, vault: Hex, orderId: string) => reviewCall(session, vault, orderId, "accept");
+
+/** The buyer rejects the report during its review and gets the price back less the supplier cost. */
+export const reject = (session: WalletSession, vault: Hex, orderId: string) => reviewCall(session, vault, orderId, "reject");

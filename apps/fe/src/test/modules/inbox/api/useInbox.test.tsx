@@ -26,26 +26,26 @@ beforeEach(() => {
 
 test("the delivery is read from the placement block up to the deadline", async () => {
   readDelivery.mockResolvedValue({ ok: true });
-  const { result } = renderHook(() => useDeliveryQuery(VAULT, "5", 100, DEADLINE, true), { wrapper });
+  const { result } = renderHook(() => useDeliveryQuery(VAULT, "5", 100, DEADLINE, true, 2), { wrapper });
   await waitFor(() => expect(result.current.isSuccess).toBe(true));
-  expect(readDelivery).toHaveBeenCalledWith(VAULT, "5", 100, DEADLINE);
+  expect(readDelivery).toHaveBeenCalledWith(VAULT, "5", 100, DEADLINE, 2);
 });
 
 test("nothing is read until the order is delivered", () => {
-  renderHook(() => useDeliveryQuery(VAULT, "5", 100, DEADLINE, false), { wrapper });
+  renderHook(() => useDeliveryQuery(VAULT, "5", 100, DEADLINE, false, 2), { wrapper });
   expect(readDelivery).not.toHaveBeenCalled();
 });
 
 test("a missing delivery record is not asked for again on its own", async () => {
   readDelivery.mockImplementation(async () => { throw new DeliveryNotFound(); });
-  const { result } = renderHook(() => useDeliveryQuery(VAULT, "5", 100, DEADLINE, true), { wrapper });
+  const { result } = renderHook(() => useDeliveryQuery(VAULT, "5", 100, DEADLINE, true, 2), { wrapper });
   await waitFor(() => expect(result.current.isError).toBe(true));
   expect(readDelivery).toHaveBeenCalledTimes(1);
 });
 
 test("a hash mismatch is final and is not asked for again", async () => {
   readDelivery.mockImplementation(async () => { throw new ReportDoesNotMatch(`0x${"11".repeat(32)}`, `0x${"22".repeat(32)}`); });
-  const { result } = renderHook(() => useDeliveryQuery(VAULT, "5", 100, DEADLINE, true), { wrapper });
+  const { result } = renderHook(() => useDeliveryQuery(VAULT, "5", 100, DEADLINE, true, 2), { wrapper });
   await waitFor(() => expect(result.current.isError).toBe(true));
   expect(readDelivery).toHaveBeenCalledTimes(1);
 });

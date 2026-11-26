@@ -5,6 +5,10 @@ import type { Order } from "@/lib/schemas";
 export const isLate = (order: Pick<Order, "status" | "deadline">, now: Date | number = Date.now()): boolean =>
   order.status === "open" && +order.deadline < +now;
 
+/** The buyer may still accept or reject: delivered by a v2 vault and the review has not ended. */
+export const inReview = (o: Pick<Order, "status" | "reviewEnds">, now: Date | number = Date.now()): boolean =>
+  o.status === "in_review" && o.reviewEnds !== null && +now <= +o.reviewEnds;
+
 export type InboxTotals = {
   /** Delivered reports, in either vault version. The app cannot tell which were opened already, so every one counts. */
   ready: number;
