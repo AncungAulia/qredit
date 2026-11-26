@@ -34,11 +34,15 @@ function Line({ label, value, strong }: { label: string; value: string; strong?:
  */
 export function ReviewActions({ order, business, now }: Props) {
   const [open, setOpen] = useState<"accept" | "reject" | null>(null);
+  // The refund shown in the Reject dialog is the one read when it opened, so a refetch cannot change it under the buyer.
+  const [frozen, setFrozen] = useState<bigint | null>(null);
   const actions = useInboxActions();
   const refund = useRejectRefundQuery(order.vault, order.orderId, order.price, true);
-  const back = refund.data;
+  const live = refund.data;
+  const back = open === "reject" && frozen !== null ? frozen : live;
   const price = formatFusd(order.price);
   const kept = back === undefined ? null : formatFusd(order.price - back);
+  const ended = now > +order.reviewEnds;
   const toggle = (which: "accept" | "reject") => (next: boolean) => setOpen(next ? which : null);
   return (
     <>
@@ -65,10 +69,14 @@ export function ReviewActions({ order, business, now }: Props) {
           </div>
         </div>
         <div className="flex gap-2 max-md:[&>button]:flex-1">
-          <Button type="button" size="lg" variant="secondary" className="h-11" onClick={() => setOpen("reject")} disabled={back === undefined}>
+          <Button type="button" size="lg" variant="secondary" className="h-11" onClick={() => {
+              setFrozen(live ?? null);
+              setOpen("reject");
+            }}
+            disabled={live === undefined || ended}>
             Reject
           </Button>
-          <Button type="button" size="lg" className="h-11" onClick={() => setOpen("accept")}>
+          <Button type="button" size="lg" className="h-11" onClick={() => setOpen("accept")} disabled={ended}>
             Accept report
           </Button>
         </div>

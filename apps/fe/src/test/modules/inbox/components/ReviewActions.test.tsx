@@ -68,3 +68,20 @@ test("Accept report asks first and says the sale is final", async () => {
   expect(await screen.findByText(/This cannot be undone/)).toBeInTheDocument();
   expect(accept).not.toHaveBeenCalled();
 });
+
+test("the refund in the Reject dialog stays as it was when the dialog opened", async () => {
+  refund.mockReturnValue(200_000n);
+  const { rerender } = render(<ReviewActions order={order} business={business} now={NOW} />);
+  await userEvent.click(screen.getByRole("button", { name: "Reject" }));
+  expect(await screen.findByText(/You get 0\.20 fUSD back/)).toBeInTheDocument();
+  refund.mockReturnValue(150_000n);
+  rerender(<ReviewActions order={order} business={business} now={NOW + 1000} />);
+  expect(screen.getByText(/You get 0\.20 fUSD back/)).toBeInTheDocument();
+});
+
+test("Accept and Reject are disabled once the review has ended", () => {
+  refund.mockReturnValue(200_000n);
+  render(<ReviewActions order={order} business={business} now={+order.reviewEnds + 1} />);
+  expect(screen.getByRole("button", { name: "Reject" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Accept report" })).toBeDisabled();
+});

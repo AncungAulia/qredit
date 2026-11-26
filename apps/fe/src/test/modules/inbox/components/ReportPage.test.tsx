@@ -323,3 +323,11 @@ test("a settled report shows no bar", () => {
   render(<ReportPage vault={VAULT} orderId="5" />);
   expect(screen.queryByText(/review bar/)).not.toBeInTheDocument();
 });
+
+test("a wallet that did not place the order sees no review bar", () => {
+  reviewState("in_review", new Date(Date.now() + 3_600_000));
+  wallet.session = { kind: "test", evm: "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc", address: "qor1y", sealKeys: {} };
+  render(<ReportPage vault={VAULT} orderId="5" />);
+  expect(screen.queryByText(/review bar/)).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /Accept|Reject/ })).not.toBeInTheDocument();
+});

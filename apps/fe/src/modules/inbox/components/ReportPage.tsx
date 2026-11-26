@@ -188,9 +188,7 @@ function WaitingOrder({ ctx }: { ctx: Loaded }) {
 }
 
 /** The review of a v2 delivery: the sticky bar until its end, then a note on how the sale ended. */
-function ReviewPanel({ order, business }: Loaded) {
-  const now = useNow();
-  const readiness = useWalletReadiness();
+function ReviewPanel({ order, business, now, canAct }: Loaded & { now: number; canAct: boolean }) {
   if (order.status === "rejected") {
     return <Notice tone="info">You rejected this report{order.refund !== null ? `, and ${formatFusd(order.refund)} was returned to your wallet` : ""}.</Notice>;
   }
@@ -198,7 +196,7 @@ function ReviewPanel({ order, business }: Loaded) {
   if (!inReview(order, now)) {
     return <Notice tone="info">The review ended without a rejection, so the sale settles and {business.name} is paid.</Notice>;
   }
-  if (readiness.state !== "ready") return null;
+  if (!canAct) return null;
   return <ReviewActions order={{ ...order, reviewEnds: order.reviewEnds }} business={business} now={now} />;
 }
 
@@ -226,6 +224,8 @@ export function ReportPage({ vault, orderId }: { vault: Hex; orderId: string }) 
   const open = useOpenReport();
   const wallet = useWallet((s) => testWalletOf(s.session));
   const kind = useWallet((s) => s.session.kind);
+  const now = useNow();
+  const readiness = useWalletReadiness();
   // The opened report belongs to the wallet that opened it: when the test wallet locks, is forgotten or changes, it is dropped.
   const [held, setHeld] = useState<{ phase: Phase; owner: typeof wallet }>({ phase: { kind: "sealed" }, owner: null });
   const phase: Phase = held.owner === wallet ? held.phase : { kind: "sealed" };
@@ -385,9 +385,12 @@ export function ReportPage({ vault, orderId }: { vault: Hex; orderId: string }) 
     );
   }
 
-  const reviewing = order.status === "in_review" && inReview(order);
+  // Only the buyer who placed the order may accept or reject it; order.buyer is an EVM address, like the session's.
+  const isBuyer = wallet !== null && wallet.evm.toLowerCase() === order.buyer.toLowerCase();
+  const canAct = readiness.state === "ready" && isBuyer;
+  const barShown = canAct && order.status === "in_review" && inReview(order, now);
   return (
-    <div className={cn(FRAME, reviewing && "pb-40 md:pb-28")}>
+    <div className={cn(FRAME, barShown && "pb-40 md:pb-28")}>
       <Breadcrumb />
       <Head title={title} description={description} icon={opened ? MailOpen : Mail} tone="accent" action={<OpenedHeadAction opened={opened} vault={vault} orderId={orderId} />} />
       <Checks
@@ -397,7 +400,7 @@ export function ReportPage({ vault, orderId }: { vault: Hex; orderId: string }) 
           opened: keyCheck,
         }}
       />
-      <ReviewPanel order={order} business={business} />
+      <ReviewPanel order={order} business={business} now={now} canAct={canAct} />
       {card}
     </div>
   );
