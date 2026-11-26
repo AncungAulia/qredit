@@ -130,7 +130,7 @@ function RulesCard({ rules }: { rules: Rules }) {
     ["Loosening rules", rules.state === "Repaid" ? "Allowed" : "Locked during the loan"],
   ];
   return (
-    <section aria-labelledby="owner-rules" className="flex flex-col gap-4 rounded-3xl bg-surface p-5 md:p-6">
+    <section aria-labelledby="owner-rules" className="flex flex-col gap-4 rounded-3xl bg-surface p-5 md:p-6 xl:sticky xl:top-[100px]">
       <div className="flex flex-col gap-1">
         <h2 id="owner-rules" className="text-xl font-medium text-text-primary">
           Current rules
