@@ -55,7 +55,7 @@ import { PositionsPage } from "@/modules/lend/components/PositionsPage";
 
 const fusd = (n: number) => BigInt(Math.round(n * 100)) * 10_000n;
 const business = (slug: string, name: string) =>
-  ({ slug, name, tagline: `${name} tagline`, vault: `0x${slug.padEnd(40, "0")}` }) as unknown as Business;
+  ({ slug, name, tagline: `${name} tagline`, vault: `0x${slug.padEnd(40, "0")}`, version: 2 }) as unknown as Business;
 const position = (
   slug: string,
   name: string,
@@ -69,6 +69,7 @@ const position = (
   deposit: fusd(deposit),
   claimed: fusd(claimed),
   claimable: fusd(claimable),
+  fromSweep: 0n,
 });
 
 beforeEach(() => {
@@ -191,4 +192,39 @@ test("QoreX alone can read positions but cannot send, so the actions explain tha
   expect(screen.getByText("Counterparty Check")).toBeInTheDocument();
   expect(screen.getByText(/Claiming and refunds are sent from a test wallet/)).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: /^Claim / })).not.toBeInTheDocument();
+});
+
+test("a defaulted position shows the badge, the recovered amount and what the sweep added to Claim", () => {
+  const p = position("a", "Counterparty Check", "Defaulted", 500, 0, 73.5);
+  positions.data = [{ ...p, vault: { state: "Defaulted", swept: fusd(100) } as Position["vault"], fromSweep: fusd(69.4) }];
+  render(<PositionsPage />);
+  const row = screen.getByText("Counterparty Check").closest("li")!;
+  expect(within(row).getByText("Defaulted")).toBeInTheDocument();
+  expect(within(row).getByText("Defaulted, 69.40 fUSD recovered")).toBeInTheDocument();
+  expect(within(row).getByText("Includes 69.40 from the ended loan")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Claim 73.50 fUSD" })).toBeInTheDocument();
+});
+
+test("a closed position shows its badge", () => {
+  const p = position("a", "Counterparty Check", "Closed", 500, 0, 5);
+  positions.data = [{ ...p, fromSweep: fusd(2) }];
+  render(<PositionsPage />);
+  const row = screen.getByText("Counterparty Check").closest("li")!;
+  expect(within(row).getByText("Closed")).toBeInTheDocument();
+  expect(within(row).getByText("Closed, 2.00 fUSD recovered")).toBeInTheDocument();
+});
+
+test("a v1 position is labelled as an earlier vault", () => {
+  const p = position("a", "Counterparty Check", "Active", 500, 0, 1);
+  positions.data = [{ ...p, business: { ...p.business, version: 1 } as Business }];
+  render(<PositionsPage />);
+  expect(screen.getByText("Earlier vault")).toBeInTheDocument();
+});
+
+test("the claim dialog of an ended loan says what it pays", async () => {
+  const p = position("a", "Counterparty Check", "Defaulted", 500, 0, 7);
+  positions.data = [{ ...p, fromSweep: fusd(6) }];
+  render(<PositionsPage />);
+  await userEvent.click(screen.getByRole("button", { name: "Claim 7.00 fUSD" }));
+  expect(screen.getByRole("alertdialog")).toHaveTextContent("has ended");
 });

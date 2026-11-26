@@ -23,7 +23,12 @@ export type Position = {
   deposit: bigint;
   claimable: bigint;
   claimed: bigint;
+  /** This lender's part of what an ended loan moved to lenders (included in `claimable` until claimed). */
+  fromSweep: bigint;
 };
+
+/** The pro-rata part of the sweep, rounded down like the vault's accumulator. */
+export const sweepShare = (deposit: bigint, swept: bigint, raised: bigint): bigint => (raised > 0n ? (deposit * swept) / raised : 0n);
 
 export const RAISE_FULL_SENTENCE =
   "The vault refused this loan, and your fUSD has not moved. Please choose a business that is still raising.";
@@ -40,7 +45,7 @@ export async function readPositions(evm: Hex, businesses: Business[]): Promise<P
         readVault(business.vault, "lenderClaimable", [evm]),
         readVault(business.vault, "lenderClaimed", [evm]),
       ]);
-      return { business, vault, deposit, claimable, claimed };
+      return { business, vault, deposit, claimable, claimed, fromSweep: sweepShare(deposit, vault.swept, vault.raised) };
     }),
   );
 }

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ChainAction } from "@/components/shared/ChainAction";
 import { Button } from "@/components/ui/button";
 import { formatFusd } from "@/lib/format";
+import { isEnded } from "@/lib/vaultState";
 import type { Position } from "@/modules/lend/api/lend.api";
 import { useLendActions } from "@/modules/lend/api/useLend";
 
@@ -22,7 +23,11 @@ export function ClaimButton({ position, className }: { position: Position; class
         open={open}
         onOpenChange={setOpen}
         title={`Claim ${amount}`}
-        body={`The repayments of ${name} that have arrived will be paid to your wallet. Nothing else moves.`}
+        body={
+          isEnded(position.vault.state)
+            ? `The loan of ${name} has ended. What it repaid and what it moved to lenders when it ended will be paid to your wallet. Nothing else moves.`
+            : `The repayments of ${name} that have arrived will be paid to your wallet. Nothing else moves.`
+        }
         confirmLabel={`Claim ${amount}`}
         pendingLabel={`Claiming ${amount}`}
         successTitle={`Claimed ${amount} from ${name}`}

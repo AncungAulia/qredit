@@ -11,7 +11,7 @@ vi.mock("@/lib/chain", () => ({
   readVault: (...a: unknown[]) => readVault(...a),
   publicClient: { readContract: (a: unknown) => readContract(a) },
 }));
-vi.mock("@/modules/market/api/market.api", () => ({ readVaultSnapshot: (v: string) => snapshot(v) }));
+vi.mock("@/modules/market/api/market.api", () => ({ readVaultSnapshot: (...a: unknown[]) => snapshot(...a) }));
 vi.mock("@/modules/wallet/signer", async (orig) => ({
   ...(await orig<typeof import("@/modules/wallet/signer")>()),
   evmSignerFor: (s: unknown) => signerFor(s),
@@ -29,6 +29,7 @@ import {
   readFusdBalance,
   readPositions,
   refund,
+  sweepShare,
 } from "@/modules/lend/api/lend.api";
 import type { TestSession } from "@/modules/wallet/session";
 import { TxFailed, TxReverted } from "@/modules/wallet/signer";
@@ -68,7 +69,7 @@ test("readPositions keeps only vaults where the lender has a deposit and maps th
     if (fn === "lenderClaimed") return fusd(151);
     throw new Error(`unexpected read ${fn}`);
   });
-  snapshot.mockResolvedValue({ state: "Active" });
+  snapshot.mockResolvedValue({ state: "Active", swept: 10_000_000n, raised: 100_000_000n, version: 2 });
   const rows = await readPositions(EVM, [biz(V1, "a"), biz(V2, "b")]);
   expect(rows).toHaveLength(1);
   expect(rows[0]).toMatchObject({
@@ -77,9 +78,24 @@ test("readPositions keeps only vaults where the lender has a deposit and maps th
     deposit: fusd(500),
     claimable: fusd(18),
     claimed: fusd(151),
+    fromSweep: (fusd(500) * 10_000_000n) / 100_000_000n,
   });
   expect(snapshot).toHaveBeenCalledTimes(1);
   expect(readVault).toHaveBeenCalledWith(V1, "deposits", [EVM]);
+});
+
+test("a v1 business is read as v1 and has no sweep share", async () => {
+  readVault.mockImplementation(async (_v: string, fn: string) => (fn === "deposits" ? fusd(500) : fusd(1)));
+  snapshot.mockResolvedValue({ state: "Active", swept: 0n, raised: 100_000_000n, version: 1 });
+  const rows = await readPositions(EVM, [{ ...biz(V1, "a"), version: 1 } as Business]);
+  expect(snapshot).toHaveBeenCalledWith(V1, 1);
+  expect(rows[0]!.fromSweep).toBe(0n);
+});
+
+test("the sweep is shared pro rata and rounded down", () => {
+  expect(sweepShare(60_000_000n, 10_000_000n, 100_000_000n)).toBe(6_000_000n);
+  expect(sweepShare(1n, 2n, 3n)).toBe(0n);
+  expect(sweepShare(5n, 0n, 0n)).toBe(0n);
 });
 
 test("readPositions is empty when the lender has no deposit anywhere", async () => {
