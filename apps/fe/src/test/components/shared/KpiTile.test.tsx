@@ -19,14 +19,18 @@ test("shows a shimmer skeleton of the figure, never a word, while the value load
   expect(screen.queryByText("Checking")).not.toBeInTheDocument();
 });
 
-test("feature art hangs from the right edge and scales with the tile", () => {
+test("the feature tile shows the sky photo with white text, the same in both themes", () => {
   const { container } = render(<KpiTile variant="feature" label="L" value="1" />);
-  const box = container.querySelector("img")?.parentElement;
-  expect(box?.className).toContain("-right-5");
-  expect(box?.className).toContain("w-[min(250px,60%)]");
+  const tile = container.firstElementChild as HTMLElement;
+  expect(tile.className).toContain("/kpi/feature-sky.webp");
+  expect(tile.className).not.toContain("dark:");
+  expect(screen.getByText("1").className).toContain("text-white");
 });
 
-test("soft art spans the whole tile", () => {
+test("the soft tile switches its background image with the theme", () => {
   const { container } = render(<KpiTile variant="soft" label="L" value="1" />);
-  expect(container.querySelector(".inset-0.overflow-hidden")).not.toBeNull();
+  const tile = container.firstElementChild as HTMLElement;
+  expect(tile.className).toContain("/kpi/soft-light.webp");
+  expect(tile.className).toContain("dark:bg-[url('/kpi/soft-dark.webp')]");
+  expect(tile.className).toContain("bg-right");
 });
