@@ -249,6 +249,9 @@ test("with a test wallet the owner confirms, the order is applied and the result
   await waitFor(() => expect(actions.apply).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ nonce: 4n }), SIG));
   expect(await screen.findByText("Daily cap lowered to 40.00 fUSD")).toBeInTheDocument();
   expect(toast.success).toHaveBeenCalled();
+  // The form starts over, so the order just applied is not offered again against the new rules.
+  expect(screen.getByRole("radio", { name: /Lower the daily spending cap/ })).toHaveAttribute("aria-checked", "false");
+  expect(screen.queryByLabelText("New daily cap")).not.toBeInTheDocument();
 });
 
 test("the CLI path shows the text to sign and refuses a signature that cannot be read", async () => {

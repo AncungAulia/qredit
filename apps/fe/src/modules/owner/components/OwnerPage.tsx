@@ -157,6 +157,8 @@ function Console({ owned, qorexAddress }: { owned: Business[]; qorexAddress: str
   const rules = useRulesQuery(business.vault);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [applied, setApplied] = useState<AppliedOrder | null>(null);
+  // Bumped by every applied order: the form remounts empty, so it never offers the old order against the new rules.
+  const [formRound, setFormRound] = useState(0);
   const [attempts, setAttempts] = useState(0);
 
   const changeBusiness = (next: string) => {
@@ -214,6 +216,7 @@ function Console({ owned, qorexAddress }: { owned: Business[]; qorexAddress: str
                 </Notice>
               )}
               <PolicyOrderForm
+                key={formRound}
                 rules={rules.data}
                 locked={draft !== null}
                 onSubmit={(values, via) => {
@@ -233,6 +236,7 @@ function Console({ owned, qorexAddress }: { owned: Business[]; qorexAddress: str
                       onApplied={(done) => {
                         setApplied(done);
                         setDraft(null);
+                        setFormRound((n) => n + 1);
                       }}
                     />
                   )
