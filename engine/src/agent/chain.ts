@@ -41,7 +41,7 @@ export type OperatorClients = {
   wallet: { account: { address: Hex }; writeContract: (req: never) => Promise<Hex> };
 };
 
-function revertName(e: unknown): string | undefined {
+export function revertName(e: unknown): string | undefined {
   if (e instanceof BaseError) {
     const r = e.walk((x) => x instanceof ContractFunctionRevertedError);
     if (r instanceof ContractFunctionRevertedError) return r.data?.errorName;

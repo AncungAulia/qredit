@@ -1,11 +1,11 @@
-import { linkAuthenticatorMsgs, signAuthenticatorLinkEd25519, type UnifiedAccount } from "@qorechain/sdk";
+import { linkAuthenticatorMsgs, revokeAuthenticatorMsg, signAuthenticatorLinkEd25519, type UnifiedAccount } from "@qorechain/sdk";
 import {
-  broadcastHybrid, confirmed as confirmedOn, convertFusd as convertFusdOn, ensureWindow as ensureWindowOn, ERC20_ABI, FACTORY_ABI,
+  bondFor, broadcastHybrid, confirmed as confirmedOn, convertFusd as convertFusdOn, ensureWindow as ensureWindowOn, ERC20_ABI, FACTORY_ABI,
   FACTORY_ADDRESS, FACTORY_START_BLOCK, FUSD_ADDRESS, FUSD_DENOM, openWindow as openWindowOn, PAY_SUPPLIER_SELECTOR, planLend, publicClientFor,
   registerPqcKey, scanChunked, TESTNET, VAULT_ABI, walletFor, type EnsureWindowOptions, type WindowOptions,
 } from "@qredit/qore";
-import { decodeEventLog, encodeFunctionData, parseAbiItem, type PublicClient } from "viem";
-import type { vaultInit } from "./businesses.ts";
+import { decodeEventLog, encodeFunctionData, parseAbiItem, type Hex, type PublicClient, type TransactionReceipt } from "viem";
+import type { VaultInit } from "./businesses.ts";
 
 export { planLend, type EnsureWindowOptions, type LendPlan, type WindowOptions } from "@qredit/qore";
 
@@ -61,38 +61,77 @@ export async function findExistingVault(ownerPq: string, spender: string, c: Pub
   return matchVaultLog(logs as unknown as FactoryLog[], spender);
 }
 
-export async function createVault(treasury: UnifiedAccount, init: ReturnType<typeof vaultInit>) {
-  const wallet = walletFor(treasury.privateKey as `0x${string}`, TESTNET.evm);
-  const hash = await wallet.sendTransaction({
-    account: wallet.account!, chain: wallet.chain,
-    to: FACTORY_ADDRESS, data: encodeFunctionData({ abi: FACTORY_ABI, functionName: "create", args: [init] }),
-  });
-  const receipt = await client.waitForTransactionReceipt({ hash });
-  if (receipt.status !== "success") throw new Error(`vault creation reverted: ${hash}`);
-  for (const log of receipt.logs) {
+/** Sends EVM transactions from `acc` and waits for each receipt; a reverted receipt throws with the hash. */
+export function evmSender(acc: UnifiedAccount, c: PublicClient = client) {
+  const wallet = walletFor(acc.privateKey as Hex, TESTNET.evm);
+  return async (to: Hex, data: Hex): Promise<{ hash: Hex; receipt: TransactionReceipt }> => {
+    const hash = await wallet.sendTransaction({ account: wallet.account!, chain: wallet.chain, to, data });
+    const receipt = await c.waitForTransactionReceipt({ hash });
+    if (receipt.status !== "success") throw new Error(`reverted: ${hash}`);
+    return { hash, receipt };
+  };
+}
+
+/** The amount to approve for the factory before a create, or null when the allowance already covers the bond. */
+export const bondApproval = (allowance: bigint, target: bigint): bigint | null => {
+  const bond = bondFor(target);
+  return allowance >= bond ? null : bond;
+};
+
+/** The vault of the factory's VaultCreated log in a receipt, lowercase; null when there is none. */
+export function vaultFromReceipt(logs: readonly { address: string; data: Hex; topics: readonly Hex[] }[]): string | null {
+  for (const log of logs) {
     if (log.address.toLowerCase() !== FACTORY_ADDRESS.toLowerCase()) continue;
     try {
-      const ev = decodeEventLog({ abi: FACTORY_ABI, data: log.data, topics: log.topics });
-      if (ev.eventName === "VaultCreated") return { vault: (ev.args.vault as string).toLowerCase(), startBlock: Number(receipt.blockNumber), tx: hash };
+      const ev = decodeEventLog({ abi: FACTORY_ABI, data: log.data, topics: log.topics as [Hex, ...Hex[]] });
+      if (ev.eventName === "VaultCreated") return (ev.args.vault as string).toLowerCase();
     } catch {
       // not a factory event
     }
   }
-  throw new Error(`no VaultCreated event in ${hash}`);
+  return null;
 }
 
-export async function linkAgent(spender: UnifiedAccount, agent: { secret: Uint8Array }, vault: string): Promise<string> {
-  const proof = signAuthenticatorLinkEd25519({ chainId: net.chainId, account: spender.cosmos, privateKey: agent.secret });
-  const msgs = linkAuthenticatorMsgs({
-    owner: spender.cosmos, chainId: net.chainId, ...proof,
+/** Creates a vault through the v2 factory. The factory pulls the owner's bond, so the treasury approves it first when needed. */
+export async function createVault(treasury: UnifiedAccount, init: VaultInit, c: PublicClient = client) {
+  const send = evmSender(treasury, c);
+  const allowance = (await c.readContract({
+    address: FUSD_ADDRESS, abi: ERC20_ABI, functionName: "allowance", args: [treasury.evm as Hex, FACTORY_ADDRESS],
+  })) as bigint;
+  const approve = bondApproval(allowance, init.loan.target);
+  const approveTx = approve === null
+    ? null
+    : (await send(FUSD_ADDRESS, encodeFunctionData({ abi: ERC20_ABI, functionName: "approve", args: [FACTORY_ADDRESS, approve] }))).hash;
+  const { hash, receipt } = await send(FACTORY_ADDRESS, encodeFunctionData({ abi: FACTORY_ABI, functionName: "create", args: [init] }));
+  const vault = vaultFromReceipt(receipt.logs);
+  if (!vault) throw new Error(`no VaultCreated event in ${hash}`);
+  return { vault, startBlock: Number(receipt.blockNumber), tx: hash, approveTx };
+}
+
+/**
+ * The messages that link the agent key to the spender for one vault's paySupplier. With `revokeFirst` the key's
+ * earlier link (the v1 vault) is revoked in the same transaction, so the key can be linked again.
+ */
+export function agentLinkMsgs(o: {
+  spenderCosmos: string; agent: { secret: Uint8Array; publicKey: Uint8Array }; vault: string; revokeFirst: boolean; nowSeconds: number;
+}) {
+  const proof = signAuthenticatorLinkEd25519({ chainId: net.chainId, account: o.spenderCosmos, privateKey: o.agent.secret });
+  const link = linkAuthenticatorMsgs({
+    owner: o.spenderCosmos, chainId: net.chainId, ...proof,
     permissions: ["evm"],
-    expiryUnix: Math.floor(Date.now() / 1000) + 30 * 24 * 3600,
+    expiryUnix: o.nowSeconds + 30 * 24 * 3600,
     label: "qredit agent",
     spendingRule: {
       id: "agent", enabled: true, perTxLimit: "1000000", dailyLimit: "5000000", allowedDenoms: ["uqor"],
-      allowedEvmCalls: [`${vault.toLowerCase()}/${PAY_SUPPLIER_SELECTOR}`],
+      allowedEvmCalls: [`${o.vault.toLowerCase()}/${PAY_SUPPLIER_SELECTOR}`],
     },
   });
+  if (!o.revokeFirst) return link;
+  return [revokeAuthenticatorMsg({ owner: o.spenderCosmos, scheme: "ed25519", pubkey: o.agent.publicKey }), ...link];
+}
+
+export async function linkAgent(spender: UnifiedAccount, agent: { secret: Uint8Array; publicKey: Uint8Array }, vault: string, revokeFirst = false): Promise<string> {
+  const msgs = agentLinkMsgs({ spenderCosmos: spender.cosmos, agent, vault, revokeFirst, nowSeconds: Math.floor(Date.now() / 1000) });
   return confirmed(await broadcastHybrid(net, spender, msgs, { memo: "link qredit agent" }), "agent link");
 }
 
@@ -119,13 +158,7 @@ export async function lend(
   if (plan.action === "skip") return { skipped: plan.reason };
 
   const windowTx = await ensureWindow(lender, [FUSD_ADDRESS, vault, FACTORY_ADDRESS, ...knownVaults], TREASURY_WINDOW);
-  const wallet = walletFor(lender.privateKey as `0x${string}`, TESTNET.evm);
-  const send = async (to: `0x${string}`, data: `0x${string}`) => {
-    const hash = await wallet.sendTransaction({ account: wallet.account!, chain: wallet.chain, to, data });
-    const r = await client.waitForTransactionReceipt({ hash });
-    if (r.status !== "success") throw new Error(`reverted: ${hash}`);
-    return hash;
-  };
+  const send = async (to: Hex, data: Hex) => (await evmSender(lender)(to, data)).hash;
   const approveTx = plan.approve
     ? await send(FUSD_ADDRESS, encodeFunctionData({ abi: ERC20_ABI, functionName: "approve", args: [v, plan.amount] }))
     : undefined;

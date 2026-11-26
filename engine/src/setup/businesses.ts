@@ -68,3 +68,5 @@ export function vaultInit(
     servicePrices: b.services.map((s) => BigInt(s.priceUnits)),
   };
 }
+
+export type VaultInit = ReturnType<typeof vaultInit>;

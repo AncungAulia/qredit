@@ -9,7 +9,7 @@ import { loadSealKeys } from "../agent/seal.ts";
 import { loadBusinesses, vaultInit } from "../setup/businesses.ts";
 import { convertFusd, createVault, ensureWindow, findExistingVault, lend, linkAgent, openWindow, registerBusiness, registerKey, sendQor, TREASURY_WINDOW } from "../setup/chain.ts";
 import { ensureSealSeed, publishCard, registerSealKey } from "../setup/seal.ts";
-import { readDeployments, writeDeployment } from "../setup/deployments.ts";
+import { readDeployments, readDeploymentsV1, writeDeployment } from "../setup/deployments.ts";
 import { RUNTIME_KEY_FIELDS, SUPPLIERS_PATH } from "../runtime-keys.ts";
 import { upsertEnv } from "../setup/env.ts";
 import { initDemoBuyer, placeDemoOrder, readDemoReport } from "../setup/demo-buyer.ts";
@@ -104,13 +104,14 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
           if (w) console.log(`${b.slug}: treasury window ${w}`);
           const init = vaultInit(b, { spender: spenderHex as `0x${string}`, operator: base.operator as `0x${string}`, ownerPq: ownerPq as `0x${string}`, suppliers }, Math.floor(Date.now() / 1000));
           v = await createVault(treasury, init);
+          if (v.approveTx) console.log(`${b.slug}: bond approval ${v.approveTx}`);
         }
         d = { ...base, vault: v.vault, startBlock: v.startBlock, createTx: v.tx };
         writeDeployment(d);
         console.log(`${b.slug}: vault ${d.vault} (block ${d.startBlock})`);
       }
       if (!d.linkTx) {
-        d = { ...d, linkTx: await linkAgent(spender, agent, d.vault) };
+        d = { ...d, linkTx: await linkAgent(spender, agent, d.vault, Boolean(readDeploymentsV1()[b.slug]?.linkTx)) };
         writeDeployment(d);
         console.log(`${b.slug}: agent key linked ${d.linkTx}`);
       }
@@ -122,7 +123,7 @@ const commands: Record<string, (args: string[]) => Promise<void>> = {
       }
       await registerBusiness(cfg.API_URL, cfg.ENGINE_TOKEN, {
         slug: b.slug, vault: d.vault, name: b.name, tagline: b.tagline, services: b.services,
-        operator: d.operator, spender: d.spender, startBlock: d.startBlock,
+        operator: d.operator, spender: d.spender, startBlock: d.startBlock, version: 2,
       });
       console.log(`${b.slug}: registered with the API`);
     }

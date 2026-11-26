@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { readDeployments, writeDeployment } from "../src/setup/deployments.ts";
+import { readDeployments, readDeploymentsV1, writeDeployment } from "../src/setup/deployments.ts";
 
 describe("deployments.json", () => {
   test("missing file reads as empty; writes merge by slug", () => {
@@ -16,4 +16,10 @@ describe("deployments.json", () => {
     expect(Object.keys(all)).toEqual(["a", "b"]);
     expect(all.a.linkTx).toBe("0xl");
   });
+});
+
+test("the v1 deployments are kept beside the v2 file", () => {
+  const v1 = readDeploymentsV1();
+  expect(Object.keys(v1).sort()).toEqual(["contract-auditor", "counterparty-check", "due-diligence", "sanctions-screen"]);
+  expect(v1["counterparty-check"]!.vault).toBe("0x37bbb37dd96a973a22ca64bc809a8bc4d54b03d4");
 });
