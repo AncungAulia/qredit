@@ -145,7 +145,7 @@ contract LoanVaultPolicyTest is Base {
     }
 
     function test_unknownKindReverts() public {
-        LoanVault.PolicyOrder memory o = _order(8, address(0), 0);
+        LoanVault.PolicyOrder memory o = _order(9, address(0), 0);
         vm.expectRevert(LoanVault.UnknownKind.selector);
         vault.applyOrder(o, hex"");
     }

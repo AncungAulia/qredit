@@ -56,7 +56,7 @@ contract LoanVaultClaimsTest is Base {
     function test_ownerCannotClaimWhileTrapped() public {
         _sell(1, 1); // owner earns 1 fUSD while Active
         vm.warp(block.timestamp + GRACE + PERIOD);
-        vm.expectRevert(LoanVault.TrappedNoOwnerClaim.selector);
+        vm.expectRevert(LoanVault.OwnerClaimNotAhead.selector);
         vault.claimOwner();
     }
 
@@ -184,17 +184,20 @@ contract LoanVaultClaimsTest is Base {
         assertEq(fusd.balanceOf(ownerPayout), owner);
     }
 
-    function test_claimOwnerWorksAgainAfterTrappedReturnsToActive() public {
+    function test_ownerClaimNeedsOneInstallmentAhead() public {
         _sell(1, 1); // owner earns 1 fUSD while Active
-        assertEq(vault.ownerPending(), 1e18);
         uint256 t = block.timestamp + GRACE + PERIOD;
         vm.warp(t);
         assertEq(uint8(vault.state()), uint8(LoanVault.State.Trapped));
-        _sell(1, 4); // 4 x 2.5 to lenders in Trapped, 1.5 already repaid -> 11.5 >= 10
+        _sell(1, 4); // 4 x 2.5 to lenders while Trapped: repaid 11.5, 10 due
         assertEq(uint8(vault.state()), uint8(LoanVault.State.Active));
-        assertEq(vault.ownerPending(), 1e18, "pending kept");
+        // On schedule but not ahead: expectedRepaid(now + period) is 20.
+        vm.expectRevert(LoanVault.OwnerClaimNotAhead.selector);
         vault.claimOwner();
-        assertEq(fusd.balanceOf(ownerPayout), 1e18);
+        _sell(1, 6); // 6 x 1.5 to lenders while Active: repaid 20.5
+        assertEq(vault.ownerPending(), 7e18, "1 + 6 x 1 kept while waiting");
+        vault.claimOwner();
+        assertEq(fusd.balanceOf(ownerPayout), 7e18);
     }
 
     function test_buyAndPaySupplierWorkWhileTrapped() public {

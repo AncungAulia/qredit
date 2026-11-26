@@ -29,7 +29,7 @@ contract LoanVault {
     enum State { Raising, Active, Trapped, Repaid, Refunded, Defaulted, Closed }
     enum EndKind { None, Defaulted, Closed }
     enum OrderStatus { None, Open, InReview, Settled, Rejected, Declined, Reclaimed }
-    enum Kind { RemoveSupplier, LowerSupplierCap, LowerDailyCap, Pause, Unpause, AddSupplier, RaiseSupplierCap, RaiseDailyCap }
+    enum Kind { RemoveSupplier, LowerSupplierCap, LowerDailyCap, Pause, Unpause, AddSupplier, RaiseSupplierCap, RaiseDailyCap, Close }
 
     struct LoanTerms {
         uint256 target;
@@ -110,6 +110,7 @@ contract LoanVault {
     uint256 public repaid;
     mapping(address => uint256) public deposits;
     uint256 public accPerShare;
+    uint256 public swept; // total moved to lenders outside the schedule
     mapping(address => uint256) public lenderClaimed;
 
     // Books: balance == escrowTotal + lenderPool + ownerPending + opexBalance + raisedHeld + bondHeld
@@ -147,6 +148,7 @@ contract LoanVault {
     event PolicyApplied(uint64 indexed nonce, uint8 kind, address target, uint256 value);
     event RemainderWithdrawn(uint256 amount);
     event BondReturned(uint256 amount);
+    event LoanEnded(uint8 kind);
 
     error BadConfig();
     error WrongState();
@@ -165,7 +167,9 @@ contract LoanVault {
     error OverSupplierCap();
     error OverDailyCap();
     error InsufficientOpex();
-    error TrappedNoOwnerClaim();
+    error Ended();
+    error OwnerClaimNotAhead();
+    error NotDefaultable();
     error OwnerKeyNotRegistered();
     error OwnerKeyNotProven();
     error BadNonce();
@@ -265,6 +269,7 @@ contract LoanVault {
     // -------------------------------------------------------------- lenders
 
     function deposit(uint256 amount) external {
+        _notEnded();
         if (state() != State.Raising) revert WrongState();
         if (amount == 0) revert ZeroAmount();
         if (raised + amount > loan.target) revert OverTarget();
@@ -303,6 +308,7 @@ contract LoanVault {
     // --------------------------------------------------------------- orders
 
     function buy(uint256 serviceId, bytes32 requestRef) external returns (uint256 id) {
+        _notEnded();
         if (activatedAt == 0) revert WrongState();
         if (paused) revert Paused();
         if (serviceId >= servicePrices.length) revert UnknownService();
@@ -374,6 +380,12 @@ contract LoanVault {
     function _settle(uint256 id, Order storage o) internal {
         o.status = OrderStatus.Settled;
         escrowTotal -= o.price;
+        if (ended != EndKind.None) {
+            // After the end the whole price goes to the lenders.
+            _toLenders(o.price);
+            emit Settled(id, o.price, 0, 0);
+            return;
+        }
         (uint256 toLenders, uint256 toOwner, uint256 toOpex) = _split(o.price);
         emit Settled(id, toLenders, toOwner, toOpex);
     }
@@ -384,7 +396,8 @@ contract LoanVault {
         cost = spent < o.price ? spent : o.price;
         refund = o.price - cost;
         escrowTotal -= o.price;
-        opexBalance += cost;
+        if (ended != EndKind.None) _toLenders(cost);
+        else opexBalance += cost;
         if (refund > 0) token.safeTransfer(o.buyer, refund);
     }
 
@@ -422,6 +435,7 @@ contract LoanVault {
     /// to a supplier needs real buyer money of at least the same amount.
     function paySupplier(address supplier, uint256 amount, uint256 orderId) external {
         if (msg.sender != spender) revert NotSpender();
+        _notEnded();
         if (activatedAt == 0) revert WrongState();
         if (paused) revert Paused();
         Supplier memory s = suppliers[supplier];
@@ -448,13 +462,57 @@ contract LoanVault {
 
     // ---------------------------------------------------------------- owner
 
+    /// The owner's share is paid only while the loan is one installment ahead of schedule, or once it is repaid.
     function claimOwner() external {
-        if (state() == State.Trapped) revert TrappedNoOwnerClaim();
+        _notEnded();
+        State s = state();
+        bool ahead = s == State.Active && repaid >= expectedRepaid(block.timestamp + loan.period);
+        if (s != State.Repaid && !ahead) revert OwnerClaimNotAhead();
         uint256 amount = ownerPending;
         if (amount == 0) revert ZeroAmount();
         ownerPending = 0;
         token.safeTransfer(ownerPayout, amount);
         emit OwnerClaimed(amount);
+    }
+
+    /// True when anyone may end the loan as Defaulted now: it runs (Active or Trapped) and is either
+    /// `defaultAfterMissed` installments behind the schedule or past maturity plus its grace.
+    function defaultable() public view returns (bool) {
+        if (ended != EndKind.None) return false;
+        State s = state();
+        if (s != State.Active && s != State.Trapped) return false;
+        uint256 due = expectedRepaid(block.timestamp);
+        if (due > repaid && due - repaid >= uint256(loan.defaultAfterMissed) * loan.installment) return true;
+        return block.timestamp > uint256(activatedAt) + loan.maturity + loan.maturityGrace;
+    }
+
+    function triggerDefault() external {
+        _notEnded();
+        if (!defaultable()) revert NotDefaultable();
+        _end(EndKind.Defaulted);
+    }
+
+    function _notEnded() internal view {
+        if (ended != EndKind.None) revert Ended();
+    }
+
+    /// Freezes the vault and moves what the owner side still holds (opex, owner share, bond) to the lenders.
+    function _end(EndKind kind) internal {
+        ended = kind;
+        uint256 sweep = opexBalance + ownerPending + bondHeld;
+        opexBalance = 0;
+        ownerPending = 0;
+        bondHeld = 0;
+        _toLenders(sweep);
+        emit LoanEnded(uint8(kind));
+    }
+
+    /// Adds money to the lender pool outside the schedule: claimable pro rata, never counted in `repaid`.
+    function _toLenders(uint256 amount) internal {
+        if (amount == 0) return;
+        swept += amount;
+        lenderPool += amount;
+        accPerShare += amount * ACC / raised;
     }
 
     /// Repaid: the owner takes the operating funds and the bond back.
@@ -499,17 +557,22 @@ contract LoanVault {
     }
 
     function applyOrder(PolicyOrder calldata o, bytes calldata sig) external {
-        if (o.kind > uint8(Kind.RaiseDailyCap)) revert UnknownKind();
+        _notEnded();
+        if (o.kind > uint8(Kind.Close)) revert UnknownKind();
         (bool registered,, bytes memory pubkey, bool proven) = PQC_KEYS.pqcKeyStatus(ownerPq);
         if (!registered || pubkey.length == 0) revert OwnerKeyNotRegistered();
         if (!proven) revert OwnerKeyNotProven();
         if (o.nonce != policyNonce) revert BadNonce();
         if (block.timestamp > o.expiry) revert OrderExpiredSig();
         if (!PQC_VERIFY.pqcVerify(pubkey, sig, signedBytes(o))) revert BadPqcSignature();
-        if (o.kind >= uint8(Kind.AddSupplier) && state() != State.Repaid) revert WideningLocked();
+        if (_widens(Kind(o.kind)) && state() != State.Repaid) revert WideningLocked();
         policyNonce = o.nonce + 1;
         _apply(Kind(o.kind), o.target, o.value);
         emit PolicyApplied(o.nonce, o.kind, o.target, o.value);
+    }
+
+    function _widens(Kind k) internal pure returns (bool) {
+        return k == Kind.AddSupplier || k == Kind.RaiseSupplierCap || k == Kind.RaiseDailyCap;
     }
 
     function _apply(Kind k, address target, uint256 value) internal {
@@ -539,9 +602,14 @@ contract LoanVault {
             if (!s.allowed) revert SupplierNotAllowed();
             if (value <= s.perTxCap) revert BadOrder();
             s.perTxCap = value;
-        } else {
+        } else if (k == Kind.RaiseDailyCap) {
             if (value <= dailyCap) revert BadOrder();
             dailyCap = value;
+        } else {
+            // Close: only a running loan (Active or Trapped); Raising, Refunded and Repaid refuse.
+            State s = state();
+            if (s != State.Active && s != State.Trapped) revert WrongState();
+            _end(EndKind.Closed);
         }
     }
 
