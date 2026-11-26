@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import {Test} from "forge-std/Test.sol";
+import {Test, console2} from "forge-std/Test.sol";
 import {Base} from "./Base.t.sol";
 import {LoanVault} from "../src/LoanVault.sol";
 import {MockToken} from "./mocks/MockToken.sol";
@@ -20,7 +20,10 @@ contract VaultHandler is Test {
     uint256 public deliveries;
     uint256 public settlements;
     uint256 public rejections;
-    uint256 public ends;
+    uint256 public declines;
+    uint256 public reclaims;
+    uint256 public defaults;
+    uint256 public closes;
     uint256 public lenderClaims;
     uint256 public supplierPayments;
     uint256 public ownerEntitledMax; // sum over settlements of price * ownerBps / 10000
@@ -90,29 +93,37 @@ contract VaultHandler is Test {
 
     function reject(uint256 id) external {
         if (vault.orderCount() == 0) return;
+        id = _id(id);
         vm.prank(buyer);
-        try vault.reject(_id(id)) {
+        try vault.reject(id) {
             rejections++;
         } catch {}
     }
 
     function decline(uint256 id) external {
         if (vault.orderCount() == 0) return;
+        id = _id(id);
         vm.prank(operator);
-        try vault.decline(_id(id), 0) {} catch {}
+        try vault.decline(id, 0) {
+            declines++;
+        } catch {}
     }
 
     function reclaim(uint256 id) external {
         if (vault.orderCount() == 0) return;
+        id = _id(id);
         vm.prank(buyer);
-        try vault.reclaim(_id(id)) {} catch {}
+        try vault.reclaim(id) {
+            reclaims++;
+        } catch {}
     }
 
     function pay(uint256 amount, uint256 id) external {
         if (vault.orderCount() == 0) return;
         amount = bound(amount, 1, 10e18);
+        id = _id(id);
         vm.prank(spender);
-        try vault.paySupplier(supplier, amount, _id(id)) {
+        try vault.paySupplier(supplier, amount, id) {
             supplierPayments++;
         } catch {}
     }
@@ -132,18 +143,19 @@ contract VaultHandler is Test {
     function triggerDefault() external {
         if (deliveries == 0) return;
         try vault.triggerDefault() {
-            ends++;
+            defaults++;
         } catch {}
     }
 
-    function close() external {
-        if (deliveries == 0) return;
+    /// Closes only after a settlement and for one fuzzed `gate` in four, so default and pre-end paths keep coverage.
+    function close(uint256 gate) external {
+        if (settlements == 0 || gate % 4 != 0) return;
         LoanVault.PolicyOrder memory o = LoanVault.PolicyOrder({
             kind: 8, target: address(0), value: 0, nonce: vault.policyNonce(), expiry: uint64(block.timestamp + 1 hours)
         });
         bytes memory sig = abi.encodePacked(keccak256(abi.encodePacked("ok", hex"c0ffee", vault.signedBytes(o))));
         try vault.applyOrder(o, sig) {
-            ends++;
+            closes++;
         } catch {}
     }
 
@@ -198,5 +210,47 @@ contract LoanVaultInvariantTest is Base {
     function afterInvariant() public view {
         assertGt(handler.buys(), 0, "no successful buy");
         assertGt(handler.deliveries(), 0, "no successful delivery");
+        console2.log("buys/deliveries/settlements", handler.buys(), handler.deliveries(), handler.settlements());
+        console2.log("rejects/declines/reclaims", handler.rejections(), handler.declines(), handler.reclaims());
+        console2.log("pays/defaults/closes", handler.supplierPayments(), handler.defaults(), handler.closes());
+    }
+
+    /// Drives every handler path once in a fixed order; a path that silently reverts leaves its counter at zero.
+    function test_handlerPathsSucceed() public {
+        handler.buyAndDeliver(0);
+        handler.accept(1);
+        assertEq(handler.settlements(), 1, "accept");
+
+        handler.buy(0); // order 2
+        handler.pay(1e17, 2);
+        assertEq(handler.supplierPayments(), 1, "pay");
+        handler.deliver(2);
+        handler.reject(2);
+        assertEq(handler.rejections(), 1, "reject");
+
+        handler.buy(0); // order 3
+        handler.decline(3);
+        assertEq(handler.declines(), 1, "decline");
+
+        handler.buyAndDeliver(0); // order 4
+        handler.warp(1 days + 1);
+        handler.settle(4);
+        assertEq(handler.settlements(), 2, "settle");
+
+        handler.buy(0); // order 5, expires unserved
+        handler.warp(TTL + 1);
+        handler.reclaim(5);
+        assertEq(handler.reclaims(), 1, "reclaim");
+
+        vm.warp(block.timestamp + MATURITY + MATURITY_GRACE + 1);
+        handler.triggerDefault();
+        assertEq(handler.defaults(), 1, "default");
+    }
+
+    function test_handlerCloseSucceeds() public {
+        handler.buyAndDeliver(0);
+        handler.accept(1);
+        handler.close(0);
+        assertEq(handler.closes(), 1, "close");
     }
 }
